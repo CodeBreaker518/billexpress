@@ -1,0 +1,38 @@
+{
+  "name": "BillExpress",
+  "short_name": "BillExpress",
+  "description": "Aplicación para administrar tus finanzas personales",
+  "start_url": "/dashboard",
+  "display": "standalone",
+  "background_color": "#ffffff",
+  "theme_color": "#3b82f6",
+  "icons": [
+    {
+      "src": "/icons/icon-192x192.png",
+      "sizes": "192x192",
+      "type": "image/png",
+      "purpose": "any maskable"
+    },
+    {
+      "src": "/icons/icon-512x512.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "any maskable"
+    }
+  ],
+  "offline_enabled": true,
+  "shortcuts": [
+    {
+      "name": "Ingresos",
+      "short_name": "Ingresos",
+      "description": "Administrar ingresos",
+      "url": "/dashboard/ingresos"
+    },
+    {
+      "name": "Gastos",
+      "short_name": "Gastos",
+      "description": "Administrar gastos",
+      "url": "/dashboard/gastos"
+    }
+  ]
+} 
