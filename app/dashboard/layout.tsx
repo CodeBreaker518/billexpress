@@ -1,47 +1,26 @@
-'use client';
+"use client";
 
-import { useState, useEffect } from 'react';
-import Link from 'next/link';
-import Image from 'next/image';
-import { usePathname, useRouter } from 'next/navigation';
-import { 
-  LayoutDashboard, 
-  BarChart2, 
-  Settings, 
-  LogOut, 
-  Menu, 
-  X,
-  DollarSign,
-  User,
-  ChevronDown
-} from 'lucide-react';
-import { useAuth } from '@bill/_hooks/useAuth';
-import { useAuthStore } from '@bill/_store/useAuthStore';
-import { useThemeStore } from '@bill/_store/useThemeStore';
-import AuthGuard from '@bill/_components/AuthGuard';
-import ThemeToggle from '@bill/_components/ThemeToggle';
-import ConnectivityStatus from '@bill/_components/ConnectivityStatus';
-import SyncManager from '@bill/_components/SyncManager';
+import { useState, useEffect } from "react";
+import Link from "next/link";
+import Image from "next/image";
+import { usePathname, useRouter } from "next/navigation";
+import { LayoutDashboard, BarChart2, Settings, LogOut, Menu, X, DollarSign, User, ChevronDown } from "lucide-react";
+import { useAuth } from "@bill/_hooks/useAuth";
+import { useAuthStore } from "@bill/_store/useAuthStore";
+import { useThemeStore } from "@bill/_store/useThemeStore";
+import AuthGuard from "@bill/_components/AuthGuard";
+import ThemeToggle from "@bill/_components/ThemeToggle";
+import ConnectivityStatus from "@bill/_components/ConnectivityStatus";
+import SyncManager from "@bill/_components/SyncManager";
 
 // Importación de componentes de shadcn-ui
 import { Button } from "@bill/_components/ui/button";
 import { Avatar, AvatarFallback, AvatarImage } from "@bill/_components/ui/avatar";
-import { 
-  DropdownMenu, 
-  DropdownMenuContent, 
-  DropdownMenuItem, 
-  DropdownMenuLabel, 
-  DropdownMenuSeparator, 
-  DropdownMenuTrigger 
-} from "@bill/_components/ui/dropdown-menu";
+import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuLabel, DropdownMenuSeparator, DropdownMenuTrigger } from "@bill/_components/ui/dropdown-menu";
 import { Separator } from "@bill/_components/ui/separator";
 import { Sheet, SheetContent, SheetTrigger, SheetTitle } from "@bill/_components/ui/sheet";
 
-export default function DashboardLayout({
-  children,
-}: {
-  children: React.ReactNode;
-}) {
+export default function DashboardLayout({ children }: { children: React.ReactNode }) {
   const pathname = usePathname();
   const router = useRouter();
   const { logout } = useAuth();
@@ -51,29 +30,29 @@ export default function DashboardLayout({
   const handleLogout = async () => {
     const result = await logout();
     if (result.success) {
-      router.push('/auth/login');
+      router.push("/auth/login");
     }
   };
 
   const navItems = [
     {
-      name: 'Dashboard',
-      href: '/dashboard',
+      name: "Dashboard",
+      href: "/dashboard",
       icon: LayoutDashboard,
     },
     {
-      name: 'Finanzas',
-      href: '/dashboard/finanzas',
+      name: "Finanzas",
+      href: "/dashboard/finanzas",
       icon: DollarSign,
     },
     {
-      name: 'Reportes',
-      href: '/dashboard/reportes',
+      name: "Reportes",
+      href: "/dashboard/reportes",
       icon: BarChart2,
     },
     {
-      name: 'Mi Perfil',
-      href: '/dashboard/configuracion',
+      name: "Mi Perfil",
+      href: "/dashboard/configuracion",
       icon: User,
     },
   ];
@@ -92,21 +71,17 @@ export default function DashboardLayout({
           <nav className="flex-1 overflow-auto py-4">
             <div className="px-3 space-y-1">
               {navItems.map((item) => {
-                const isActive = pathname === item.href || 
-                  (pathname.startsWith(`${item.href}/`) && item.href !== '/dashboard');
-                
+                const isActive = pathname === item.href || (pathname.startsWith(`${item.href}/`) && item.href !== "/dashboard");
+
                 return (
                   <Link
                     key={item.name}
                     href={item.href}
                     className={`flex items-center gap-3 rounded-md px-3 py-2 text-sm transition-colors ${
-                      isActive 
-                        ? 'bg-primary/10 text-primary' 
-                        : 'text-foreground hover:bg-primary/5 hover:text-primary'
-                    }`}
-                  >
+                      isActive ? "bg-primary/10 text-primary" : "text-foreground hover:bg-primary/5 hover:text-primary"
+                    }`}>
                     <span className="flex items-center justify-center w-5 h-5">
-                      <item.icon className={`h-4 w-4 ${isActive ? 'text-primary' : 'text-muted-foreground'}`} />
+                      <item.icon className={`h-4 w-4 ${isActive ? "text-primary" : "text-muted-foreground"}`} />
                     </span>
                     {item.name}
                   </Link>
@@ -115,11 +90,7 @@ export default function DashboardLayout({
             </div>
             <Separator className="my-4" />
             <div className="px-3">
-              <Button
-                variant="ghost"
-                className="w-full justify-start text-sm font-normal"
-                onClick={handleLogout}
-              >
+              <Button variant="ghost" className="w-full justify-start text-sm font-normal" onClick={handleLogout}>
                 <LogOut className="mr-2 h-4 w-4" />
                 Cerrar sesión
               </Button>
@@ -148,22 +119,18 @@ export default function DashboardLayout({
                 <nav className="flex-1 overflow-auto py-4">
                   <div className="px-3 space-y-1">
                     {navItems.map((item) => {
-                      const isActive = pathname === item.href || 
-                        (pathname.startsWith(`${item.href}/`) && item.href !== '/dashboard');
-                      
+                      const isActive = pathname === item.href || (pathname.startsWith(`${item.href}/`) && item.href !== "/dashboard");
+
                       return (
                         <Link
                           key={item.name}
                           href={item.href}
                           onClick={() => setSheetOpen(false)}
                           className={`flex items-center gap-3 rounded-md px-3 py-2 text-sm transition-colors ${
-                            isActive 
-                              ? 'bg-primary/10 text-primary' 
-                              : 'text-foreground hover:bg-primary/5 hover:text-primary'
-                          }`}
-                        >
+                            isActive ? "bg-primary/10 text-primary" : "text-foreground hover:bg-primary/5 hover:text-primary"
+                          }`}>
                           <span className="flex items-center justify-center w-5 h-5">
-                            <item.icon className={`h-4 w-4 ${isActive ? 'text-primary' : 'text-muted-foreground'}`} />
+                            <item.icon className={`h-4 w-4 ${isActive ? "text-primary" : "text-muted-foreground"}`} />
                           </span>
                           {item.name}
                         </Link>
@@ -178,8 +145,7 @@ export default function DashboardLayout({
                       onClick={() => {
                         setSheetOpen(false);
                         handleLogout();
-                      }}
-                    >
+                      }}>
                       <LogOut className="mr-2 h-4 w-4" />
                       Cerrar sesión
                     </Button>
@@ -187,23 +153,23 @@ export default function DashboardLayout({
                 </nav>
               </SheetContent>
             </Sheet>
-            
+
             {/* Conectividad */}
             <div className="hidden sm:block">
               <ConnectivityStatus />
             </div>
-            
+
             <div className="ml-auto flex items-center gap-2">
               {/* Theme toggle */}
               <ThemeToggle />
-              
+
               {/* Dropdown de perfil de usuario */}
               <DropdownMenu>
                 <DropdownMenuTrigger asChild>
                   <Button variant="ghost" className="relative h-10 w-10 rounded-full p-0">
                     <Avatar className="h-10 w-10">
                       {user?.photoURL ? (
-                        <AvatarImage src={user.photoURL} alt={user.displayName || 'Avatar'} />
+                        <AvatarImage src={user.photoURL} alt={user.displayName || "Avatar"} />
                       ) : (
                         <AvatarFallback className="bg-primary/10 text-primary text-base">
                           {user?.displayName ? user.displayName.charAt(0).toUpperCase() : <User className="h-6 w-6" />}
@@ -215,7 +181,7 @@ export default function DashboardLayout({
                 <DropdownMenuContent align="end" className="w-56">
                   <DropdownMenuLabel>
                     <div className="flex flex-col space-y-1">
-                      <p className="text-sm font-medium leading-none">{user?.displayName || 'Usuario'}</p>
+                      <p className="text-sm font-medium leading-none">{user?.displayName || "Usuario"}</p>
                       <p className="text-xs leading-none text-muted-foreground">{user?.email}</p>
                     </div>
                   </DropdownMenuLabel>
@@ -227,10 +193,7 @@ export default function DashboardLayout({
                     </Link>
                   </DropdownMenuItem>
                   <DropdownMenuSeparator />
-                  <DropdownMenuItem
-                    className="text-destructive focus:text-destructive cursor-pointer"
-                    onClick={handleLogout}
-                  >
+                  <DropdownMenuItem className="text-destructive focus:text-destructive cursor-pointer" onClick={handleLogout}>
                     <LogOut className="mr-2 h-4 w-4" />
                     Cerrar sesión
                   </DropdownMenuItem>
@@ -245,13 +208,13 @@ export default function DashboardLayout({
               <div className="sm:hidden mb-4">
                 <ConnectivityStatus />
               </div>
-              
+
               {children}
             </div>
           </main>
         </div>
       </div>
-      
+
       {/* Componente invisible que gestiona la sincronización */}
       <SyncManager />
     </AuthGuard>

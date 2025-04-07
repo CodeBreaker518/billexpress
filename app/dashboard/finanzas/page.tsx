@@ -23,7 +23,7 @@ import { TabGroup, TabList, Tab, TabPanels, TabPanel } from "@bill/_components/u
 import { Text } from "@bill/_components/ui/typography";
 import { List, ListItem } from "@bill/_components/ui/list";
 import { DialogDescription } from "@bill/_components/ui/dialog";
-import { FINANCIAL_COLORS, getCategoryColors } from "../../../utils/chartUtils";
+import { INCOME_CATEGORIES, EXPENSE_CATEGORIES } from "../../../utils/categoryConfig";
 
 // Define types for income and expense items
 interface FinanceItem {
@@ -500,16 +500,26 @@ export default function FinancesPage() {
   };
 
   // Generate colors for income categories
-  const incomeCategoryColors = getCategoryColors(
-    incomesByCategory.map(item => item.category),
-    "income"
-  );
-  
+  const incomeCategoryColors = incomesByCategory.map((item) => {
+    // Obtener el color de la categoría desde la configuración centralizada
+    const config = INCOME_CATEGORIES[item.category as keyof typeof INCOME_CATEGORIES] || INCOME_CATEGORIES["Otros"];
+    return config.color;
+  });
+
   // Generate colors for expense categories
-  const expenseCategoryColors = getCategoryColors(
-    expensesByCategory ? expensesByCategory.map(item => item.category) : [],
-    "expense"
-  );
+  const expenseCategoryColors = expensesByCategory.map((item) => {
+    // Obtener el color de la categoría desde la configuración centralizada
+    const config = EXPENSE_CATEGORIES[item.category as keyof typeof EXPENSE_CATEGORIES] || EXPENSE_CATEGORIES["Otros"];
+    return config.color;
+  });
+
+  // Colores consistentes para gráficos según tipo de finanza
+  const financialTypeColors = {
+    income: INCOME_CATEGORIES["Salario"].color, // Usar un color de ingreso como representativo
+    expense: EXPENSE_CATEGORIES["Comida"].color, // Usar un color de gasto como representativo
+    balance: "#22c55e", // Verde para balance positivo
+    negativeBalance: "#ef4444", // Rojo para balance negativo
+  };
 
   return (
     <div className="space-y-6">
@@ -524,10 +534,11 @@ export default function FinancesPage() {
         <StatsCard
           title="Ingresos este mes"
           value={formatCurrency(monthlyIncomes)}
+          valueClassName="text-blue-600 dark:text-blue-400"
           subValue={formatPercentage(monthlyIncomes, totalIncomes)}
           subTitle="del total"
-          icon={<TrendingUp className="h-6 w-6 text-green-700 dark:text-green-400" />}
-          iconContainerClassName="bg-green-100 dark:bg-green-900/30"
+          icon={<TrendingUp className="h-6 w-6 text-blue-700 dark:text-blue-400" />}
+          iconContainerClassName="bg-blue-100 dark:bg-blue-900/30"
           decorationColor="blue"
           className="card-hover shadow-soft"
         />
@@ -536,6 +547,7 @@ export default function FinancesPage() {
         <StatsCard
           title="Gastos este mes"
           value={formatCurrency(monthlyExpenses)}
+          valueClassName="text-red-600 dark:text-red-400"
           subValue={formatPercentage(monthlyExpenses, totalExpenses)}
           subTitle="del total"
           icon={<TrendingDown className="h-6 w-6 text-red-700 dark:text-red-400" />}
@@ -547,6 +559,7 @@ export default function FinancesPage() {
         <StatsCard
           title="Balance"
           value={formatCurrency(monthlyBalance)}
+          valueClassName={monthlyBalance >= 0 ? "text-green-600 dark:text-green-400" : "text-red-600 dark:text-red-400"}
           subValue={monthlyIncomes === 0 ? "0%" : `${Math.floor((monthlyBalance / monthlyIncomes) * 100)}%`}
           subTitle="de los ingresos"
           icon={monthlyBalance >= 0 ? <ArrowUp className="h-5 w-5 text-green-600 dark:text-green-400" /> : <ArrowDown className="h-5 w-5 text-red-500 dark:text-red-400" />}
@@ -567,7 +580,12 @@ export default function FinancesPage() {
             data={financesByMonth}
             index="month"
             categories={["Ingresos", "Gastos", "Balance"]}
-            colors={["#1a7ffa", "#26b066", "#7c3aed"]}
+            colors={[
+              financialTypeColors.income,
+              financialTypeColors.expense,
+              // Determinar el color del balance según los datos
+              financesByMonth.some((item) => item.Balance < 0) ? financialTypeColors.negativeBalance : financialTypeColors.balance,
+            ]}
             valueFormatter={formatCurrency}
             stack={false}
             yAxisWidth={80}
@@ -579,11 +597,11 @@ export default function FinancesPage() {
       <TabGroup index={activeTab} onIndexChange={setActiveTab}>
         <TabList className="w-full">
           <Tab className="w-full text-sm" value="ingresos">
-            <TrendingUp className="h-4 w-4 mr-2" />
+            <TrendingUp className="h-4 w-4 mr-2 text-blue-600 dark:text-blue-400" />
             Ingresos
           </Tab>
           <Tab className="w-full text-sm" value="gastos">
-            <TrendingDown className="h-4 w-4 mr-2" />
+            <TrendingDown className="h-4 w-4 mr-2 text-red-600 dark:text-red-400" />
             Gastos
           </Tab>
         </TabList>
@@ -652,8 +670,8 @@ export default function FinancesPage() {
                           {incomesByCategory.slice(0, 5).map((item) => (
                             <ListItem key={item.category}>
                               <div className="flex items-center space-x-2">
-                                <CategoryBadge category={item.category} type="income" />
-                                <span className="text-xs sm:text-sm">{formatCurrency(item.amount)}</span>
+                                <CategoryBadge category={item.category} type="income" showIcon={true} />
+                                <span className="text-xs sm:text-sm text-blue-600 dark:text-blue-400">{formatCurrency(item.amount)}</span>
                               </div>
                               <Text className="text-xs sm:text-sm">{item.percentage}%</Text>
                             </ListItem>
@@ -730,8 +748,8 @@ export default function FinancesPage() {
                           {expensesByCategory.slice(0, 5).map((item) => (
                             <ListItem key={item.category}>
                               <div className="flex items-center space-x-2">
-                                <CategoryBadge category={item.category} type="expense" />
-                                <span className="text-xs sm:text-sm">{formatCurrency(item.amount)}</span>
+                                <CategoryBadge category={item.category} type="expense" showIcon={true} />
+                                <span className="text-xs sm:text-sm text-red-600 dark:text-red-400">{formatCurrency(item.amount)}</span>
                               </div>
                               <Text className="text-xs sm:text-sm">{item.percentage}%</Text>
                             </ListItem>
@@ -758,8 +776,7 @@ export default function FinancesPage() {
           <DialogDescription>
             {isEditing ? `Edita los detalles del ${formType === "income" ? "ingreso" : "gasto"} seleccionado.` : `Agrega un nuevo ${formType === "income" ? "ingreso" : "gasto"}.`}
           </DialogDescription>
-        }
-      >
+        }>
         <FinanceForm
           isOpen={isFormOpen}
           isEditing={isEditing}
