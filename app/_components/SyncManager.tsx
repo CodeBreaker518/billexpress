@@ -1,8 +1,7 @@
 'use client';
 
 import { useEffect, useState } from 'react';
-import { syncPendingIncomes } from '@bill/_firebase/incomeService';
-import { syncPendingExpenses } from '@bill/_firebase/expenseService';
+import { incomeService, expenseService } from '@bill/_firebase/financeService';
 import { usePendingOperationsStore } from '@bill/_store/usePendingOperationsStore';
 import { useAuthStore } from '@bill/_store/useAuthStore';
 
@@ -11,66 +10,65 @@ import { useAuthStore } from '@bill/_store/useAuthStore';
  * cuando se recupera la conexión a internet
  */
 export default function SyncManager() {
-  const [isOnline, setIsOnline] = useState(true);
-  const [isSyncing, setIsSyncing] = useState(false);
+  const { operations } = usePendingOperationsStore();
   const { user } = useAuthStore();
-  const pendingOperations = usePendingOperationsStore(state => state.operations);
-  
-  // Almacenar el ID del usuario para recuperarlo en caso de reconexión
+  const [isOnline, setIsOnline] = useState(
+    typeof navigator !== 'undefined' ? navigator.onLine : true
+  );
+
+  // Monitorear los cambios en la conexión
   useEffect(() => {
-    if (user?.uid) {
-      localStorage.setItem('current-user-id', user.uid);
-    }
-  }, [user]);
-  
-  // Sincronizar cuando se recupera la conexión
-  useEffect(() => {
-    // Estado inicial
-    setIsOnline(navigator.onLine);
-    
-    const handleOnline = async () => {
+    const handleOnline = () => {
       setIsOnline(true);
-      
-      if (pendingOperations.length > 0 && !isSyncing && user) {
-        try {
-          setIsSyncing(true);
-          await syncData();
-        } finally {
-          setIsSyncing(false);
-        }
-      }
+      syncData();
     };
     
     const handleOffline = () => {
       setIsOnline(false);
     };
     
-    // Agregar event listeners
     window.addEventListener('online', handleOnline);
     window.addEventListener('offline', handleOffline);
     
-    // Limpiar event listeners
+    // Verificar si hay operaciones pendientes al cargar
+    if (isOnline && operations.length > 0) {
+      syncData();
+    }
+    
     return () => {
       window.removeEventListener('online', handleOnline);
       window.removeEventListener('offline', handleOffline);
     };
-  }, [pendingOperations.length, isSyncing, user]);
-  
-  // Función para sincronizar todos los tipos de datos
+  }, [isOnline, operations]);
+
+  // Sincronizar datos cuando cambia el usuario
+  useEffect(() => {
+    if (user && isOnline && operations.length > 0) {
+      syncData();
+    }
+  }, [user]);
+
+  // Función para sincronizar datos
   const syncData = async () => {
+    if (!isOnline) return;
+    
+    // Agrupar operaciones por tipo
+    const hasIncomes = operations.some(op => op.collection === 'incomes');
+    const hasExpenses = operations.some(op => op.collection === 'expenses');
+    
     try {
-      // Sincronizar ingresos pendientes
-      await syncPendingIncomes();
+      if (hasIncomes) {
+        await incomeService.syncPendingItems();
+      }
       
-      // Sincronizar gastos pendientes
-      await syncPendingExpenses();
-      
-      console.log('Sincronización completada');
+      if (hasExpenses) {
+        await expenseService.syncPendingItems();
+      }
     } catch (error) {
-      console.error('Error en sincronización:', error);
+      console.error('Error during sync:', error);
     }
   };
-  
-  // Este componente no renderiza nada visible
+
+  // No renderizamos nada, este componente solo gestiona la sincronización
   return null;
-} 
+}

@@ -1,8 +1,10 @@
 'use client';
 
-import { useState, useEffect } from 'react';
-import { Flex, Badge, Text } from '@tremor/react';
-import { Wifi, WifiOff } from 'lucide-react';
+import { useEffect, useState } from 'react';
+import { Badge } from './ui/badge';
+import { Flex } from './ui/flex';
+import { Text } from './ui/typography';
+import { cn } from '../../app/_lib/utils';
 
 /**
  * Componente que muestra el estado de la conexión a internet
@@ -14,32 +16,22 @@ export default function ConnectivityStatus() {
   const [showTooltip, setShowTooltip] = useState(false);
 
   useEffect(() => {
-    // Estado inicial basado en navigator.onLine
-    setIsOnline(navigator.onLine);
-    
-    // Manejar cambios de estado de conexión
-    const handleOnline = () => {
-      setIsOnline(true);
-      setLastSyncTime(new Date());
+    // Función para actualizar el estado
+    const updateOnlineStatus = () => {
+      setIsOnline(navigator.onLine);
     };
-    
-    const handleOffline = () => {
-      setIsOnline(false);
-    };
-    
-    // Agregar event listeners para detectar cambios de conectividad
-    window.addEventListener('online', handleOnline);
-    window.addEventListener('offline', handleOffline);
-    
-    // Establecer la hora inicial de sincronización si estamos online
-    if (isOnline) {
-      setLastSyncTime(new Date());
-    }
-    
-    // Limpiar event listeners al desmontar
+
+    // Verificar estado inicial
+    updateOnlineStatus();
+
+    // Añadir event listeners
+    window.addEventListener('online', updateOnlineStatus);
+    window.addEventListener('offline', updateOnlineStatus);
+
+    // Cleanup
     return () => {
-      window.removeEventListener('online', handleOnline);
-      window.removeEventListener('offline', handleOffline);
+      window.removeEventListener('online', updateOnlineStatus);
+      window.removeEventListener('offline', updateOnlineStatus);
     };
   }, []);
 
@@ -53,35 +45,19 @@ export default function ConnectivityStatus() {
     });
   };
 
+  if (isOnline) {
+    return (
+      <Flex alignItems="center" gap="2" className="py-1">
+        <Badge variant="outline" className="bg-green-100 text-green-800 hover:bg-green-200">En línea</Badge>
+        <Text className="text-xs">Sincronización automática activa</Text>
+      </Flex>
+    );
+  }
+
   return (
-    <div className="relative">
-      <div 
-        className="cursor-pointer" 
-        onMouseEnter={() => setShowTooltip(true)}
-        onMouseLeave={() => setShowTooltip(false)}
-      >
-        <Flex justifyContent="start" alignItems="center" className="gap-2">
-          {isOnline ? (
-            <>
-              <Wifi className="h-4 w-4 text-green-500" />
-              <Badge color="green" size="xs">Online</Badge>
-            </>
-          ) : (
-            <>
-              <WifiOff className="h-4 w-4 text-amber-500" />
-              <Badge color="amber" size="xs">Offline</Badge>
-            </>
-          )}
-        </Flex>
-      </div>
-      
-      {showTooltip && (
-        <div className="absolute z-50 p-2 bg-gray-800 text-white text-xs rounded shadow-lg mt-1 w-52">
-          {isOnline 
-            ? `Última sincronización: ${formatLastSync()}` 
-            : "Modo offline - Los cambios se guardarán cuando recuperes conexión"}
-        </div>
-      )}
-    </div>
+    <Flex alignItems="center" gap="2" className="py-1">
+      <Badge variant="outline" className="bg-red-100 text-red-800 hover:bg-red-200">Sin conexión</Badge>
+      <Text className="text-xs">Los cambios se guardarán cuando vuelvas a estar en línea</Text>
+    </Flex>
   );
 } 

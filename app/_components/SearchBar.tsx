@@ -1,7 +1,8 @@
 'use client';
 
-import { TextInput, Button } from '@tremor/react';
 import { Search, XCircle, Plus } from 'lucide-react';
+import { Input } from "./ui/input";
+import { Button } from "./ui/button";
 
 interface SearchBarProps {
   searchTerm: string;
@@ -23,25 +24,32 @@ export default function SearchBar({
   };
 
   return (
-    <div className="flex gap-2 flex-col sm:flex-row mb-6">
+    <div className="flex gap-2 flex-col sm:flex-row mb-4 sm:mb-6">
       <div className="relative flex-1">
-        <TextInput
+        <Input
           placeholder={placeholder}
           value={searchTerm}
           onChange={(e) => onSearchChange(e.target.value)}
-          icon={Search}
+          className="w-full pl-9"
         />
+        <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-gray-500/70" />
         {searchTerm && (
           <button
-            className="absolute right-2 top-1/2 transform -translate-y-1/2 text-gray-500"
+            className="absolute right-3 top-1/2 transform -translate-y-1/2 text-gray-500 hover:text-gray-700"
             onClick={handleClearSearch}
+            aria-label="Limpiar búsqueda"
           >
-            <XCircle className="w-5 h-5" />
+            <XCircle className="w-4 h-4" />
           </button> 
         )}
       </div>
-      <Button icon={Plus} onClick={onAddNew}>
-        {addButtonLabel}
+      <Button 
+        onClick={onAddNew}
+        className="text-xs sm:text-sm"
+      >
+        <Plus className="w-4 h-4 mr-2" />
+        <span className="hidden xs:inline">{addButtonLabel}</span>
+        <span className="xs:hidden">Agregar</span>
       </Button>
     </div>
   );

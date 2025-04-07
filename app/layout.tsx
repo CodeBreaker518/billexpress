@@ -1,18 +1,14 @@
 import './globals.css';
 import type { Metadata } from 'next';
-import { Geist } from "next/font/google";
-import { Geist_Mono } from "next/font/google";
+import { Poppins } from "next/font/google";
 import ThemeProvider from '@bill/_components/ThemeProvider';
+import FirebaseAuthProvider from '@bill/_components/FirebaseAuthProvider';
 
-const geistSans = Geist({
-  variable: "--font-geist-sans",
+const poppinsFont = Poppins({
+  weight: ["300", "400", "500", "600", "700"],
   subsets: ["latin"],
 });
 
-const geistMono = Geist_Mono({
-  variable: "--font-geist-mono",
-  subsets: ["latin"],
-});
 
 export const metadata: Metadata = {
   title: 'BillExpress - Control de gastos simplificado',
@@ -50,10 +46,12 @@ export default function RootLayout({
         <link rel="apple-touch-icon" href="/icons/apple-icon-180.png" />
       </head>
       <body
-        className={`${geistSans.variable} ${geistMono.variable} antialiased bg-gray-50 dark:bg-gray-900 text-gray-900 dark:text-gray-100`}
+        className={`${poppinsFont.className} antialiased bg-gray-50 dark:bg-gray-900 text-gray-900 dark:text-gray-100`}
       >
         <ThemeProvider>
-          {children}
+          <FirebaseAuthProvider>
+            {children}
+          </FirebaseAuthProvider>
         </ThemeProvider>
       </body>
     </html>

@@ -3,50 +3,34 @@
 import { useEffect, useState } from 'react';
 import Link from 'next/link';
 import { 
-  Card, 
-  Title, 
-  Text, 
-  Metric, 
-  BarChart, 
-  DonutChart, 
-  Tab, 
-  TabList,
-  TabGroup,
-  TabPanel,
-  TabPanels,
-  Flex,
-  BadgeDelta,
-  Grid,
-  Col,
-  ProgressBar,
-  Button,
-  List,
-  ListItem,
-  Divider,
-  Bold,
-  CategoryBar,
-  Legend,
-  Badge
-} from '@tremor/react';
-import { 
-  ArrowUpCircle, 
-  ArrowDownCircle, 
   TrendingUp, 
   ArrowRight,
-  PlusCircle,
-  MinusCircle,
   Wallet,
-  BarChart2,
-  Settings,
-  AlertCircle
+  ArrowUp,
+  ArrowDown,
+  PieChart,
+  TrendingDown
 } from 'lucide-react';
 import { useAuthStore } from '@bill/_store/useAuthStore';
 import { useExpenseStore } from '@bill/_store/useExpenseStore';
 import { useIncomeStore } from '@bill/_store/useIncomeStore';
-import { getUserExpenses } from '@bill/_firebase/expenseService';
-import { getUserIncomes } from '@bill/_firebase/incomeService';
-import { format, subMonths, isAfter, startOfMonth, endOfMonth } from 'date-fns';
+import { getUserExpenses, addExpense } from '@bill/_firebase/expenseService';
+import { getUserIncomes, addIncome } from '@bill/_firebase/incomeService';
+import { format, subMonths, startOfMonth, endOfMonth } from 'date-fns';
 import { es } from 'date-fns/locale';
+import FinanceForm from '@bill/_components/FinanceForm';
+
+// Importaciones de componentes shadcn/ui
+import { Card, CardContent, CardHeader, CardTitle } from "@bill/_components/ui/card";
+import { Button } from "@bill/_components/ui/button";
+import { DrawerDialog } from "@bill/_components/ui/drawer-dialog";
+import { BarChart, DonutChart } from "@bill/_components/ui/charts";
+import { Text } from "@bill/_components/ui/typography";
+import { List, ListItem } from "@bill/_components/ui/list";
+import { StatsCard } from "@bill/_components/ui/stats-card";
+import { CategoryBadge } from "@bill/_components/ui/category-badge";
+import { FINANCIAL_COLORS } from "../../utils/chartUtils";
+import { DialogDescription } from '@bill/_components/ui/dialog';
 
 // Categorías de gastos
 const expenseCategories = [
@@ -57,6 +41,7 @@ const expenseCategories = [
   'Compras',
   'Salud',
   'Educación',
+  'Vivienda',
   'Otros'
 ];
 
@@ -70,32 +55,6 @@ const incomeCategories = [
   'Reembolsos',
   'Otros'
 ];
-
-// Función para obtener el color asociado a la categoría (para consistencia visual)
-const getCategoryColor = (category: string, isExpense: boolean = true) => {
-  if (isExpense) {
-    switch (category) {
-      case 'Comida': return 'red';
-      case 'Transporte': return 'orange';
-      case 'Entretenimiento': return 'purple';
-      case 'Servicios': return 'blue';
-      case 'Compras': return 'amber';
-      case 'Salud': return 'emerald';
-      case 'Educación': return 'indigo';
-      default: return 'gray';
-    }
-  } else {
-    switch (category) {
-      case 'Salario': return 'green';
-      case 'Freelance': return 'blue';
-      case 'Inversiones': return 'violet';
-      case 'Ventas': return 'orange';
-      case 'Regalos': return 'pink';
-      case 'Reembolsos': return 'cyan';
-      default: return 'gray';
-    }
-  }
-};
 
 export default function DashboardPage() {
   const { user } = useAuthStore();
@@ -117,6 +76,21 @@ export default function DashboardPage() {
   const [expensesByMonth, setExpensesByMonth] = useState<any[]>([]);
   const [incomesByMonth, setIncomesByMonth] = useState<any[]>([]);
   const [recentTransactions, setRecentTransactions] = useState<any[]>([]);
+  
+  // Estado para formulario modal
+  const [isFormOpen, setIsFormOpen] = useState(false);
+  const [isEditing, setIsEditing] = useState(false);
+  const [formType, setFormType] = useState<'income' | 'expense'>('income');
+  
+  // Estado para el elemento actual
+  const [currentItem, setCurrentItem] = useState({
+    id: '',
+    description: '',
+    amount: 0,
+    category: '',
+    date: new Date(),
+    time: format(new Date(), 'HH:mm')
+  });
   
   // Cargar datos de Firebase
   useEffect(() => {
@@ -305,7 +279,8 @@ export default function DashboardPage() {
     return {
       month: expenseData.month,
       "Gastos": expenseData.Gastos,
-      "Ingresos": incomeData.Ingresos
+      "Ingresos": incomeData.Ingresos,
+      "Balance": incomeData.Ingresos - expenseData.Gastos
     };
   });
   
@@ -324,6 +299,107 @@ export default function DashboardPage() {
     }
     return () => clearTimeout(timer);
   }, [loading]);
+
+  // Abrir formulario para nuevo ingreso
+  const handleNewIncome = () => {
+    const now = new Date();
+    
+    setCurrentItem({
+      id: '',
+      description: '',
+      amount: 0,
+      category: 'Salario',
+      date: now,
+      time: format(now, 'HH:mm')
+    });
+    
+    setFormType('income');
+    setIsEditing(false);
+    setIsFormOpen(true);
+  };
+  
+  // Abrir formulario para nuevo gasto
+  const handleNewExpense = () => {
+    const now = new Date();
+    
+    setCurrentItem({
+      id: '',
+      description: '',
+      amount: 0,
+      category: 'Otros',
+      date: now,
+      time: format(now, 'HH:mm')
+    });
+    
+    setFormType('expense');
+    setIsEditing(false);
+    setIsFormOpen(true);
+  };
+  
+  // Cerrar formulario
+  const handleCancel = () => {
+    setIsFormOpen(false);
+  };
+  
+  // Guardar (crear o actualizar)
+  const handleSave = async () => {
+    if (formType === 'income') {
+      try {
+        // Crear la fecha completa combinando fecha y hora
+        const dateStr = format(currentItem.date, 'yyyy-MM-dd');
+        const timeStr = currentItem.time || '00:00';
+        const dateTimeStr = `${dateStr}T${timeStr}:00`;
+        const completeDate = new Date(dateTimeStr);
+        
+        // Crear nuevo ingreso
+        const newIncome = await addIncome({
+          description: currentItem.description,
+          amount: currentItem.amount,
+          category: currentItem.category,
+          date: completeDate,
+          userId: user?.uid || ''
+        });
+        
+        // Añadir el nuevo ingreso a la lista local
+        useIncomeStore.getState().addIncome(newIncome);
+        
+        // Cerrar formulario tras éxito
+        setIsFormOpen(false);
+      } catch (error) {
+        console.error('Error saving income:', error);
+      }
+    } else { // expense
+      try {
+        // Crear la fecha completa combinando fecha y hora
+        const dateStr = format(currentItem.date, 'yyyy-MM-dd');
+        const timeStr = currentItem.time || '00:00';
+        const dateTimeStr = `${dateStr}T${timeStr}:00`;
+        const completeDate = new Date(dateTimeStr);
+        
+        // Crear nuevo gasto
+        const newExpense = await addExpense({
+          description: currentItem.description,
+          amount: currentItem.amount,
+          category: currentItem.category,
+          date: completeDate,
+          userId: user?.uid || ''
+        });
+        
+        // Añadir el nuevo gasto a la lista local
+        useExpenseStore.getState().addExpense(newExpense);
+        
+        // Cerrar formulario tras éxito
+        setIsFormOpen(false);
+      } catch (error) {
+        console.error('Error saving expense:', error);
+      }
+    }
+  };
+
+  // Manejar cambios en el formulario
+  const handleFormChange = (field: string, value: any) => {
+    setCurrentItem({ ...currentItem, [field]: value });
+  };
 
   if (loading) {
     return (
@@ -361,286 +437,219 @@ export default function DashboardPage() {
   
   return (
     <div className="space-y-6">
+      {/* Cabecera de la página */}
       <div className="mb-6">
-        <Title>Dashboard Financiero</Title>
-        <Text>Resumen de tus finanzas personales</Text>
+        <h1 className="text-2xl font-semibold tracking-tight">Dashboard</h1>
+        <p className="text-sm text-muted-foreground mt-1">
+          {format(new Date(), 'EEEE, d MMM yyyy', { locale: es })} - Resumen de tus finanzas
+        </p>
       </div>
       
-      {/* Acciones Rápidas */}
-      <div className="bg-white dark:bg-gray-800 p-4 rounded-lg shadow-sm mb-6">
-        <div className="mb-3">
-          <Text className="font-medium">Acciones Rápidas</Text>
-        </div>
-        <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
-          <Link href="/dashboard/ingresos">
-            <Button 
-              className="w-full" 
-              variant="secondary" 
-              icon={PlusCircle} 
-              color="green"
-            >
-              <span className="hidden sm:inline">Nuevo</span> Ingreso
-            </Button>
-          </Link>
-          <Link href="/dashboard/gastos">
-            <Button 
-              className="w-full" 
-              variant="secondary" 
-              icon={MinusCircle} 
-              color="red"
-            >
-              <span className="hidden sm:inline">Nuevo</span> Gasto
-            </Button>
-          </Link>
-          <Link href="/dashboard/reportes">
-            <Button 
-              className="w-full" 
-              variant="secondary" 
-              icon={BarChart2}
-            >
-              <span className="hidden sm:inline">Ver</span> Reportes
-            </Button>
-          </Link>
-          <Link href="/dashboard/configuracion">
-            <Button 
-              className="w-full" 
-              variant="secondary" 
-              icon={Settings}
-            >
-              <span className="hidden sm:inline">Ajustar</span> Config.
-            </Button>
-          </Link>
-        </div>
+      {/* Botones de acciones rápidas */}
+      <div className="flex flex-wrap gap-3 mb-6">
+        <Button 
+          variant="outline"
+          onClick={handleNewIncome}
+          className="text-sm text-secondary flex items-center gap-2"
+        >
+          <ArrowUp className="h-4 w-4" />
+          Registrar Ingreso
+        </Button>
+        <Button 
+          variant="outline"
+          onClick={handleNewExpense}
+          className="text-sm text-destructive flex items-center gap-2"
+        >
+          <ArrowDown className="h-4 w-4" />
+          Registrar Gasto
+        </Button>
       </div>
       
-      {/* Resumen Mensual */}
-      <Card className="mb-6">
-        <Title>Resumen del Mes</Title>
-        <Text>
-          {format(new Date(), 'MMMM yyyy', { locale: es })}
-        </Text>
+      {/* Resumen financiero */}
+      <div className="grid grid-cols-1 gap-6 sm:grid-cols-2 lg:grid-cols-4">
+        {/* Balance Total */}
+        <StatsCard
+          title="Balance Total"
+          value={formatCurrency(netBalance)}
+          subTitle="Mes actual"
+          subValue={formatCurrency(monthlyIncomes - monthlyExpenses)}
+          icon={<Wallet className="h-6 w-6 text-blue-700 dark:text-blue-400" />}
+          iconContainerClassName="bg-blue-100 dark:bg-blue-900/30"
+          decorationColor="blue"
+        />
         
-        <Grid numItemsMd={2} numItemsLg={3} className="gap-6 mt-6">
-          <Card decoration="top" decorationColor="green">
-            <Flex justifyContent="between" alignItems="center">
-              <Text>Ingresos</Text>
-              <ArrowUpCircle className="h-5 w-5 text-green-500" />
-            </Flex>
-            <Metric className="mt-2">{formatCurrency(monthlyIncomes)}</Metric>
-          </Card>
-          
-          <Card decoration="top" decorationColor="red">
-            <Flex justifyContent="between" alignItems="center">
-              <Text>Gastos</Text>
-              <ArrowDownCircle className="h-5 w-5 text-red-500" />
-            </Flex>
-            <Metric className="mt-2">{formatCurrency(monthlyExpenses)}</Metric>
-          </Card>
-          
-          <Card decoration="top" decorationColor="blue">
-            <Flex justifyContent="between" alignItems="center">
-              <Text>Balance</Text>
-              <Wallet className="h-5 w-5 text-blue-500" />
-            </Flex>
-            <Metric className={`mt-2 ${monthlyIncomes - monthlyExpenses >= 0 ? "text-green-500" : "text-red-500"}`}>
-              {formatCurrency(monthlyIncomes - monthlyExpenses)}
-            </Metric>
-          </Card>
-        </Grid>
-      </Card>
+        {/* Ingresos Totales */}
+        <StatsCard
+          title="Ingresos Totales"
+          value={formatCurrency(totalIncomes)}
+          subTitle="Mes actual"
+          subValue={formatCurrency(monthlyIncomes)}
+          icon={<TrendingUp className="h-6 w-6 text-green-700 dark:text-green-400" />}
+          iconContainerClassName="bg-green-100 dark:bg-green-900/30"
+          decorationColor="green"
+        />
+        
+        {/* Gastos Totales */}
+        <StatsCard
+          title="Gastos Totales"
+          value={formatCurrency(totalExpenses)}
+          subTitle="Mes actual"
+          subValue={formatCurrency(monthlyExpenses)}
+          icon={<TrendingDown className="h-6 w-6 text-red-700 dark:text-red-400" />}
+          iconContainerClassName="bg-red-100 dark:bg-red-900/30"
+          decorationColor="red"
+        />
+        
+        {/* Tasa de Ahorro */}
+        <StatsCard
+          title="Tasa de Ahorro"
+          value={`${savingsRate.toFixed(1)}%`}
+          subTitle={savingsRate > 0 ? "De tus ingresos" : "Sin ahorro"}
+          icon={<PieChart className="h-6 w-6 text-purple-700 dark:text-purple-400" />}
+          iconContainerClassName="bg-purple-100 dark:bg-purple-900/30"
+          decorationColor="purple"
+        />
+      </div>
       
-      {/* Tarjetas de resumen total */}
-      <Grid numItemsMd={2} numItemsLg={3} className="gap-6 mb-6">
-        <Card decoration="top" decorationColor="red">
-          <Flex justifyContent="between" alignItems="center">
-            <Text>Total Gastos</Text>
-            <BadgeDelta
-              deltaType="moderateDecrease"
-              isIncreasePositive={false}
-            >
-              Acumulado
-            </BadgeDelta>
-          </Flex>
-          <Metric className="mt-2">{formatCurrency(totalExpenses)}</Metric>
-        </Card>
-
-        <Card decoration="top" decorationColor="green">
-          <Flex justifyContent="between" alignItems="center">
-            <Text>Total Ingresos</Text>
-            <BadgeDelta deltaType="moderateIncrease">Acumulado</BadgeDelta>
-          </Flex>
-          <Metric className="mt-2">{formatCurrency(totalIncomes)}</Metric>
-        </Card>
-
-        <Card decoration="top" decorationColor="blue">
-          <Flex justifyContent="between" alignItems="center">
-            <Text>Balance Total</Text>
-            <BadgeDelta 
-              deltaType={netBalance >= 0 ? "moderateIncrease" : "moderateDecrease"}
-              isIncreasePositive={true}
-            >
-              {savingsRate}% ahorrado
-            </BadgeDelta>
-          </Flex>
-          <Metric className={`mt-2 ${netBalance >= 0 ? "text-emerald-600" : "text-red-600"}`}>
-            {formatCurrency(netBalance)}
-          </Metric>
-          <CategoryBar 
-            className="mt-4" 
-            values={[100 - savingsRate, savingsRate]} 
-            colors={["red", "emerald"]} 
-            showLabels={false}
-            tooltip="Tasa de ahorro"
-          />
-          <Flex className="mt-3 text-xs">
-            <Text>Gastos ({(100 - savingsRate).toFixed(1)}%)</Text>
-            <Text>Ahorros ({savingsRate.toFixed(1)}%)</Text>
-          </Flex>
-        </Card>
-      </Grid>
-      
-      {/* Gráficos */}
-      <Grid numItemsMd={1} numItemsLg={2} className="gap-6 mb-6">
+      {/* Gráficos y estadísticas */}
+      <div className="grid grid-cols-1 gap-6 md:grid-cols-2">
+        {/* Transacciones recientes */}
         <Card>
-          <Title>Flujo de Dinero</Title>
-          <Text>Comparativa de ingresos y gastos en los últimos 6 meses</Text>
-          
-          <BarChart
-            className="mt-6 h-80"
-            data={combinedMonthlyData}
-            index="month"
-            categories={["Ingresos", "Gastos"]}
-            colors={["emerald", "red"]}
-            valueFormatter={formatCurrency}
-            yAxisWidth={80}
-            showLegend={true}
-          />
+          <CardHeader className="flex flex-row items-center justify-between px-4 sm:px-6">
+            <CardTitle className="text-base sm:text-lg">Transacciones Recientes</CardTitle>
+            <Button variant="ghost" asChild className="text-xs sm:text-sm">
+              <Link href="/dashboard/finanzas" className="flex items-center gap-1">
+                Ver todo <ArrowRight className="h-4 w-4" />
+              </Link>
+            </Button>
+          </CardHeader>
+          <CardContent className="px-2 sm:px-6">
+            <List>
+              {recentTransactions.map((transaction, index) => (
+                <ListItem key={transaction.id}>
+                  <div className="flex items-center gap-2 sm:gap-3">
+                    {transaction.type === 'income' ? (
+                      <div className="flex h-6 w-6 sm:h-8 sm:w-8 items-center justify-center rounded-full bg-green-100 dark:bg-green-900/30">
+                        <ArrowUp className="h-3 w-3 sm:h-4 sm:w-4 text-green-600" />
+                      </div>
+                    ) : (
+                      <div className="flex h-6 w-6 sm:h-8 sm:w-8 items-center justify-center rounded-full bg-red-100 dark:bg-red-900/30">
+                        <ArrowDown className="h-3 w-3 sm:h-4 sm:w-4 text-red-600" />
+                      </div>
+                    )}
+                    <div>
+                      <Text className="text-xs sm:text-sm font-medium truncate max-w-[120px] sm:max-w-none">{transaction.description}</Text>
+                      <Text className="text-[10px] sm:text-xs text-muted-foreground">
+                        {formatDate(new Date(transaction.date))}
+                      </Text>
+                    </div>
+                  </div>
+                  <div className="flex flex-col items-end">
+                    <span className={`text-xs sm:text-sm ${transaction.type === 'income' ? 'text-green-600' : 'text-red-600'}`}>
+                      {transaction.type === 'income' ? '+' : '-'}{formatCurrency(transaction.amount)}
+                    </span>
+                    <CategoryBadge
+                      category={transaction.category}
+                      type={transaction.type}
+                      className="mt-1 text-[10px] sm:text-xs"
+                    />
+                  </div>
+                </ListItem>
+              ))}
+              {recentTransactions.length === 0 && (
+                <div className="py-8 text-center">
+                  <Text className="text-sm">No hay transacciones recientes</Text>
+                </div>
+              )}
+            </List>
+          </CardContent>
         </Card>
         
-        <TabGroup>
-          <TabList variant="solid">
-            <Tab>Gastos por Categoría</Tab>
-            <Tab>Ingresos por Categoría</Tab>
-          </TabList>
-          
-          <TabPanels>
-            {/* Panel de gastos */}
-            <TabPanel>
-              <div className="mt-4">
+        {/* Gastos por categoría */}
+        <Card>
+          <CardHeader className="px-4 sm:px-6">
+            <CardTitle className="text-base sm:text-lg">Gastos por Categoría</CardTitle>
+          </CardHeader>
+          <CardContent className="px-2 sm:px-6">
+            <div className="h-44 sm:h-60">
                 <DonutChart
-                  className="h-60"
                   data={expensesByCategory}
                   category="amount"
                   index="category"
                   valueFormatter={formatCurrency}
-                  colors={expensesByCategory.map(c => getCategoryColor(c.category))}
+                className="h-full"
                 />
-                <List className="mt-4">
-                  {expensesByCategory.slice(0, 5).map((item) => (
-                    <ListItem key={item.category}>
-                      <div className="flex justify-between items-center w-full">
-                        <div className="flex items-center">
-                          <Badge color={getCategoryColor(item.category)} size="sm" className="mr-2">
-                            {item.percentage}%
-                          </Badge>
-                          <span>{item.category}</span>
-                        </div>
-                        <Bold>{formatCurrency(item.amount)}</Bold>
-                      </div>
-                    </ListItem>
-                  ))}
-                </List>
-              </div>
-            </TabPanel>
-            
-            {/* Panel de ingresos */}
-            <TabPanel>
-              <div className="mt-4">
-                <DonutChart
-                  className="h-60"
-                  data={incomesByCategory}
-                  category="amount"
-                  index="category"
-                  valueFormatter={formatCurrency}
-                  colors={incomesByCategory.map(c => getCategoryColor(c.category, false))}
-                />
-                <List className="mt-4">
-                  {incomesByCategory.slice(0, 5).map((item) => (
-                    <ListItem key={item.category}>
-                      <div className="flex justify-between items-center w-full">
-                        <div className="flex items-center">
-                          <Badge color={getCategoryColor(item.category, false)} size="sm" className="mr-2">
-                            {item.percentage}%
-                          </Badge>
-                          <span>{item.category}</span>
-                        </div>
-                        <Bold>{formatCurrency(item.amount)}</Bold>
-                      </div>
-                    </ListItem>
-                  ))}
-                </List>
-              </div>
-            </TabPanel>
-          </TabPanels>
-        </TabGroup>
-      </Grid>
-      
-      {/* Transacciones Recientes */}
-      <Card>
-        <Title>Transacciones Recientes</Title>
-        <Text>Últimas 5 transacciones registradas</Text>
-        
-        {recentTransactions.length > 0 ? (
-          <List className="mt-4">
-            {recentTransactions.map((transaction) => (
-              <ListItem key={transaction.id}>
-                <div className="flex justify-between items-center w-full">
-                  <div>
-                    <Text className="font-medium">{transaction.description}</Text>
-                    <div className="flex items-center text-sm text-gray-500">
-                      <Badge color={getCategoryColor(transaction.category, transaction.type === 'expense')} size="xs" className="mr-2">
-                        {transaction.category}
-                      </Badge>
-                      <span>{formatDate(transaction.date)}</span>
-                    </div>
+            </div>
+                <List className="mt-2 sm:mt-4">
+              {expensesByCategory.slice(0, 3).map((category) => (
+                <ListItem key={category.category}>
+                  <div className="flex items-center gap-2">
+                    <CategoryBadge 
+                      category={category.category} 
+                      type="expense"
+                      className="text-[10px] sm:text-xs"
+                    />
+                    <Text className="text-xs sm:text-sm truncate max-w-[100px] sm:max-w-none">{category.category}</Text>
                   </div>
-                  <Text className={transaction.type === 'income' ? 'text-green-600' : 'text-red-600'}>
-                    {transaction.type === 'income' ? '+' : '-'} {formatCurrency(transaction.amount)}
-                  </Text>
+                  <div className="flex flex-col items-end">
+                    <span className="text-xs sm:text-sm font-medium">{formatCurrency(category.amount)}</span>
+                    <Text className="text-[10px] sm:text-xs text-muted-foreground">{category.percentage}%</Text>
                 </div>
               </ListItem>
             ))}
           </List>
-        ) : (
-          <div className="flex flex-col items-center justify-center py-8">
-            <AlertCircle className="h-10 w-10 text-gray-400 mb-2" />
-            <Text>No hay transacciones registradas</Text>
-            <div className="flex gap-3 mt-4">
-              <Link href="/dashboard/ingresos">
-                <Button size="xs" variant="secondary" icon={PlusCircle} color="green">Nuevo Ingreso</Button>
-              </Link>
-              <Link href="/dashboard/gastos">
-                <Button size="xs" variant="secondary" icon={MinusCircle} color="red">Nuevo Gasto</Button>
-              </Link>
-            </div>
+          </CardContent>
+        </Card>
+      </div>
+      
+      {/* Gráfico temporal */}
+      <Card>
+        <CardHeader className="px-4 sm:px-6">
+          <CardTitle className="text-base sm:text-lg">Evolución Financiera</CardTitle>
+        </CardHeader>
+        <CardContent className="px-2 sm:px-6">
+          <div className="h-56 sm:h-72">
+            <BarChart
+              data={incomesByMonth.map((item, index) => ({
+                month: item.month,
+                "Ingresos": item["Ingresos"],
+                "Gastos": expensesByMonth[index]?.["Gastos"] || 0
+              }))}
+              index="month"
+              categories={["Ingresos", "Gastos"]}
+              colors={[FINANCIAL_COLORS.income, FINANCIAL_COLORS.expense]}
+              valueFormatter={formatCurrency}
+              className="h-full"
+            />
           </div>
-        )}
-        
-        <Divider />
-        
-        <div className="flex justify-between items-center mt-4">
-          <Link href="/dashboard/ingresos">
-            <Button variant="light" color="green" icon={ArrowRight} iconPosition="right">
-              Ver todos los ingresos
-            </Button>
-          </Link>
-          <Link href="/dashboard/gastos">
-            <Button variant="light" color="red" icon={ArrowRight} iconPosition="right">
-              Ver todos los gastos
-            </Button>
-          </Link>
-        </div>
+        </CardContent>
       </Card>
+      
+      {/* Modal de formulario */}
+      <DrawerDialog
+        open={isFormOpen}
+        onOpenChange={(open) => {
+          if (!open) handleCancel();
+        }}
+        title={isEditing ? `Editar ${formType === "income" ? "Ingreso" : "Gasto"}` : `Nuevo ${formType === "income" ? "Ingreso" : "Gasto"}`}
+        description={
+          <DialogDescription>
+            {isEditing ? `Edita los detalles del ${formType === "income" ? "ingreso" : "gasto"} seleccionado.` : `Agrega un nuevo ${formType === "income" ? "ingreso" : "gasto"}.`}
+          </DialogDescription>
+        }
+      >
+        <FinanceForm
+          isOpen={isFormOpen}
+          isEditing={isEditing}
+          currentItem={currentItem}
+          categories={formType === "income" ? incomeCategories : expenseCategories}
+          title={formType === "income" ? "Ingreso" : "Gasto"}
+          type={formType}
+          onCancel={handleCancel}
+          onSave={handleSave}
+          onChange={handleFormChange}
+        />
+      </DrawerDialog>
     </div>
   );
 }
