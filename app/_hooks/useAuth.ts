@@ -7,6 +7,8 @@ import {
   onAuthStateChanged,
   GoogleAuthProvider,
   signInWithPopup,
+  signInWithRedirect,
+  getRedirectResult,
   AuthError
 } from 'firebase/auth';
 import { auth } from '@bill/_firebase/config';
@@ -136,10 +138,27 @@ export const useAuth = () => {
   const signInWithGoogle = async () => {
     try {
       const provider = new GoogleAuthProvider();
-      const userCredential = await signInWithPopup(auth, provider);
+      provider.setCustomParameters({
+        prompt: 'select_account'
+      });
+
+      // Detectar si es un dispositivo móvil
+      const isMobile = /iPhone|iPad|iPod|Android/i.test(navigator.userAgent);
+
+      let userCredential;
+
+      if (isMobile) {
+        // En dispositivos móviles, usar redirección
+        await signInWithRedirect(auth, provider);
+        // El resultado se manejará en el useEffect de abajo
+        return { success: true };
+      } else {
+        // En desktop, usar popup
+        userCredential = await signInWithPopup(auth, provider);
+      }
       
       // Si es un nuevo usuario, crear cuenta predeterminada
-      if (userCredential.user) {
+      if (userCredential?.user) {
         // @ts-ignore - Verificar si es un nuevo usuario
         const isNewUser = userCredential._tokenResponse?.isNewUser;
         
@@ -151,12 +170,35 @@ export const useAuth = () => {
       
       return { success: true };
     } catch (error: any) {
+      console.error("Error en autenticación con Google:", error);
       return { 
         success: false, 
         error: getUserFriendlyErrorMessage(error as AuthError) 
       };
     }
   };
+
+  // Manejar el resultado de la redirección de Google
+  useEffect(() => {
+    const handleRedirectResult = async () => {
+      try {
+        const result = await getRedirectResult(auth);
+        if (result?.user) {
+          // @ts-ignore
+          const isNewUser = result._tokenResponse?.isNewUser;
+          
+          if (isNewUser) {
+            console.log("⚠️ Nuevo usuario detectado después de redirección, creando cuenta predeterminada");
+            await createDefaultAccount(result.user.uid);
+          }
+        }
+      } catch (error) {
+        console.error("Error al manejar resultado de redirección:", error);
+      }
+    };
+
+    handleRedirectResult();
+  }, []);
 
   // Logout user
   const logout = async () => {
