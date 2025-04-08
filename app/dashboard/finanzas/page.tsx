@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect, useCallback } from "react";
+import { useState, useEffect, useCallback, Suspense } from "react";
 import { TrendingUp, TrendingDown, Plus, ArrowUp, ArrowDown, Loader2, RefreshCw } from "lucide-react";
 import { useAuthStore } from "@bill/_store/useAuthStore";
 import { useIncomeStore } from "@bill/_store/useIncomeStore";
@@ -59,8 +59,7 @@ const incomeCategories = ["Salario", "Freelance", "Inversiones", "Ventas", "Rega
 // Categorías de gastos
 const expenseCategories = ["Comida", "Transporte", "Entretenimiento", "Servicios", "Compras", "Salud", "Educación", "Vivienda", "Otros"];
 
-// Componente para la página unificada de gestión de finanzas
-export default function FinancesPage() {
+function FinancesPageContent() {
   const { user } = useAuthStore();
   const { incomes, setIncomes, loading: incomesLoading, setLoading: setIncomesLoading } = useIncomeStore();
   const { expenses, setExpenses, loading: expensesLoading, setLoading: setExpensesLoading } = useExpenseStore();
@@ -1062,5 +1061,26 @@ export default function FinancesPage() {
         />
       </DrawerDialog>
     </div>
+  );
+}
+
+// Wrap the main component with Suspense
+export default function FinancesPage() {
+  return (
+    <Suspense fallback={
+      <div className="container mx-auto p-4">
+        <Card className="w-full">
+          <CardHeader>
+            <CardTitle>Finanzas</CardTitle>
+            <CardDescription>Cargando datos financieros...</CardDescription>
+          </CardHeader>
+          <CardContent className="flex justify-center py-8">
+            <Loader2 className="h-8 w-8 animate-spin" />
+          </CardContent>
+        </Card>
+      </div>
+    }>
+      <FinancesPageContent />
+    </Suspense>
   );
 }

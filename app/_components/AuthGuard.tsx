@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect } from 'react';
+import { useEffect, Suspense } from 'react';
 import { useRouter, usePathname, useSearchParams } from 'next/navigation';
 import { useAuthStore } from '@bill/_store/useAuthStore';
 
@@ -9,7 +9,7 @@ interface AuthGuardProps {
   requireVerified?: boolean;
 }
 
-export default function AuthGuard({ children, requireVerified = false }: AuthGuardProps) {
+function AuthGuardContent({ children, requireVerified = false }: AuthGuardProps) {
   const router = useRouter();
   const pathname = usePathname();
   const searchParams = useSearchParams();
@@ -66,4 +66,18 @@ export default function AuthGuard({ children, requireVerified = false }: AuthGua
   }
 
   return <>{children}</>;
+}
+
+export default function AuthGuard({ children, requireVerified = false }: AuthGuardProps) {
+  return (
+    <Suspense fallback={
+      <div className="flex items-center justify-center min-h-screen">
+        <div className="animate-spin rounded-full h-12 w-12 border-t-2 border-b-2 border-primary"></div>
+      </div>
+    }>
+      <AuthGuardContent requireVerified={requireVerified}>
+        {children}
+      </AuthGuardContent>
+    </Suspense>
+  );
 }
