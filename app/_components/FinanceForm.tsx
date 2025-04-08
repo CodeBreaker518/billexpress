@@ -286,7 +286,10 @@ export const FinanceForm = memo(function FinanceForm({ isEditing, currentItem, c
             <SelectContent>
               {accounts.map((account) => (
                 <SelectItem key={account.id} value={account.id}>
-                  {account.name} {account.isDefault && "(Principal)"}
+                  <div className="flex items-center gap-2">
+                    <div className="w-3 h-3 rounded-full" style={{ backgroundColor: account.color }} />
+                    <span>{account.name} {account.isDefault && "(Principal)"}</span>
+                  </div>
                 </SelectItem>
               ))}
             </SelectContent>
