@@ -1,6 +1,6 @@
 "use client";
 
-import { collection, addDoc, updateDoc, deleteDoc, doc, query, where, getDocs, getDoc, serverTimestamp } from "firebase/firestore";
+import { collection, addDoc, updateDoc, deleteDoc, doc, query, where, getDocs, getDoc, serverTimestamp, writeBatch } from "firebase/firestore";
 import { db } from "./config";
 import { usePendingOperationsStore } from "@bill/_store/usePendingOperationsStore";
 import { useAccountStore } from "@bill/_store/useAccountStore";
@@ -736,5 +736,57 @@ export const updateAllAccountBalances = async (userId: string): Promise<string[]
   } catch (error) {
     console.error("Error updating all account balances:", error);
     return [];
+  }
+};
+
+/**
+ * Cleanup duplicate "Efectivo" accounts for a user
+ * This function will keep the oldest "Efectivo" account and delete any duplicates
+ */
+export const cleanupDuplicateAccounts = async (userId: string): Promise<number> => {
+  try {
+    // 1. Obtener todas las cuentas del usuario
+    const accounts = await getUserAccounts(userId);
+    
+    // 2. Filtrar las cuentas "Efectivo"
+    const efectivoAccounts = accounts.filter(acc => 
+      acc.name === "Efectivo" && acc.isDefault
+    );
+    
+    // Si hay menos de 2 cuentas, no hay duplicados
+    if (efectivoAccounts.length < 2) {
+      return 0;
+    }
+    
+    // 3. Ordenar por fecha de creación (asumiendo que el ID contiene timestamp)
+    efectivoAccounts.sort((a, b) => {
+      const timestampA = a.id.split('-')[0];
+      const timestampB = b.id.split('-')[0];
+      return parseInt(timestampA) - parseInt(timestampB);
+    });
+    
+    // 4. Mantener la cuenta más antigua y eliminar el resto
+    const [oldestAccount, ...duplicates] = efectivoAccounts;
+    
+    // 5. Eliminar las cuentas duplicadas
+    const batch = writeBatch(db);
+    
+    for (const account of duplicates) {
+      // Obtener transacciones asociadas a la cuenta duplicada
+      const { deleteFinancesByAccountId } = await import('./financeService');
+      await deleteFinancesByAccountId(account.id);
+      
+      // Eliminar la cuenta
+      const accountRef = doc(db, "accounts", account.id);
+      batch.delete(accountRef);
+    }
+    
+    // Ejecutar el batch
+    await batch.commit();
+    
+    return duplicates.length;
+  } catch (error) {
+    console.error("Error limpiando cuentas duplicadas:", error);
+    return 0;
   }
 };
