@@ -13,6 +13,7 @@ import {
 } from 'firebase/auth';
 import { auth } from '@bill/_firebase/config';
 import { useAuthStore } from '@bill/_store/useAuthStore';
+import { useRouter } from 'next/navigation';
 
 // Helper function to translate Firebase error codes into user-friendly messages
 const getUserFriendlyErrorMessage = (error: AuthError): string => {
@@ -34,6 +35,7 @@ const getUserFriendlyErrorMessage = (error: AuthError): string => {
     'auth/network-request-failed': 'Error de conexión. Verifica tu internet',
     'auth/timeout': 'La operación tardó demasiado tiempo',
     'auth/configuration-not-found': 'Servicio no disponible. Inténtalo más tarde',
+    'auth/unauthorized-domain': 'Este dominio no está autorizado para iniciar sesión. Por favor, contacta al administrador.',
     
     // Other Firebase errors
     'permission-denied': 'No tienes permisos para realizar esta acción',
@@ -46,6 +48,7 @@ const getUserFriendlyErrorMessage = (error: AuthError): string => {
 
 export const useAuth = () => {
   const { setUser, setLoading } = useAuthStore();
+  const router = useRouter();
 
   // Monitor authentication state
   useEffect(() => {
@@ -182,23 +185,54 @@ export const useAuth = () => {
   useEffect(() => {
     const handleRedirectResult = async () => {
       try {
+        console.log("🔍 Verificando resultado de redirección...");
         const result = await getRedirectResult(auth);
+        
         if (result?.user) {
-          // @ts-ignore
-          const isNewUser = result._tokenResponse?.isNewUser;
+          console.log("✅ Usuario autenticado después de redirección:", result.user.email);
           
-          if (isNewUser) {
-            console.log("⚠️ Nuevo usuario detectado después de redirección, creando cuenta predeterminada");
-            await createDefaultAccount(result.user.uid);
+          try {
+            // @ts-ignore
+            const isNewUser = result._tokenResponse?.isNewUser;
+            
+            // Verificar si el usuario ya tiene una cuenta predeterminada
+            const { getUserAccounts } = await import('@bill/_firebase/accountService');
+            const accounts = await getUserAccounts(result.user.uid);
+            const hasDefaultAccount = accounts.some(acc => acc.name === "Efectivo" && acc.isDefault);
+            
+            if (isNewUser || !hasDefaultAccount) {
+              console.log("⚠️ Nuevo usuario o sin cuenta predeterminada, creando cuenta Efectivo...");
+              const accountCreated = await createDefaultAccount(result.user.uid);
+              
+              if (!accountCreated) {
+                console.error("❌ Error al crear cuenta predeterminada");
+                throw new Error("No se pudo crear la cuenta predeterminada");
+              }
+            }
+
+            // Solo redirigir al dashboard si todo fue exitoso
+            console.log("✅ Redirigiendo al dashboard...");
+            router.push('/dashboard');
+          } catch (error) {
+            console.error("❌ Error en el proceso post-redirección:", error);
+            throw error; // Re-lanzar el error para que se maneje en el catch exterior
           }
+        } else {
+          console.log("ℹ️ No hay resultado de redirección pendiente");
         }
-      } catch (error) {
-        console.error("Error al manejar resultado de redirección:", error);
+      } catch (error: any) {
+        console.error("❌ Error al manejar resultado de redirección:", error);
+        // Mostrar el error al usuario
+        const errorMessage = error.message || "Error al procesar el inicio de sesión";
+        router.push(`/auth/login?error=${encodeURIComponent(errorMessage)}`);
       }
     };
 
-    handleRedirectResult();
-  }, []);
+    // Ejecutar solo si auth está inicializado
+    if (auth.currentUser === null) {
+      handleRedirectResult();
+    }
+  }, [router]);
 
   // Logout user
   const logout = async () => {
