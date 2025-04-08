@@ -1,7 +1,7 @@
 "use client";
 
-import { useState, useEffect } from "react";
-import { TrendingUp, TrendingDown, Plus, ArrowUp, ArrowDown, Loader2 } from "lucide-react";
+import { useState, useEffect, useCallback } from "react";
+import { TrendingUp, TrendingDown, Plus, ArrowUp, ArrowDown, Loader2, RefreshCw } from "lucide-react";
 import { useAuthStore } from "@bill/_store/useAuthStore";
 import { useIncomeStore } from "@bill/_store/useIncomeStore";
 import { useExpenseStore } from "@bill/_store/useExpenseStore";
@@ -24,8 +24,8 @@ import { Text } from "@bill/_components/ui/typography";
 import { List, ListItem } from "@bill/_components/ui/list";
 import { DialogDescription } from "@bill/_components/ui/dialog";
 import { translate } from "@bill/_components/ui/t";
-import { INCOME_CATEGORIES, EXPENSE_CATEGORIES } from "../../../utils/categoryConfig";
-import { getUserAccounts } from "@bill/_firebase/accountService";
+import { INCOME_CATEGORIES, EXPENSE_CATEGORIES } from "../../_lib/utils/categoryConfig";
+import { getUserAccounts, updateAllAccountBalances } from "@bill/_firebase/accountService";
 import { useAccountStore } from "@bill/_store/useAccountStore";
 import AccountManager from "@bill/_components/AccountManager";
 import { useToast } from "@bill/_components/ui/use-toast";
@@ -475,6 +475,36 @@ export default function FinancesPage() {
     setIsFormOpen(true);
   };
 
+  // Recargar ingresos
+  const handleReloadIncomes = async () => {
+    if (user) {
+      setIncomesLoading(true);
+      try {
+        const userIncomes = await getUserIncomes(user.uid);
+        setIncomes(userIncomes);
+      } catch (error) {
+        console.error("Error recargando ingresos:", error);
+      } finally {
+        setIncomesLoading(false);
+      }
+    }
+  };
+
+  // Recargar gastos
+  const handleReloadExpenses = async () => {
+    if (user) {
+      setExpensesLoading(true);
+      try {
+        const userExpenses = await getUserExpenses(user.uid);
+        setExpenses(userExpenses);
+      } catch (error) {
+        console.error("Error recargando gastos:", error);
+      } finally {
+        setExpensesLoading(false);
+      }
+    }
+  };
+
   // Cerrar formulario
   const handleCancel = () => {
     setIsFormOpen(false);
@@ -602,11 +632,11 @@ export default function FinancesPage() {
   const handleDeleteIncome = async (id: string) => {
     try {
       // Obtener el ingreso antes de eliminarlo para identificar la cuenta
-      const incomeToDelete = incomes.find((income) => income.id === id);
-      const accountId = incomeToDelete?.accountId as string | undefined;
+      const incomeToDelete = incomes.find((income) => income.id === id) as any;
+      const accountId = incomeToDelete?.accountId;
 
       // Eliminar en Firebase
-      await incomeService.deleteIncome(id);
+      await deleteIncome(id);
 
       // Recargar ingresos
       await handleReloadIncomes();
@@ -631,11 +661,11 @@ export default function FinancesPage() {
   const handleDeleteExpense = async (id: string) => {
     try {
       // Obtener el gasto antes de eliminarlo para identificar la cuenta
-      const expenseToDelete = expenses.find((expense) => expense.id === id);
-      const accountId = expenseToDelete?.accountId as string | undefined;
+      const expenseToDelete = expenses.find((expense) => expense.id === id) as any;
+      const accountId = expenseToDelete?.accountId;
 
       // Eliminar en Firebase
-      await expenseService.deleteExpense(id);
+      await deleteExpense(id);
 
       // Recargar gastos
       await handleReloadExpenses();
@@ -661,16 +691,14 @@ export default function FinancesPage() {
       <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4 mb-6">
         <h1 className="text-2xl font-bold">Finanzas</h1>
         <div className="flex flex-wrap gap-2">
-          <div className="flex gap-2">
-            <Button onClick={handleNewIncome} className="bg-green-500 hover:bg-green-600">
-              <Plus className="mr-2 h-4 w-4" />
-              Ingreso
-            </Button>
-            <Button onClick={handleNewExpense} className="bg-red-500 hover:bg-red-600">
-              <Plus className="mr-2 h-4 w-4" />
-              Gasto
-            </Button>
-          </div>
+          <Button onClick={handleNewIncome} className="bg-green-500 hover:bg-green-600">
+            <Plus className="mr-2 h-4 w-4" />
+            Ingreso
+          </Button>
+          <Button onClick={handleNewExpense} className="bg-red-500 hover:bg-red-600">
+            <Plus className="mr-2 h-4 w-4" />
+            Gasto
+          </Button>
         </div>
       </div>
 

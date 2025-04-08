@@ -55,11 +55,45 @@ export const useAuth = () => {
     return () => unsubscribe();
   }, [setUser, setLoading]);
 
+  // Función para crear cuenta Efectivo por defecto
+  const createDefaultAccount = async (userId: string) => {
+    try {
+      console.log("⚠️ Creando cuenta Efectivo por defecto para usuario:", userId);
+      const { addAccount } = await import('@bill/_firebase/accountService');
+      
+      // Crear cuenta predeterminada
+      const defaultAccount = await addAccount({
+        name: "Efectivo",
+        color: "#22c55e", // Verde
+        balance: 0,
+        userId: userId,
+        isDefault: true,
+      });
+      
+      console.log("✅ Cuenta Efectivo creada exitosamente:", defaultAccount);
+      return true;
+    } catch (error) {
+      console.error("❌ Error al crear cuenta Efectivo por defecto:", error);
+      return false;
+    }
+  };
+
   // User registration
   const signUp = async (email: string, password: string) => {
     try {
-      await createUserWithEmailAndPassword(auth, email, password);
-      return { success: true };
+      const userCredential = await createUserWithEmailAndPassword(auth, email, password);
+      
+      // Enviar correo de verificación automáticamente
+      if (userCredential.user) {
+        // Enviar correo de verificación
+        const { sendVerificationEmail } = await import('@bill/_firebase/authService');
+        await sendVerificationEmail(userCredential.user);
+        
+        // Crear cuenta predeterminada
+        await createDefaultAccount(userCredential.user.uid);
+      }
+      
+      return { success: true, emailVerificationSent: true };
     } catch (error: any) {
       return { 
         success: false, 
@@ -71,7 +105,24 @@ export const useAuth = () => {
   // User login
   const signIn = async (email: string, password: string) => {
     try {
-      await signInWithEmailAndPassword(auth, email, password);
+      const userCredential = await signInWithEmailAndPassword(auth, email, password);
+      
+      // Verificar si el correo está verificado
+      if (userCredential.user && !userCredential.user.emailVerified) {
+        // Enviar nuevo correo de verificación
+        const { sendVerificationEmail } = await import('@bill/_firebase/authService');
+        await sendVerificationEmail(userCredential.user);
+        
+        // Ya no cerramos la sesión para permitir permanecer en la página de verificación
+        
+        return { 
+          success: false, 
+          error: "Tu correo electrónico no ha sido verificado. Se ha enviado un nuevo correo de verificación a tu dirección. Por favor, verifica tu cuenta antes de iniciar sesión.",
+          emailVerificationSent: true,
+          user: userCredential.user
+        };
+      }
+      
       return { success: true };
     } catch (error: any) {
       return { 
@@ -85,7 +136,19 @@ export const useAuth = () => {
   const signInWithGoogle = async () => {
     try {
       const provider = new GoogleAuthProvider();
-      await signInWithPopup(auth, provider);
+      const userCredential = await signInWithPopup(auth, provider);
+      
+      // Si es un nuevo usuario, crear cuenta predeterminada
+      if (userCredential.user) {
+        // @ts-ignore - Verificar si es un nuevo usuario
+        const isNewUser = userCredential._tokenResponse?.isNewUser;
+        
+        if (isNewUser) {
+          console.log("⚠️ Nuevo usuario detectado, creando cuenta predeterminada");
+          await createDefaultAccount(userCredential.user.uid);
+        }
+      }
+      
       return { success: true };
     } catch (error: any) {
       return { 

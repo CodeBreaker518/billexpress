@@ -30,7 +30,7 @@ const expenseCategories = ["Comida", "Transporte", "Entretenimiento", "Servicios
 const incomeCategories = ["Salario", "Freelance", "Inversiones", "Ventas", "Regalos", "Reembolsos", "Otros"];
 
 // Agregar importación de nuestro sistema centralizado
-import { INCOME_CATEGORIES, EXPENSE_CATEGORIES } from "../../utils/categoryConfig";
+import { INCOME_CATEGORIES, EXPENSE_CATEGORIES } from "../_lib/utils/categoryConfig";
 
 export default function DashboardPage() {
   const { user } = useAuthStore();
@@ -103,25 +103,20 @@ export default function DashboardPage() {
           // Importar la función de actualización de saldos
           const { updateAllAccountBalances } = await import("@bill/_firebase/accountService");
 
-          // Actualizar los saldos
+          // Recalcular explícitamente todos los saldos
           const updatedAccounts = await updateAllAccountBalances(user.uid);
-
-          // Si se actualizaron cuentas, recargar los datos
-          if (updatedAccounts.length > 0) {
-            console.log(`Saldos actualizados para ${updatedAccounts.length} cuentas`);
-            await loadData(); // Ahora loadData está disponible aquí
-          }
+          console.log("✅ Saldos de cuentas recalculados automáticamente al cargar dashboard");
         } catch (error) {
           console.error("Error al actualizar saldos:", error);
         }
       }
     };
 
-    // Ejecutar solo cuando el usuario esté disponible
-    if (user?.uid) {
+    // Ejecutar solo cuando tengamos datos de las finanzas cargados
+    if (!loading && user?.uid) {
       updateAccountBalances();
     }
-  }, [user]);
+  }, [user, loading]);
 
   // Calcular métricas y visualizaciones cuando los datos cambian
   useEffect(() => {

@@ -3,8 +3,8 @@
 import React from "react";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@bill/_components/ui/select";
 import { Label } from "@bill/_components/ui/label";
-import { getCategoryConfig } from "../../utils/categoryConfig";
-import { incomeCategories, expenseCategories } from "../../utils/categoryConfig";
+import { getCategoryConfig } from "../_lib/utils/categoryConfig";
+import { incomeCategories, expenseCategories } from "../_lib/utils/categoryConfig";
 
 interface CategorySelectProps {
   type: "income" | "expense";

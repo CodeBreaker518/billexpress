@@ -19,10 +19,11 @@ import {
   Monitor
 } from 'lucide-react';
 import { useTheme } from 'next-themes';
+import { toast } from "@bill/_components/ui/use-toast";
 
 // Importaciones de componentes shadcn/ui
 import { Button } from "@bill/_components/ui/button";
-import { Card, CardContent, CardHeader, CardTitle } from "@bill/_components/ui/card";
+import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@bill/_components/ui/card";
 import { TabGroup, TabList, Tab, TabPanels, TabPanel } from "@bill/_components/ui/tab-group";
 import { List, ListItem } from "@bill/_components/ui/list";
 import { Text, Title } from "@bill/_components/ui/typography";

@@ -3,7 +3,7 @@
 import React from "react";
 import { Badge, BadgeProps } from "./badge";
 import { cn } from "@bill/_lib/utils";
-import { getCategoryConfig } from "../../../utils/categoryConfig";
+import { getCategoryConfig } from "../../_lib/utils/categoryConfig";
 
 export interface CategoryBadgeProps extends BadgeProps {
   category: string;

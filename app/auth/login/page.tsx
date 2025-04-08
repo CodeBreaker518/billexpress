@@ -25,6 +25,7 @@ function LoginForm() {
   const [password, setPassword] = useState("");
   const [showPassword, setShowPassword] = useState(false);
   const [error, setError] = useState("");
+  const [verificationSent, setVerificationSent] = useState(false);
   const [loading, setLoading] = useState(false);
   const [googleLoading, setGoogleLoading] = useState(false);
   const { signIn, signInWithGoogle } = useAuth();
@@ -33,11 +34,16 @@ function LoginForm() {
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setError("");
+    setVerificationSent(false);
     setLoading(true);
 
     try {
       const result = await signIn(email, password);
       if (!result.success) {
+        if (result.emailVerificationSent) {
+          router.push(`/auth/verify?new=true&email=${encodeURIComponent(email)}`);
+          return;
+        }
         throw new Error(result.error);
       }
       router.push("/dashboard");
@@ -72,7 +78,34 @@ function LoginForm() {
         <Text className="text-center">Inicia sesión para continuar</Text>
       </CardHeader>
       <CardContent>
-        {error && <div className="p-3 mb-4 text-sm text-red-700 bg-red-100 rounded-md">{error}</div>}
+        {error && (
+          <div className={`p-3 mb-4 text-sm ${verificationSent ? 'text-yellow-700 bg-yellow-100' : 'text-red-700 bg-red-100'} rounded-md`}>
+            <p>{error}</p>
+            {verificationSent && (
+              <Button 
+                variant="link" 
+                className="p-0 h-auto text-sm text-blue-600 underline"
+                onClick={async () => {
+                  if (!email) return;
+                  
+                  try {
+                    const { sendPasswordReset } = await import('@bill/_firebase/authService');
+                    const result = await sendPasswordReset(email);
+                    if (result.success) {
+                      setError("Se ha enviado un correo de restablecimiento de contraseña a tu dirección de correo electrónico.");
+                    } else {
+                      throw new Error(result.error);
+                    }
+                  } catch (err: any) {
+                    setError("No se pudo enviar el correo. Verifica que la dirección sea correcta.");
+                  }
+                }}
+              >
+                ¿Olvidaste tu contraseña? Haz clic aquí para restablecerla.
+              </Button>
+            )}
+          </div>
+        )}
 
         <GoogleAuthButton onClick={handleGoogleSignIn} loading={googleLoading} label="Iniciar sesión con Google" />
 
@@ -95,9 +128,9 @@ function LoginForm() {
           </div>
           <div className="mt-4 text-center text-sm">
             <Text>
-              ¿Ya tienes una cuenta?{" "}
+              ¿No tienes una cuenta?{" "}
               <Link href="/auth/register" className="text-blue-600 hover:underline">
-                Iniciar sesión
+                Registrarse
               </Link>
             </Text>
           </div>

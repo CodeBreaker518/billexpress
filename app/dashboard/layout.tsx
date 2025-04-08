@@ -26,6 +26,78 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
   const { logout } = useAuth();
   const { user } = useAuthStore();
   const [sheetOpen, setSheetOpen] = useState(false);
+  const [cleanedUpAccounts, setCleanedUpAccounts] = useState(false);
+  const [defaultAccountChecked, setDefaultAccountChecked] = useState(false);
+
+  // Efecto para limpiar cuentas duplicadas al iniciar sesión (de forma silenciosa)
+  useEffect(() => {
+    const cleanupAccounts = async () => {
+      if (user && !cleanedUpAccounts) {
+        try {
+          // Importar la función dinámicamente para evitar problemas de importación circular
+          const { cleanupDuplicateAccounts } = await import("@bill/_firebase/accountService");
+          
+          // Limpiar cuentas duplicadas silenciosamente
+          const deletedCount = await cleanupDuplicateAccounts(user.uid);
+          
+          // Solo registro de depuración en consola, sin notificaciones al usuario
+          if (deletedCount > 0) {
+            console.log(`✅ Se eliminaron ${deletedCount} cuentas "Efectivo" duplicadas automáticamente`);
+          }
+          
+          // Marcar como limpiado para no volver a ejecutar
+          setCleanedUpAccounts(true);
+        } catch (error) {
+          // Solo log para desarrollo, el usuario no necesita ver este error
+          console.error("Error en limpieza automática de cuentas duplicadas:", error);
+        }
+      }
+    };
+    
+    // Ejecutar limpieza silenciosa de cuentas
+    cleanupAccounts();
+  }, [user, cleanedUpAccounts]);
+
+  // Verificar y crear cuenta Efectivo por defecto si no existe
+  useEffect(() => {
+    const ensureDefaultAccount = async () => {
+      if (user && !defaultAccountChecked) {
+        try {
+          // Importar las funciones necesarias
+          const { getUserAccounts, addAccount } = await import("@bill/_firebase/accountService");
+          
+          // Obtener cuentas del usuario
+          const accounts = await getUserAccounts(user.uid);
+          
+          // Verificar si existe una cuenta Efectivo
+          const hasDefaultAccount = accounts.some(
+            acc => acc.name === "Efectivo" && acc.isDefault
+          );
+          
+          // Si no existe, crear la cuenta Efectivo por defecto
+          if (!hasDefaultAccount) {
+            console.log("⚠️ No se encontró cuenta Efectivo por defecto, creando una");
+            
+            await addAccount({
+              name: "Efectivo",
+              color: "#22c55e", // Verde
+              balance: 0,
+              userId: user.uid,
+              isDefault: true,
+            });
+            
+            console.log("✅ Cuenta Efectivo creada exitosamente para usuario existente");
+          }
+        } catch (error) {
+          console.error("Error al verificar cuenta Efectivo por defecto:", error);
+        } finally {
+          setDefaultAccountChecked(true);
+        }
+      }
+    };
+    
+    ensureDefaultAccount();
+  }, [user, defaultAccountChecked]);
 
   const handleLogout = async () => {
     const result = await logout();

@@ -3,7 +3,7 @@
 import React, { useState } from "react";
 import { BarChart as RechartsBarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer, PieChart, Pie, Cell, Sector } from "recharts";
 import { cn } from "../../../app/_lib/utils";
-import { getCategoryColors } from "../../../utils/categoryConfig";
+import { getCategoryColors } from "../../_lib/utils/categoryConfig";
 
 // Definiciones de tipo para datos de gráficos
 type ChartData = Record<string, string | number>;

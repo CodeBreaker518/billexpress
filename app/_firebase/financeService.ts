@@ -77,6 +77,30 @@ export const createFinanceService = (entityType: "incomes" | "expenses") => {
     const tempId = `temp_${Date.now()}`;
 
     try {
+      // Validar la fecha y asegurar que sea un objeto Date válido
+      let safeDate;
+      try {
+        if (item.date instanceof Date) {
+          safeDate = new Date(item.date.getTime());
+        } else if (typeof item.date === 'string') {
+          safeDate = new Date(item.date);
+        } else if (item.date && typeof item.date === 'object' && 'seconds' in item.date) {
+          // Es un Timestamp de Firestore
+          safeDate = new Date((item.date as any).seconds * 1000);
+        } else {
+          console.warn('Fecha no válida proporcionada, usando fecha actual');
+          safeDate = new Date();
+        }
+
+        // Verificar que la fecha sea válida
+        if (isNaN(safeDate.getTime())) {
+          throw new Error('Fecha inválida');
+        }
+      } catch (dateError) {
+        console.error('Error procesando fecha:', dateError);
+        safeDate = new Date(); // Usar fecha actual como fallback
+      }
+
       // Guardar en localStorage para recuperación offline
       const localData = localStorage.getItem(localStorageKey) || "[]";
       const parsedData = JSON.parse(localData);
@@ -85,7 +109,7 @@ export const createFinanceService = (entityType: "incomes" | "expenses") => {
       const newItem = {
         ...item,
         id: tempId,
-        date: new Date(item.date), // Asegurar que sea objeto Date
+        date: safeDate, // Usar la fecha validada
       };
 
       // Actualizar datos locales
@@ -96,17 +120,18 @@ export const createFinanceService = (entityType: "incomes" | "expenses") => {
         try {
           const docRef = await addDoc(collection_ref, {
             ...item,
-            date: Timestamp.fromDate(item.date),
+            date: Timestamp.fromDate(safeDate), // Usar la fecha validada
             createdAt: serverTimestamp(),
           });
 
           // Actualizar datos locales con el ID correcto
-          const updatedData = parsedData.map((localItem: any) => (localItem.id === tempId ? { ...item, id: docRef.id } : localItem));
+          const updatedData = parsedData.map((localItem: any) => (localItem.id === tempId ? { ...item, id: docRef.id, date: safeDate } : localItem));
           localStorage.setItem(localStorageKey, JSON.stringify(updatedData));
 
           return {
             ...item,
             id: docRef.id,
+            date: safeDate, // Usar la fecha validada
           };
         } catch (error) {
           console.error(`Error adding ${entityType.slice(0, -1)} to Firebase:`, error);
@@ -136,6 +161,7 @@ export const createFinanceService = (entityType: "incomes" | "expenses") => {
       return {
         ...item,
         id: tempId,
+        date: new Date(), // Usar fecha actual como último recurso
       };
     }
   };
@@ -143,10 +169,40 @@ export const createFinanceService = (entityType: "incomes" | "expenses") => {
   // Actualizar un elemento existente
   const updateItem = async (item: FinanceItem): Promise<void> => {
     try {
+      // Validar la fecha y asegurar que sea un objeto Date válido
+      let safeDate;
+      try {
+        if (item.date instanceof Date) {
+          safeDate = new Date(item.date.getTime());
+        } else if (typeof item.date === 'string') {
+          safeDate = new Date(item.date);
+        } else if (item.date && typeof item.date === 'object' && 'seconds' in item.date) {
+          // Es un Timestamp de Firestore
+          safeDate = new Date((item.date as any).seconds * 1000);
+        } else {
+          console.warn('Fecha no válida proporcionada en actualización, usando fecha actual');
+          safeDate = new Date();
+        }
+
+        // Verificar que la fecha sea válida
+        if (isNaN(safeDate.getTime())) {
+          throw new Error('Fecha inválida en actualización');
+        }
+      } catch (dateError) {
+        console.error('Error procesando fecha en actualización:', dateError);
+        safeDate = new Date(); // Usar fecha actual como fallback
+      }
+
+      // Crear una copia del item con la fecha validada
+      const validatedItem = {
+        ...item,
+        date: safeDate
+      };
+
       // Actualizar datos locales primero
       const localData = localStorage.getItem(localStorageKey) || "[]";
       const parsedData = JSON.parse(localData);
-      const updatedData = parsedData.map((localItem: any) => (localItem.id === item.id ? item : localItem));
+      const updatedData = parsedData.map((localItem: any) => (localItem.id === item.id ? validatedItem : localItem));
       localStorage.setItem(localStorageKey, JSON.stringify(updatedData));
 
       // Si estamos online, actualizar en Firebase
@@ -157,7 +213,7 @@ export const createFinanceService = (entityType: "incomes" | "expenses") => {
             amount: item.amount,
             category: item.category,
             description: item.description,
-            date: Timestamp.fromDate(item.date),
+            date: Timestamp.fromDate(safeDate),
             accountId: item.accountId || null,
             updatedAt: serverTimestamp(),
           });
@@ -167,7 +223,7 @@ export const createFinanceService = (entityType: "incomes" | "expenses") => {
           usePendingOperationsStore.getState().addOperation({
             operationType: "update",
             collection: entityType,
-            data: item,
+            data: validatedItem,
           });
         }
       } else {
@@ -175,7 +231,7 @@ export const createFinanceService = (entityType: "incomes" | "expenses") => {
         usePendingOperationsStore.getState().addOperation({
           operationType: "update",
           collection: entityType,
-          data: item,
+          data: validatedItem,
         });
       }
     } catch (error) {
@@ -222,43 +278,206 @@ export const createFinanceService = (entityType: "incomes" | "expenses") => {
   };
 
   // Sincronizar operaciones pendientes
-  const syncPendingItems = async (): Promise<void> => {
-    if (!isOnline()) return; // Solo intentar sincronizar si estamos online
+  const syncPendingItems = async (): Promise<{success: boolean, syncedCount: number, errorCount: number}> => {
+    if (!isOnline()) return { success: false, syncedCount: 0, errorCount: 0 }; // Solo intentar sincronizar si estamos online
 
     const pendingOps = usePendingOperationsStore.getState().operations.filter((op) => op.collection === entityType);
 
-    if (pendingOps.length === 0) return;
+    if (pendingOps.length === 0) return { success: true, syncedCount: 0, errorCount: 0 };
+
+    console.log(`Sincronizando ${pendingOps.length} operaciones pendientes de ${entityType}...`);
+    
+    let syncedCount = 0;
+    let errorCount = 0;
 
     // Procesar cada operación pendiente
     for (const op of pendingOps) {
       try {
+        // Validar la operación antes de procesarla para evitar errores
+        // Si es demasiado antigua (más de 7 días), eliminarla automáticamente 
+        if (Date.now() - op.timestamp > 7 * 24 * 60 * 60 * 1000) {
+          console.log(`Eliminando operación antigua ${op.id} sin procesar`);
+          usePendingOperationsStore.getState().removeOperation(op.id);
+          continue;
+        }
+        
         if (op.operationType === "add") {
           const { id, ...rest } = op.data;
-          await addDoc(collection_ref, {
-            ...rest,
-            date: Timestamp.fromDate(new Date(rest.date)),
-            createdAt: serverTimestamp(),
-            syncedAt: serverTimestamp(),
-          });
+          
+          // Validar datos antes de sincronizar
+          if (!rest || !rest.userId) {
+            console.warn(`Operación de añadir inválida, falta userId: ${op.id}`);
+            usePendingOperationsStore.getState().removeOperation(op.id);
+            errorCount++;
+            continue;
+          }
+          
+          // Validar y corregir la fecha
+          let safeDate;
+          try {
+            // Intentar convertir la fecha al formato correcto
+            if (rest.date instanceof Date) {
+              safeDate = rest.date;
+            } else if (typeof rest.date === 'string') {
+              safeDate = new Date(rest.date);
+            } else if (rest.date && typeof rest.date === 'object' && rest.date.seconds) {
+              // Es un Timestamp de Firestore
+              safeDate = new Date(rest.date.seconds * 1000);
+            } else {
+              // Si la fecha no es válida, usar la fecha actual
+              console.warn('Fecha no válida encontrada en operación pendiente, usando fecha actual');
+              safeDate = new Date();
+            }
+            
+            // Verificar que la fecha sea válida
+            if (isNaN(safeDate.getTime())) {
+              throw new Error('Invalid date');
+            }
+          } catch (dateError) {
+            console.error('Error procesando fecha en operación pendiente:', dateError);
+            safeDate = new Date(); // Usar fecha actual como fallback
+          }
+          
+          try {
+            await addDoc(collection_ref, {
+              ...rest,
+              date: Timestamp.fromDate(safeDate),
+              createdAt: serverTimestamp(),
+              syncedAt: serverTimestamp(),
+            });
+            
+            syncedCount++;
+          } catch (addError) {
+            // Intentar determinar si el error es temporal o permanente
+            if (addError instanceof Error && 
+                (addError.message.includes('network') || 
+                 addError.message.includes('unavailable'))) {
+              console.warn(`Error temporal al añadir documento, reintentando más tarde: ${addError.message}`);
+              // No eliminar la operación para reintentar más tarde
+              errorCount++;
+              continue;
+            } else {
+              console.error(`Error permanente al añadir documento, eliminando operación: ${addError}`);
+              // Eliminar operación con error permanente
+              usePendingOperationsStore.getState().removeOperation(op.id);
+              errorCount++;
+              continue;
+            }
+          }
         } else if (op.operationType === "update") {
           const { id, ...rest } = op.data;
-          const itemRef = doc(db, entityType, id);
-          await updateDoc(itemRef, {
-            ...rest,
-            date: Timestamp.fromDate(new Date(rest.date)),
-            updatedAt: serverTimestamp(),
-            syncedAt: serverTimestamp(),
-          });
+          
+          // Validar ID antes de actualizar
+          if (!id) {
+            console.warn(`Operación de actualización inválida, falta ID: ${op.id}`);
+            usePendingOperationsStore.getState().removeOperation(op.id);
+            errorCount++;
+            continue;
+          }
+          
+          // Validar y corregir la fecha
+          let safeDate;
+          try {
+            // Intentar convertir la fecha al formato correcto
+            if (rest.date instanceof Date) {
+              safeDate = rest.date;
+            } else if (typeof rest.date === 'string') {
+              safeDate = new Date(rest.date);
+            } else if (rest.date && typeof rest.date === 'object' && rest.date.seconds) {
+              // Es un Timestamp de Firestore
+              safeDate = new Date(rest.date.seconds * 1000);
+            } else {
+              // Si la fecha no es válida, usar la fecha actual
+              console.warn('Fecha no válida encontrada en operación pendiente, usando fecha actual');
+              safeDate = new Date();
+            }
+            
+            // Verificar que la fecha sea válida
+            if (isNaN(safeDate.getTime())) {
+              throw new Error('Invalid date');
+            }
+          } catch (dateError) {
+            console.error('Error procesando fecha en operación pendiente:', dateError);
+            safeDate = new Date(); // Usar fecha actual como fallback
+          }
+          
+          try {
+            const itemRef = doc(db, entityType, id);
+            await updateDoc(itemRef, {
+              ...rest,
+              date: Timestamp.fromDate(safeDate),
+              updatedAt: serverTimestamp(),
+              syncedAt: serverTimestamp(),
+            });
+            
+            syncedCount++;
+          } catch (updateError) {
+            // Si el documento no existe, eliminar la operación pendiente
+            if (updateError instanceof Error && 
+                (updateError.message.includes('No document to update') || 
+                 updateError.message.includes('not found'))) {
+              console.warn(`Documento no encontrado, eliminando operación: ${op.id}`);
+              usePendingOperationsStore.getState().removeOperation(op.id);
+              errorCount++;
+              continue;
+            }
+            
+            // Si es un error temporal, no eliminar la operación
+            if (updateError instanceof Error && 
+                (updateError.message.includes('network') || 
+                 updateError.message.includes('unavailable'))) {
+              console.warn(`Error temporal al actualizar documento, reintentando más tarde: ${updateError.message}`);
+              errorCount++;
+              continue;
+            }
+            
+            // Para otros errores, eliminar la operación
+            console.error(`Error desconocido al actualizar documento, eliminando operación: ${updateError}`);
+            usePendingOperationsStore.getState().removeOperation(op.id);
+            errorCount++;
+            continue;
+          }
         } else if (op.operationType === "delete") {
-          const itemRef = doc(db, entityType, op.data);
-          await deleteDoc(itemRef);
+          try {
+            const itemRef = doc(db, entityType, op.data);
+            await deleteDoc(itemRef);
+            
+            syncedCount++;
+          } catch (deleteError) {
+            // Si el documento ya no existe, la operación de eliminación se considera exitosa
+            if (deleteError instanceof Error && 
+                (deleteError.message.includes('No document to delete') || 
+                 deleteError.message.includes('not found'))) {
+              console.log(`Documento ya eliminado, operación completada: ${op.id}`);
+              syncedCount++;
+            } else if (deleteError instanceof Error && 
+                      (deleteError.message.includes('network') || 
+                       deleteError.message.includes('unavailable'))) {
+              console.warn(`Error temporal al eliminar documento, reintentando más tarde: ${deleteError.message}`);
+              errorCount++;
+              continue;
+            } else {
+              console.error(`Error desconocido al eliminar documento: ${deleteError}`);
+              errorCount++;
+              continue;
+            }
+          }
         }
 
-        // Eliminar la operación de la cola después de completarla
+        // Eliminar la operación de la cola después de completarla exitosamente
         usePendingOperationsStore.getState().removeOperation(op.id);
       } catch (error) {
         console.error(`Error syncing operation ${op.id}:`, error);
-        // Continuamos con la siguiente operación incluso si esta falla
+        errorCount++;
+        
+        // Si el error es crítico y no podemos sincronizar la operación, la eliminamos
+        if (error instanceof Error && 
+            (error.message.includes('Invalid time value') || 
+             error.message.includes('Invalid date') ||
+             error.message.includes('permission-denied'))) {
+          console.warn(`Eliminando operación inválida ${op.id} de la cola`);
+          usePendingOperationsStore.getState().removeOperation(op.id);
+        }
       }
     }
 
@@ -271,6 +490,12 @@ export const createFinanceService = (entityType: "incomes" | "expenses") => {
         console.error(`Error refreshing ${entityType} after sync:`, e);
       }
     }
+    
+    return { 
+      success: errorCount === 0, 
+      syncedCount, 
+      errorCount 
+    };
   };
 
   // Retornar el objeto de servicio

@@ -58,9 +58,6 @@ export default function AccountManager({ userId, onReloadAccounts, isLoading }: 
   const [toAccountId, setToAccountId] = useState<string>("");
   const [transferAmount, setTransferAmount] = useState<number>(0);
 
-  // Estado para mostrar progreso
-  const [recalculatingBalances, setRecalculatingBalances] = useState(false);
-
   // Colores predefinidos para cuentas
   const predefinedColors = [
     "#10b981", // Verde esmeralda
@@ -85,6 +82,22 @@ export default function AccountManager({ userId, onReloadAccounts, isLoading }: 
 
   // Obtener la cuenta activa
   const activeAccount = accounts.find((account) => account.id === activeAccountId);
+
+  // Función mejorada para recargar cuentas que incluye recálculo automático
+  const reloadAccountsWithRecalculation = useCallback(async () => {
+    try {
+      // Primero recargar las cuentas normalmente
+      await onReloadAccounts();
+      
+      // Después actualizar todos los saldos si hay cuentas
+      if (userId) {
+        const { updateAllAccountBalances } = await import("@bill/_firebase/accountService");
+        await updateAllAccountBalances(userId);
+      }
+    } catch (error) {
+      console.error("Error al recargar cuentas con recálculo:", error);
+    }
+  }, [userId, onReloadAccounts]);
 
   // Seleccionar una cuenta
   const handleSelectAccount = useCallback(
@@ -177,7 +190,9 @@ export default function AccountManager({ userId, onReloadAccounts, isLoading }: 
 
       // Eliminar la cuenta
       await deleteAccount(accountToDelete.id);
-      await onReloadAccounts();
+      
+      // Recargar cuentas con recálculo automático de saldos
+      await reloadAccountsWithRecalculation();
 
       // Mensaje específico según si se eliminaron transacciones
       if (totalDeleted > 0) {
@@ -203,7 +218,7 @@ export default function AccountManager({ userId, onReloadAccounts, isLoading }: 
       setDeleteConfirmOpen(false);
       setAccountToDelete(null);
     }
-  }, [accountToDelete, onReloadAccounts, toast]);
+  }, [accountToDelete, reloadAccountsWithRecalculation, toast]);
 
   // Guardar cuenta (nueva o editada)
   const handleSaveAccount = useCallback(async () => {
@@ -217,6 +232,12 @@ export default function AccountManager({ userId, onReloadAccounts, isLoading }: 
     }
 
     try {
+      // Antes de cualquier operación, ejecutar limpieza automática de duplicados
+      if (userId) {
+        const { cleanupDuplicateAccounts } = await import("@bill/_firebase/accountService");
+        await cleanupDuplicateAccounts(userId);
+      }
+
       if (editingAccount) {
         // Actualizar cuenta existente
         await updateAccount({
@@ -246,8 +267,8 @@ export default function AccountManager({ userId, onReloadAccounts, isLoading }: 
         setActiveAccountId(newAccount.id);
       }
 
-      // Recargar todas las cuentas para asegurar sincronización
-      await onReloadAccounts();
+      // Recargar todas las cuentas con recálculo para asegurar sincronización
+      await reloadAccountsWithRecalculation();
       setIsAccountFormOpen(false);
 
       toast({
@@ -262,7 +283,7 @@ export default function AccountManager({ userId, onReloadAccounts, isLoading }: 
         variant: "destructive",
       });
     }
-  }, [accountName, accountColor, editingAccount, userId, onReloadAccounts, toast]);
+  }, [accountName, accountColor, editingAccount, userId, reloadAccountsWithRecalculation, toast]);
 
   // Abrir formulario de transferencia
   const handleOpenTransfer = useCallback(() => {
@@ -290,8 +311,9 @@ export default function AccountManager({ userId, onReloadAccounts, isLoading }: 
 
     try {
       await transferBetweenAccounts(fromAccountId, toAccountId, transferAmount, userId);
-
-      await onReloadAccounts();
+      
+      // Recargar cuentas con recálculo automático
+      await reloadAccountsWithRecalculation();
       setIsTransferFormOpen(false);
 
       toast({
@@ -305,75 +327,13 @@ export default function AccountManager({ userId, onReloadAccounts, isLoading }: 
         variant: "destructive",
       });
     }
-  }, [fromAccountId, toAccountId, transferAmount, userId, onReloadAccounts, toast, formatCurrency]);
-
-  // Función para recargar las cuentas con notificación
-  const handleReloadAccounts = async () => {
-    try {
-      setRecalculatingBalances(true);
-
-      // Importar la función de cálculo de saldos en tiempo real
-      const { getAllAccountsBalances } = await import("@bill/_firebase/accountService");
-
-      // Recargar las cuentas primero
-      await onReloadAccounts();
-
-      // Obtener las cuentas actualizadas del estado
-      const currentAccounts = useAccountStore.getState().accounts;
-
-      // Calcular los saldos reales de todas las cuentas
-      const realBalances = await getAllAccountsBalances(currentAccounts, userId);
-
-      // Verificar si hay discrepancias para informar al usuario
-      let accountsWithDiscrepancies = 0;
-
-      // Actualizar el estado con los saldos reales
-      const updatedAccounts = currentAccounts.map((account) => {
-        const realBalance = realBalances.get(account.id) || 0;
-
-        // Si el saldo es diferente, contar la discrepancia
-        if (Math.abs((account.balance || 0) - realBalance) > 0.001) {
-          accountsWithDiscrepancies++;
-        }
-
-        // Retornar la cuenta con el saldo real
-        return {
-          ...account,
-          balance: realBalance,
-        };
-      });
-
-      // Actualizar el estado global con los saldos reales
-      useAccountStore.getState().setAccounts(updatedAccounts);
-
-      // Mostrar mensaje con detalles de la actualización
-      if (accountsWithDiscrepancies > 0) {
-        toast({
-          title: "Saldos actualizados",
-          description: `Se han recalculado los saldos de ${accountsWithDiscrepancies} cuentas basados en las transacciones reales.`,
-          variant: "success",
-        });
-      } else {
-        toast({
-          title: "Saldos verificados",
-          description: `Todos los saldos están correctos y reflejan las transacciones exactamente.`,
-          variant: "success",
-        });
-      }
-    } catch (err) {
-      toast({
-        title: "Error",
-        description: "No se pudieron actualizar los saldos",
-        variant: "destructive",
-      });
-      console.error("Error al recalcular y actualizar cuentas:", err);
-    } finally {
-      setRecalculatingBalances(false);
-    }
-  };
+  }, [fromAccountId, toAccountId, transferAmount, userId, reloadAccountsWithRecalculation, toast, formatCurrency]);
 
   return (
     <div className="space-y-4" data-testid="account-manager">
+      <div className="flex items-center justify-between">
+        <h2 className="text-xl font-semibold">Mis cuentas</h2>
+      </div>
       {/* Selector de cuenta activa */}
       <Popover open={accountDropdownOpen} onOpenChange={setAccountDropdownOpen}>
         <PopoverTrigger asChild>
@@ -434,35 +394,6 @@ export default function AccountManager({ userId, onReloadAccounts, isLoading }: 
             </Button>
           </>
         )}
-        {accounts.length > 0 && (
-          <Button
-            size="sm"
-            variant="outline"
-            onClick={() => {
-              setRecalculatingBalances(true);
-              onReloadAccounts()
-                .then(() => {
-                  setRecalculatingBalances(false);
-                  toast({
-                    title: "Saldos actualizados",
-                    description: "Los saldos de las cuentas han sido recalculados.",
-                  });
-                })
-                .catch((error) => {
-                  setRecalculatingBalances(false);
-                  toast({
-                    title: "Error",
-                    description: "No se pudieron actualizar los saldos.",
-                    variant: "destructive",
-                  });
-                });
-            }}
-            className="ml-auto"
-            data-testid="recalculate-account-button">
-            <RefreshCw className="h-4 w-4 mr-1" />
-            Recalcular
-          </Button>
-        )}
       </div>
 
       {/* Saldo actual */}
@@ -472,7 +403,9 @@ export default function AccountManager({ userId, onReloadAccounts, isLoading }: 
             <CardTitle className="text-sm font-medium text-muted-foreground">Saldo disponible</CardTitle>
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold">{formatCurrency(activeAccount.balance)}</div>
+            <div className="flex items-center justify-between">
+              <div className="text-2xl font-bold">{formatCurrency(activeAccount.balance)}</div>
+            </div>
           </CardContent>
         </Card>
       )}
