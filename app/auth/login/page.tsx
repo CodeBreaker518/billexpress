@@ -1,166 +1,146 @@
 "use client";
 
-import { useState, useEffect, Suspense } from "react";
+import { useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
-import { Eye, EyeOff, LogIn, Loader2 } from "lucide-react";
 import { useAuth } from "@bill/_hooks/useAuth";
-import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@bill/_components/ui/card";
-import { Input } from "@bill/_components/ui/input";
+import { signInWithEmailAndPassword } from "firebase/auth";
+import { auth } from "@bill/_firebase/config";
+import { getUserFriendlyErrorMessage } from "@bill/_firebase/errorMessages";
 import { Button } from "@bill/_components/ui/button";
-import { Text } from "@bill/_components/ui/typography";
-import { Separator } from "@bill/_components/ui/separator";
-import GoogleAuthButton from "@bill/_components/GoogleAuthButton";
+import { Input } from "@bill/_components/ui/input";
+import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "@bill/_components/ui/card";
+import { Label } from "@bill/_components/ui/label";
+import { Alert, AlertDescription } from "@bill/_components/ui/alert";
+import { Loader2 } from "lucide-react";
 import Link from "next/link";
 
 export default function LoginPage() {
-  return (
-    <div className="container max-w-md mx-auto py-12 flex flex-col items-center justify-center min-h-screen px-4">
-      <Suspense fallback={
-        <Card className="w-full">
-          <CardHeader className="space-y-1">
-            <CardTitle className="text-2xl font-bold text-center">BillExpress</CardTitle>
-            <CardDescription className="text-center">Cargando...</CardDescription>
-          </CardHeader>
-          <CardContent className="flex justify-center py-8">
-            <Loader2 className="h-8 w-8 animate-spin" />
-          </CardContent>
-        </Card>
-      }>
-        <LoginForm />
-      </Suspense>
-    </div>
-  );
-}
-
-function LoginForm() {
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
-  const [showPassword, setShowPassword] = useState(false);
-  const [error, setError] = useState("");
-  const [verificationSent, setVerificationSent] = useState(false);
   const [loading, setLoading] = useState(false);
-  const [googleLoading, setGoogleLoading] = useState(false);
-  const { signIn, signInWithGoogle } = useAuth();
+  const [error, setError] = useState("");
+  const { signInWithGoogle } = useAuth();
   const router = useRouter();
   const searchParams = useSearchParams();
+  const errorParam = searchParams.get("error");
 
-  useEffect(() => {
-    const errorParam = searchParams.get('error');
-    if (errorParam) {
-      setError(decodeURIComponent(errorParam));
-    }
-  }, [searchParams]);
-
-  const handleSubmit = async (e: React.FormEvent) => {
+  const handleEmailLogin = async (e: React.FormEvent) => {
     e.preventDefault();
-    setError("");
-    setVerificationSent(false);
     setLoading(true);
+    setError("");
 
     try {
-      const result = await signIn(email, password);
-      if (!result.success) {
-        if (result.emailVerificationSent) {
-          router.push(`/auth/verify?new=true&email=${encodeURIComponent(email)}`);
-          return;
-        }
-        throw new Error(result.error);
+      const userCredential = await signInWithEmailAndPassword(auth, email, password);
+      
+      if (userCredential.user && !userCredential.user.emailVerified) {
+        router.push("/auth/verify");
+        return;
       }
+
       router.push("/dashboard");
-    } catch (err: any) {
-      setError(err.message || "Error al iniciar sesión");
+    } catch (error: any) {
+      setError(getUserFriendlyErrorMessage(error));
     } finally {
       setLoading(false);
     }
   };
 
-  const handleGoogleSignIn = async () => {
-    setError("");
-    setGoogleLoading(true);
-
+  const handleGoogleLogin = async () => {
     try {
-      const result = await signInWithGoogle();
-      if (!result.success) {
-        throw new Error(result.error);
-      }
-      router.push("/dashboard");
-    } catch (err: any) {
-      setError(err.message || "Error al iniciar sesión con Google");
-    } finally {
-      setGoogleLoading(false);
+      await signInWithGoogle();
+    } catch (error: any) {
+      setError(getUserFriendlyErrorMessage(error));
     }
   };
 
   return (
-    <Card className="w-full">
-      <CardHeader className="space-y-1">
-        <CardTitle className="text-2xl font-bold text-center">BillExpress</CardTitle>
-        <Text className="text-center">Inicia sesión para continuar</Text>
-      </CardHeader>
-      <CardContent>
-        {error && (
-          <div className={`p-3 mb-4 text-sm ${verificationSent ? 'text-yellow-700 bg-yellow-100' : 'text-red-700 bg-red-100'} rounded-md`}>
-            <p>{error}</p>
-            {verificationSent && (
-              <Button 
-                variant="link" 
-                className="p-0 h-auto text-sm text-blue-600 underline"
-                onClick={async () => {
-                  if (!email) return;
-                  
-                  try {
-                    const { sendPasswordReset } = await import('@bill/_firebase/authService');
-                    const result = await sendPasswordReset(email);
-                    if (result.success) {
-                      setError("Se ha enviado un correo de restablecimiento de contraseña a tu dirección de correo electrónico.");
-                    } else {
-                      throw new Error(result.error);
-                    }
-                  } catch (err: any) {
-                    setError("No se pudo enviar el correo. Verifica que la dirección sea correcta.");
-                  }
-                }}
-              >
-                ¿Olvidaste tu contraseña? Haz clic aquí para restablecerla.
+    <div className="flex min-h-screen items-center justify-center p-4">
+      <Card className="w-full max-w-md">
+        <CardHeader>
+          <CardTitle>Iniciar Sesión</CardTitle>
+          <CardDescription>
+            Ingresa tus credenciales para acceder a tu cuenta
+          </CardDescription>
+        </CardHeader>
+        <CardContent>
+          {(error || errorParam) && (
+            <Alert variant="destructive" className="mb-4">
+              <AlertDescription>
+                {error || errorParam}
+              </AlertDescription>
+            </Alert>
+          )}
+          <form onSubmit={handleEmailLogin}>
+            <div className="space-y-4">
+              <div className="space-y-2">
+                <Label htmlFor="email">Correo electrónico</Label>
+                <Input
+                  id="email"
+                  type="email"
+                  placeholder="tu@email.com"
+                  value={email}
+                  onChange={(e) => setEmail(e.target.value)}
+                  required
+                />
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="password">Contraseña</Label>
+                <Input
+                  id="password"
+                  type="password"
+                  value={password}
+                  onChange={(e) => setPassword(e.target.value)}
+                  required
+                />
+              </div>
+              <Button type="submit" className="w-full" disabled={loading}>
+                {loading ? (
+                  <>
+                    <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                    Cargando...
+                  </>
+                ) : (
+                  "Iniciar Sesión"
+                )}
               </Button>
-            )}
+            </div>
+          </form>
+          <div className="relative my-4">
+            <div className="absolute inset-0 flex items-center">
+              <span className="w-full border-t" />
+            </div>
+            <div className="relative flex justify-center text-xs uppercase">
+              <span className="bg-background px-2 text-muted-foreground">
+                O continúa con
+              </span>
+            </div>
           </div>
-        )}
-
-        <GoogleAuthButton onClick={handleGoogleSignIn} loading={googleLoading} label="Iniciar sesión con Google" />
-
-        <div className="relative my-4">
-          <Separator />
-          <div className="absolute inset-0 flex items-center justify-center">
-            <span className="bg-background px-2 text-xs text-muted-foreground">O</span>
-          </div>
-        </div>
-
-        <form onSubmit={handleSubmit} className="space-y-4">
-          <div>
-            <Input placeholder="Email" type="email" value={email} onChange={(e) => setEmail(e.target.value)} required />
-          </div>
-          <div className="relative">
-            <Input placeholder="Contraseña" type={showPassword ? "text" : "password"} value={password} onChange={(e) => setPassword(e.target.value)} required />
-            <button type="button" className="absolute inset-y-0 right-0 flex items-center pr-3" onClick={() => setShowPassword(!showPassword)}>
-              {showPassword ? <EyeOff className="h-4 w-4 text-gray-500" /> : <Eye className="h-4 w-4 text-gray-500" />}
-            </button>
-          </div>
-          <div className="mt-4 text-center text-sm">
-            <Text>
-              ¿No tienes una cuenta?{" "}
-              <Link href="/auth/register" className="text-blue-600 hover:underline">
-                Registrarse
-              </Link>
-            </Text>
-          </div>
-          <Button type="submit" className="w-full" disabled={loading}>
-            {loading && <span className="mr-2 h-4 w-4 animate-spin rounded-full border-2 border-gray-300 border-t-white"></span>}
-            <LogIn className="mr-2 h-4 w-4" />
-            Iniciar Sesión
+          <Button
+            variant="outline"
+            type="button"
+            className="w-full"
+            onClick={handleGoogleLogin}
+          >
+            <svg className="mr-2 h-4 w-4" aria-hidden="true" focusable="false" data-prefix="fab" data-icon="google" role="img" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 488 512">
+              <path fill="currentColor" d="M488 261.8C488 403.3 391.1 504 248 504 110.8 504 0 393.2 0 256S110.8 8 248 8c66.8 0 123 24.5 166.3 64.9l-67.5 64.9C258.5 52.6 94.3 116.6 94.3 256c0 86.5 69.1 156.6 153.7 156.6 98.2 0 135-70.4 140.8-106.9H248v-85.3h236.1c2.3 12.7 3.9 24.9 3.9 41.4z"></path>
+            </svg>
+            Google
           </Button>
-        </form>
-      </CardContent>
-    </Card>
+        </CardContent>
+        <CardFooter className="flex flex-col space-y-2">
+          <div className="text-sm text-center">
+            ¿No tienes una cuenta?{" "}
+            <Link href="/auth/register" className="text-primary hover:underline">
+              Regístrate
+            </Link>
+          </div>
+          <div className="text-sm text-center">
+            <Link href="/auth/reset-password" className="text-primary hover:underline">
+              ¿Olvidaste tu contraseña?
+            </Link>
+          </div>
+        </CardFooter>
+      </Card>
+    </div>
   );
 }

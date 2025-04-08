@@ -1,5 +1,5 @@
 // app/hooks/useAuth.ts
-import { useEffect } from 'react';
+import { useEffect, useState, Suspense } from 'react';
 import { 
   createUserWithEmailAndPassword, 
   signInWithEmailAndPassword,
@@ -9,7 +9,8 @@ import {
   signInWithPopup,
   signInWithRedirect,
   getRedirectResult,
-  AuthError
+  AuthError,
+  User
 } from 'firebase/auth';
 import { auth } from '@bill/_firebase/config';
 import { useAuthStore } from '@bill/_store/useAuthStore';
@@ -46,145 +47,17 @@ const getUserFriendlyErrorMessage = (error: AuthError): string => {
   return errorMessages[errorCode] || 'Ocurrió un error. Inténtalo de nuevo más tarde.';
 };
 
-export const useAuth = () => {
-  const { setUser, setLoading } = useAuthStore();
+// Componente separado para manejar la redirección
+function GoogleRedirectHandler() {
   const router = useRouter();
+  const [isProcessingRedirect, setIsProcessingRedirect] = useState(false);
 
-  // Monitor authentication state
-  useEffect(() => {
-    const unsubscribe = onAuthStateChanged(auth, (user) => {
-      setUser(user);
-      setLoading(false);
-    });
-
-    return () => unsubscribe();
-  }, [setUser, setLoading]);
-
-  // Función para crear cuenta Efectivo por defecto
-  const createDefaultAccount = async (userId: string) => {
-    try {
-      console.log("⚠️ Creando cuenta Efectivo por defecto para usuario:", userId);
-      const { addAccount } = await import('@bill/_firebase/accountService');
-      
-      // Crear cuenta predeterminada
-      const defaultAccount = await addAccount({
-        name: "Efectivo",
-        color: "#22c55e", // Verde
-        balance: 0,
-        userId: userId,
-        isDefault: true,
-      });
-      
-      console.log("✅ Cuenta Efectivo creada exitosamente:", defaultAccount);
-      return true;
-    } catch (error) {
-      console.error("❌ Error al crear cuenta Efectivo por defecto:", error);
-      return false;
-    }
-  };
-
-  // User registration
-  const signUp = async (email: string, password: string) => {
-    try {
-      const userCredential = await createUserWithEmailAndPassword(auth, email, password);
-      
-      // Enviar correo de verificación automáticamente
-      if (userCredential.user) {
-        // Enviar correo de verificación
-        const { sendVerificationEmail } = await import('@bill/_firebase/authService');
-        await sendVerificationEmail(userCredential.user);
-        
-        // Crear cuenta predeterminada
-        await createDefaultAccount(userCredential.user.uid);
-      }
-      
-      return { success: true, emailVerificationSent: true };
-    } catch (error: any) {
-      return { 
-        success: false, 
-        error: getUserFriendlyErrorMessage(error as AuthError) 
-      };
-    }
-  };
-
-  // User login
-  const signIn = async (email: string, password: string) => {
-    try {
-      const userCredential = await signInWithEmailAndPassword(auth, email, password);
-      
-      // Verificar si el correo está verificado
-      if (userCredential.user && !userCredential.user.emailVerified) {
-        // Enviar nuevo correo de verificación
-        const { sendVerificationEmail } = await import('@bill/_firebase/authService');
-        await sendVerificationEmail(userCredential.user);
-        
-        // Ya no cerramos la sesión para permitir permanecer en la página de verificación
-        
-        return { 
-          success: false, 
-          error: "Tu correo electrónico no ha sido verificado. Se ha enviado un nuevo correo de verificación a tu dirección. Por favor, verifica tu cuenta antes de iniciar sesión.",
-          emailVerificationSent: true,
-          user: userCredential.user
-        };
-      }
-      
-      return { success: true };
-    } catch (error: any) {
-      return { 
-        success: false, 
-        error: getUserFriendlyErrorMessage(error as AuthError) 
-      };
-    }
-  };
-
-  // Google authentication
-  const signInWithGoogle = async () => {
-    try {
-      const provider = new GoogleAuthProvider();
-      provider.setCustomParameters({
-        prompt: 'select_account'
-      });
-
-      // Detectar si es un dispositivo móvil
-      const isMobile = /iPhone|iPad|iPod|Android/i.test(navigator.userAgent);
-
-      let userCredential;
-
-      if (isMobile) {
-        // En dispositivos móviles, usar redirección
-        await signInWithRedirect(auth, provider);
-        // El resultado se manejará en el useEffect de abajo
-        return { success: true };
-      } else {
-        // En desktop, usar popup
-        userCredential = await signInWithPopup(auth, provider);
-      }
-      
-      // Si es un nuevo usuario, crear cuenta predeterminada
-      if (userCredential?.user) {
-        // @ts-ignore - Verificar si es un nuevo usuario
-        const isNewUser = userCredential._tokenResponse?.isNewUser;
-        
-        if (isNewUser) {
-          console.log("⚠️ Nuevo usuario detectado, creando cuenta predeterminada");
-          await createDefaultAccount(userCredential.user.uid);
-        }
-      }
-      
-      return { success: true };
-    } catch (error: any) {
-      console.error("Error en autenticación con Google:", error);
-      return { 
-        success: false, 
-        error: getUserFriendlyErrorMessage(error as AuthError) 
-      };
-    }
-  };
-
-  // Manejar el resultado de la redirección de Google
   useEffect(() => {
     const handleRedirectResult = async () => {
+      if (isProcessingRedirect) return;
+      
       try {
+        setIsProcessingRedirect(true);
         console.log("🔍 Verificando resultado de redirección...");
         const result = await getRedirectResult(auth);
         
@@ -194,6 +67,7 @@ export const useAuth = () => {
           try {
             // @ts-ignore
             const isNewUser = result._tokenResponse?.isNewUser;
+            console.log("ℹ️ ¿Es usuario nuevo?", isNewUser);
             
             // Verificar si el usuario ya tiene una cuenta predeterminada
             const { getUserAccounts } = await import('@bill/_firebase/accountService');
@@ -201,51 +75,98 @@ export const useAuth = () => {
             const hasDefaultAccount = accounts.some(acc => acc.name === "Efectivo" && acc.isDefault);
             
             if (isNewUser || !hasDefaultAccount) {
-              console.log("⚠️ Nuevo usuario o sin cuenta predeterminada, creando cuenta Efectivo...");
-              const accountCreated = await createDefaultAccount(result.user.uid);
+              console.log("⚠️ Creando cuenta predeterminada...");
+              const { addAccount } = await import('@bill/_firebase/accountService');
               
-              if (!accountCreated) {
-                console.error("❌ Error al crear cuenta predeterminada");
+              // Crear cuenta predeterminada
+              const defaultAccount = await addAccount({
+                name: "Efectivo",
+                color: "#22c55e", // Verde
+                balance: 0,
+                userId: result.user.uid,
+                isDefault: true,
+              });
+              
+              if (!defaultAccount) {
                 throw new Error("No se pudo crear la cuenta predeterminada");
               }
+              console.log("✅ Cuenta predeterminada creada exitosamente");
             }
 
-            // Solo redirigir al dashboard si todo fue exitoso
-            console.log("✅ Redirigiendo al dashboard...");
+            // Redirigir al dashboard
             router.push('/dashboard');
           } catch (error) {
             console.error("❌ Error en el proceso post-redirección:", error);
-            throw error; // Re-lanzar el error para que se maneje en el catch exterior
+            throw error;
           }
         } else {
           console.log("ℹ️ No hay resultado de redirección pendiente");
         }
       } catch (error: any) {
         console.error("❌ Error al manejar resultado de redirección:", error);
-        // Mostrar el error al usuario
-        const errorMessage = error.message || "Error al procesar el inicio de sesión";
-        router.push(`/auth/login?error=${encodeURIComponent(errorMessage)}`);
+        router.push(`/auth/login?error=${encodeURIComponent(error.message || "Error al procesar el inicio de sesión")}`);
+      } finally {
+        setIsProcessingRedirect(false);
       }
     };
 
-    // Ejecutar solo si auth está inicializado
-    if (auth.currentUser === null) {
+    // Ejecutar solo si no hay usuario actual
+    if (!auth.currentUser) {
       handleRedirectResult();
     }
-  }, [router]);
+  }, [router, isProcessingRedirect]);
 
-  // Logout user
-  const logout = async () => {
+  return null;
+}
+
+export function useAuth() {
+  const [user, setUser] = useState<User | null>(null);
+  const [loading, setLoading] = useState(true);
+  const router = useRouter();
+  const provider = new GoogleAuthProvider();
+
+  useEffect(() => {
+    const unsubscribe = onAuthStateChanged(auth, async (user) => {
+      setUser(user);
+      setLoading(false);
+
+      if (user) {
+        // Importar dinámicamente para evitar circular imports
+        const { cleanupDuplicateAccounts } = await import('@bill/_firebase/accountService');
+        // Limpiar cuentas duplicadas silenciosamente
+        await cleanupDuplicateAccounts(user.uid);
+      }
+    });
+
+    return () => unsubscribe();
+  }, []);
+
+  const signInWithGoogle = async (usePopup = false) => {
     try {
-      await signOut(auth);
-      return { success: true };
+      if (usePopup) {
+        await signInWithPopup(auth, provider);
+      } else {
+        await signInWithRedirect(auth, provider);
+      }
     } catch (error: any) {
-      return { 
-        success: false, 
-        error: getUserFriendlyErrorMessage(error as AuthError) 
-      };
+      console.error('Error al iniciar sesión con Google:', error);
+      router.push(`/auth/login?error=${encodeURIComponent(error.message)}`);
     }
   };
 
-  return { signUp, signIn, signInWithGoogle, logout };
-};
+  const signOut = async () => {
+    try {
+      await auth.signOut();
+      router.push('/auth/login');
+    } catch (error: any) {
+      console.error('Error al cerrar sesión:', error);
+    }
+  };
+
+  return {
+    user,
+    loading,
+    signInWithGoogle,
+    signOut,
+  };
+}
