@@ -1,5 +1,5 @@
 // app/hooks/useAuth.ts
-import { useEffect, useState, Suspense } from 'react';
+import { useEffect } from 'react';
 import { 
   createUserWithEmailAndPassword, 
   signInWithEmailAndPassword,
@@ -7,14 +7,10 @@ import {
   onAuthStateChanged,
   GoogleAuthProvider,
   signInWithPopup,
-  signInWithRedirect,
-  getRedirectResult,
-  AuthError,
-  User
+  AuthError
 } from 'firebase/auth';
 import { auth } from '@bill/_firebase/config';
 import { useAuthStore } from '@bill/_store/useAuthStore';
-import { useRouter } from 'next/navigation';
 
 // Helper function to translate Firebase error codes into user-friendly messages
 const getUserFriendlyErrorMessage = (error: AuthError): string => {
@@ -36,7 +32,6 @@ const getUserFriendlyErrorMessage = (error: AuthError): string => {
     'auth/network-request-failed': 'Error de conexión. Verifica tu internet',
     'auth/timeout': 'La operación tardó demasiado tiempo',
     'auth/configuration-not-found': 'Servicio no disponible. Inténtalo más tarde',
-    'auth/unauthorized-domain': 'Este dominio no está autorizado para iniciar sesión. Por favor, contacta al administrador.',
     
     // Other Firebase errors
     'permission-denied': 'No tienes permisos para realizar esta acción',
@@ -47,126 +42,134 @@ const getUserFriendlyErrorMessage = (error: AuthError): string => {
   return errorMessages[errorCode] || 'Ocurrió un error. Inténtalo de nuevo más tarde.';
 };
 
-// Componente separado para manejar la redirección
-function GoogleRedirectHandler() {
-  const router = useRouter();
-  const [isProcessingRedirect, setIsProcessingRedirect] = useState(false);
+export const useAuth = () => {
+  const { setUser, setLoading } = useAuthStore();
 
+  // Monitor authentication state
   useEffect(() => {
-    const handleRedirectResult = async () => {
-      if (isProcessingRedirect) return;
-      
-      try {
-        setIsProcessingRedirect(true);
-        console.log("🔍 Verificando resultado de redirección...");
-        const result = await getRedirectResult(auth);
-        
-        if (result?.user) {
-          console.log("✅ Usuario autenticado después de redirección:", result.user.email);
-          
-          try {
-            // @ts-ignore
-            const isNewUser = result._tokenResponse?.isNewUser;
-            console.log("ℹ️ ¿Es usuario nuevo?", isNewUser);
-            
-            // Verificar si el usuario ya tiene una cuenta predeterminada
-            const { getUserAccounts } = await import('@bill/_firebase/accountService');
-            const accounts = await getUserAccounts(result.user.uid);
-            const hasDefaultAccount = accounts.some(acc => acc.name === "Efectivo" && acc.isDefault);
-            
-            if (isNewUser || !hasDefaultAccount) {
-              console.log("⚠️ Creando cuenta predeterminada...");
-              const { addAccount } = await import('@bill/_firebase/accountService');
-              
-              // Crear cuenta predeterminada
-              const defaultAccount = await addAccount({
-                name: "Efectivo",
-                color: "#22c55e", // Verde
-                balance: 0,
-                userId: result.user.uid,
-                isDefault: true,
-              });
-              
-              if (!defaultAccount) {
-                throw new Error("No se pudo crear la cuenta predeterminada");
-              }
-              console.log("✅ Cuenta predeterminada creada exitosamente");
-            }
-
-            // Redirigir al dashboard
-            router.push('/dashboard');
-          } catch (error) {
-            console.error("❌ Error en el proceso post-redirección:", error);
-            throw error;
-          }
-        } else {
-          console.log("ℹ️ No hay resultado de redirección pendiente");
-        }
-      } catch (error: any) {
-        console.error("❌ Error al manejar resultado de redirección:", error);
-        router.push(`/auth/login?error=${encodeURIComponent(error.message || "Error al procesar el inicio de sesión")}`);
-      } finally {
-        setIsProcessingRedirect(false);
-      }
-    };
-
-    // Ejecutar solo si no hay usuario actual
-    if (!auth.currentUser) {
-      handleRedirectResult();
-    }
-  }, [router, isProcessingRedirect]);
-
-  return null;
-}
-
-export function useAuth() {
-  const [user, setUser] = useState<User | null>(null);
-  const [loading, setLoading] = useState(true);
-  const router = useRouter();
-  const provider = new GoogleAuthProvider();
-
-  useEffect(() => {
-    const unsubscribe = onAuthStateChanged(auth, async (user) => {
+    const unsubscribe = onAuthStateChanged(auth, (user) => {
       setUser(user);
       setLoading(false);
-
-      if (user) {
-        // Importar dinámicamente para evitar circular imports
-        const { cleanupDuplicateAccounts } = await import('@bill/_firebase/accountService');
-        // Limpiar cuentas duplicadas silenciosamente
-        await cleanupDuplicateAccounts(user.uid);
-      }
     });
 
     return () => unsubscribe();
-  }, []);
+  }, [setUser, setLoading]);
 
-  const signInWithGoogle = async (usePopup = false) => {
+  // Función para crear cuenta Efectivo por defecto
+  const createDefaultAccount = async (userId: string) => {
     try {
-      if (usePopup) {
-        await signInWithPopup(auth, provider);
-      } else {
-        await signInWithRedirect(auth, provider);
+      console.log("⚠️ Creando cuenta Efectivo por defecto para usuario:", userId);
+      const { addAccount } = await import('@bill/_firebase/accountService');
+      
+      // Crear cuenta predeterminada
+      const defaultAccount = await addAccount({
+        name: "Efectivo",
+        color: "#22c55e", // Verde
+        balance: 0,
+        userId: userId,
+        isDefault: true,
+      });
+      
+      console.log("✅ Cuenta Efectivo creada exitosamente:", defaultAccount);
+      return true;
+    } catch (error) {
+      console.error("❌ Error al crear cuenta Efectivo por defecto:", error);
+      return false;
+    }
+  };
+
+  // User registration
+  const signUp = async (email: string, password: string) => {
+    try {
+      const userCredential = await createUserWithEmailAndPassword(auth, email, password);
+      
+      // Enviar correo de verificación automáticamente
+      if (userCredential.user) {
+        // Enviar correo de verificación
+        const { sendVerificationEmail } = await import('@bill/_firebase/authService');
+        await sendVerificationEmail(userCredential.user);
+        
+        // Crear cuenta predeterminada
+        await createDefaultAccount(userCredential.user.uid);
       }
+      
+      return { success: true, emailVerificationSent: true };
     } catch (error: any) {
-      console.error('Error al iniciar sesión con Google:', error);
-      router.push(`/auth/login?error=${encodeURIComponent(error.message)}`);
+      return { 
+        success: false, 
+        error: getUserFriendlyErrorMessage(error as AuthError) 
+      };
     }
   };
 
-  const signOut = async () => {
+  // User login
+  const signIn = async (email: string, password: string) => {
     try {
-      await auth.signOut();
-      router.push('/auth/login');
+      const userCredential = await signInWithEmailAndPassword(auth, email, password);
+      
+      // Verificar si el correo está verificado
+      if (userCredential.user && !userCredential.user.emailVerified) {
+        // Enviar nuevo correo de verificación
+        const { sendVerificationEmail } = await import('@bill/_firebase/authService');
+        await sendVerificationEmail(userCredential.user);
+        
+        // Ya no cerramos la sesión para permitir permanecer en la página de verificación
+        
+        return { 
+          success: false, 
+          error: "Tu correo electrónico no ha sido verificado. Se ha enviado un nuevo correo de verificación a tu dirección. Por favor, verifica tu cuenta antes de iniciar sesión.",
+          emailVerificationSent: true,
+          user: userCredential.user
+        };
+      }
+      
+      return { success: true };
     } catch (error: any) {
-      console.error('Error al cerrar sesión:', error);
+      return { 
+        success: false, 
+        error: getUserFriendlyErrorMessage(error as AuthError) 
+      };
     }
   };
 
-  return {
-    user,
-    loading,
-    signInWithGoogle,
-    signOut,
+  // Google authentication
+  const signInWithGoogle = async () => {
+    try {
+      const provider = new GoogleAuthProvider();
+      const userCredential = await signInWithPopup(auth, provider);
+      
+      // Si es un nuevo usuario, crear cuenta predeterminada
+      if (userCredential.user) {
+        // @ts-ignore - Verificar si es un nuevo usuario
+        const isNewUser = userCredential._tokenResponse?.isNewUser;
+        
+        if (isNewUser) {
+          console.log("⚠️ Nuevo usuario detectado, creando cuenta predeterminada");
+          await createDefaultAccount(userCredential.user.uid);
+        }
+      }
+      
+      return { success: true };
+    } catch (error: any) {
+      return { 
+        success: false, 
+        error: getUserFriendlyErrorMessage(error as AuthError) 
+      };
+    }
   };
-}
+
+  // Logout user
+  const logout = async () => {
+    try {
+      await signOut(auth);
+      return { success: true };
+    } catch (error: any) {
+      return { 
+        success: false, 
+        error: getUserFriendlyErrorMessage(error as AuthError) 
+      };
+    }
+  };
+
+  return { signUp, signIn, signInWithGoogle, logout };
+};

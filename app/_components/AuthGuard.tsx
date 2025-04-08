@@ -9,15 +9,6 @@ interface AuthGuardProps {
   requireVerified?: boolean;
 }
 
-// Loading component for Suspense fallback
-function LoadingSpinner() {
-  return (
-    <div className="flex items-center justify-center min-h-screen">
-      <div className="animate-spin rounded-full h-12 w-12 border-t-2 border-b-2 border-primary"></div>
-    </div>
-  );
-}
-
 function AuthGuardContent({ children, requireVerified = false }: AuthGuardProps) {
   const router = useRouter();
   const pathname = usePathname();
@@ -61,7 +52,11 @@ function AuthGuardContent({ children, requireVerified = false }: AuthGuardProps)
 
   // Mostrar un indicador de carga mientras se inicializa
   if (loading || (!user && !isNewRegistration)) {
-    return <LoadingSpinner />;
+    return (
+      <div className="flex items-center justify-center min-h-screen">
+        <div className="animate-spin rounded-full h-12 w-12 border-t-2 border-b-2 border-primary"></div>
+      </div>
+    );
   }
 
   // No renderizar nada si el usuario no está autenticado o si el email no está verificado
@@ -73,10 +68,16 @@ function AuthGuardContent({ children, requireVerified = false }: AuthGuardProps)
   return <>{children}</>;
 }
 
-export default function AuthGuard(props: AuthGuardProps) {
+export default function AuthGuard({ children, requireVerified = false }: AuthGuardProps) {
   return (
-    <Suspense fallback={<LoadingSpinner />}>
-      <AuthGuardContent {...props} />
+    <Suspense fallback={
+      <div className="flex items-center justify-center min-h-screen">
+        <div className="animate-spin rounded-full h-12 w-12 border-t-2 border-b-2 border-primary"></div>
+      </div>
+    }>
+      <AuthGuardContent requireVerified={requireVerified}>
+        {children}
+      </AuthGuardContent>
     </Suspense>
   );
 }

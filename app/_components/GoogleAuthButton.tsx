@@ -1,7 +1,6 @@
 'use client';
 
 import { FcGoogle } from 'react-icons/fc';
-import { Loader2 } from 'lucide-react';
 import { Button } from './ui/button';
 
 interface GoogleAuthButtonProps {
@@ -22,19 +21,10 @@ export default function GoogleAuthButton({
       disabled={loading}
       onClick={onClick}
     >
-      {loading ? (
-        <>
-          <Loader2 className="h-5 w-5 animate-spin mr-2" />
-          Conectando...
-        </>
-      ) : (
-        <>
-          <div className="absolute left-4">
-            <FcGoogle className="h-5 w-5" />
-          </div>
-          {label}
-        </>
-      )}
+      <div className="absolute left-4">
+        <FcGoogle className="h-5 w-5" />
+      </div>
+      {loading ? 'Cargando...' : label}
     </Button>
   );
 } 
