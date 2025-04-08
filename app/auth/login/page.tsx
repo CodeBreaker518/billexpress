@@ -1,10 +1,10 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, Suspense } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
-import { Eye, EyeOff, LogIn } from "lucide-react";
+import { Eye, EyeOff, LogIn, Loader2 } from "lucide-react";
 import { useAuth } from "@bill/_hooks/useAuth";
-import { Card, CardContent, CardHeader, CardTitle } from "@bill/_components/ui/card";
+import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@bill/_components/ui/card";
 import { Input } from "@bill/_components/ui/input";
 import { Button } from "@bill/_components/ui/button";
 import { Text } from "@bill/_components/ui/typography";
@@ -15,7 +15,19 @@ import Link from "next/link";
 export default function LoginPage() {
   return (
     <div className="container max-w-md mx-auto py-12 flex flex-col items-center justify-center min-h-screen px-4">
-      <LoginForm />
+      <Suspense fallback={
+        <Card className="w-full">
+          <CardHeader className="space-y-1">
+            <CardTitle className="text-2xl font-bold text-center">BillExpress</CardTitle>
+            <CardDescription className="text-center">Cargando...</CardDescription>
+          </CardHeader>
+          <CardContent className="flex justify-center py-8">
+            <Loader2 className="h-8 w-8 animate-spin" />
+          </CardContent>
+        </Card>
+      }>
+        <LoginForm />
+      </Suspense>
     </div>
   );
 }
