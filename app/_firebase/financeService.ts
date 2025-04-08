@@ -82,22 +82,22 @@ export const createFinanceService = (entityType: "incomes" | "expenses") => {
       try {
         if (item.date instanceof Date) {
           safeDate = new Date(item.date.getTime());
-        } else if (typeof item.date === 'string') {
+        } else if (typeof item.date === "string") {
           safeDate = new Date(item.date);
-        } else if (item.date && typeof item.date === 'object' && 'seconds' in item.date) {
+        } else if (item.date && typeof item.date === "object" && "seconds" in item.date) {
           // Es un Timestamp de Firestore
           safeDate = new Date((item.date as any).seconds * 1000);
         } else {
-          console.warn('Fecha no válida proporcionada, usando fecha actual');
+          console.warn("Fecha no válida proporcionada, usando fecha actual");
           safeDate = new Date();
         }
 
         // Verificar que la fecha sea válida
         if (isNaN(safeDate.getTime())) {
-          throw new Error('Fecha inválida');
+          throw new Error("Fecha inválida");
         }
       } catch (dateError) {
-        console.error('Error procesando fecha:', dateError);
+        console.error("Error procesando fecha:", dateError);
         safeDate = new Date(); // Usar fecha actual como fallback
       }
 
@@ -174,29 +174,29 @@ export const createFinanceService = (entityType: "incomes" | "expenses") => {
       try {
         if (item.date instanceof Date) {
           safeDate = new Date(item.date.getTime());
-        } else if (typeof item.date === 'string') {
+        } else if (typeof item.date === "string") {
           safeDate = new Date(item.date);
-        } else if (item.date && typeof item.date === 'object' && 'seconds' in item.date) {
+        } else if (item.date && typeof item.date === "object" && "seconds" in item.date) {
           // Es un Timestamp de Firestore
           safeDate = new Date((item.date as any).seconds * 1000);
         } else {
-          console.warn('Fecha no válida proporcionada en actualización, usando fecha actual');
+          console.warn("Fecha no válida proporcionada en actualización, usando fecha actual");
           safeDate = new Date();
         }
 
         // Verificar que la fecha sea válida
         if (isNaN(safeDate.getTime())) {
-          throw new Error('Fecha inválida en actualización');
+          throw new Error("Fecha inválida en actualización");
         }
       } catch (dateError) {
-        console.error('Error procesando fecha en actualización:', dateError);
+        console.error("Error procesando fecha en actualización:", dateError);
         safeDate = new Date(); // Usar fecha actual como fallback
       }
 
       // Crear una copia del item con la fecha validada
       const validatedItem = {
         ...item,
-        date: safeDate
+        date: safeDate,
       };
 
       // Actualizar datos locales primero
@@ -278,7 +278,7 @@ export const createFinanceService = (entityType: "incomes" | "expenses") => {
   };
 
   // Sincronizar operaciones pendientes
-  const syncPendingItems = async (): Promise<{success: boolean, syncedCount: number, errorCount: number}> => {
+  const syncPendingItems = async (): Promise<{ success: boolean; syncedCount: number; errorCount: number }> => {
     if (!isOnline()) return { success: false, syncedCount: 0, errorCount: 0 }; // Solo intentar sincronizar si estamos online
 
     const pendingOps = usePendingOperationsStore.getState().operations.filter((op) => op.collection === entityType);
@@ -286,7 +286,7 @@ export const createFinanceService = (entityType: "incomes" | "expenses") => {
     if (pendingOps.length === 0) return { success: true, syncedCount: 0, errorCount: 0 };
 
     console.log(`Sincronizando ${pendingOps.length} operaciones pendientes de ${entityType}...`);
-    
+
     let syncedCount = 0;
     let errorCount = 0;
 
@@ -294,16 +294,16 @@ export const createFinanceService = (entityType: "incomes" | "expenses") => {
     for (const op of pendingOps) {
       try {
         // Validar la operación antes de procesarla para evitar errores
-        // Si es demasiado antigua (más de 7 días), eliminarla automáticamente 
+        // Si es demasiado antigua (más de 7 días), eliminarla automáticamente
         if (Date.now() - op.timestamp > 7 * 24 * 60 * 60 * 1000) {
           console.log(`Eliminando operación antigua ${op.id} sin procesar`);
           usePendingOperationsStore.getState().removeOperation(op.id);
           continue;
         }
-        
+
         if (op.operationType === "add") {
           const { id, ...rest } = op.data;
-          
+
           // Validar datos antes de sincronizar
           if (!rest || !rest.userId) {
             console.warn(`Operación de añadir inválida, falta userId: ${op.id}`);
@@ -311,33 +311,33 @@ export const createFinanceService = (entityType: "incomes" | "expenses") => {
             errorCount++;
             continue;
           }
-          
+
           // Validar y corregir la fecha
           let safeDate;
           try {
             // Intentar convertir la fecha al formato correcto
             if (rest.date instanceof Date) {
               safeDate = rest.date;
-            } else if (typeof rest.date === 'string') {
+            } else if (typeof rest.date === "string") {
               safeDate = new Date(rest.date);
-            } else if (rest.date && typeof rest.date === 'object' && rest.date.seconds) {
+            } else if (rest.date && typeof rest.date === "object" && rest.date.seconds) {
               // Es un Timestamp de Firestore
               safeDate = new Date(rest.date.seconds * 1000);
             } else {
               // Si la fecha no es válida, usar la fecha actual
-              console.warn('Fecha no válida encontrada en operación pendiente, usando fecha actual');
+              console.warn("Fecha no válida encontrada en operación pendiente, usando fecha actual");
               safeDate = new Date();
             }
-            
+
             // Verificar que la fecha sea válida
             if (isNaN(safeDate.getTime())) {
-              throw new Error('Invalid date');
+              throw new Error("Invalid date");
             }
           } catch (dateError) {
-            console.error('Error procesando fecha en operación pendiente:', dateError);
+            console.error("Error procesando fecha en operación pendiente:", dateError);
             safeDate = new Date(); // Usar fecha actual como fallback
           }
-          
+
           try {
             await addDoc(collection_ref, {
               ...rest,
@@ -345,13 +345,11 @@ export const createFinanceService = (entityType: "incomes" | "expenses") => {
               createdAt: serverTimestamp(),
               syncedAt: serverTimestamp(),
             });
-            
+
             syncedCount++;
           } catch (addError) {
             // Intentar determinar si el error es temporal o permanente
-            if (addError instanceof Error && 
-                (addError.message.includes('network') || 
-                 addError.message.includes('unavailable'))) {
+            if (addError instanceof Error && (addError.message.includes("network") || addError.message.includes("unavailable"))) {
               console.warn(`Error temporal al añadir documento, reintentando más tarde: ${addError.message}`);
               // No eliminar la operación para reintentar más tarde
               errorCount++;
@@ -366,7 +364,7 @@ export const createFinanceService = (entityType: "incomes" | "expenses") => {
           }
         } else if (op.operationType === "update") {
           const { id, ...rest } = op.data;
-          
+
           // Validar ID antes de actualizar
           if (!id) {
             console.warn(`Operación de actualización inválida, falta ID: ${op.id}`);
@@ -374,33 +372,33 @@ export const createFinanceService = (entityType: "incomes" | "expenses") => {
             errorCount++;
             continue;
           }
-          
+
           // Validar y corregir la fecha
           let safeDate;
           try {
             // Intentar convertir la fecha al formato correcto
             if (rest.date instanceof Date) {
               safeDate = rest.date;
-            } else if (typeof rest.date === 'string') {
+            } else if (typeof rest.date === "string") {
               safeDate = new Date(rest.date);
-            } else if (rest.date && typeof rest.date === 'object' && rest.date.seconds) {
+            } else if (rest.date && typeof rest.date === "object" && rest.date.seconds) {
               // Es un Timestamp de Firestore
               safeDate = new Date(rest.date.seconds * 1000);
             } else {
               // Si la fecha no es válida, usar la fecha actual
-              console.warn('Fecha no válida encontrada en operación pendiente, usando fecha actual');
+              console.warn("Fecha no válida encontrada en operación pendiente, usando fecha actual");
               safeDate = new Date();
             }
-            
+
             // Verificar que la fecha sea válida
             if (isNaN(safeDate.getTime())) {
-              throw new Error('Invalid date');
+              throw new Error("Invalid date");
             }
           } catch (dateError) {
-            console.error('Error procesando fecha en operación pendiente:', dateError);
+            console.error("Error procesando fecha en operación pendiente:", dateError);
             safeDate = new Date(); // Usar fecha actual como fallback
           }
-          
+
           try {
             const itemRef = doc(db, entityType, id);
             await updateDoc(itemRef, {
@@ -409,28 +407,24 @@ export const createFinanceService = (entityType: "incomes" | "expenses") => {
               updatedAt: serverTimestamp(),
               syncedAt: serverTimestamp(),
             });
-            
+
             syncedCount++;
           } catch (updateError) {
             // Si el documento no existe, eliminar la operación pendiente
-            if (updateError instanceof Error && 
-                (updateError.message.includes('No document to update') || 
-                 updateError.message.includes('not found'))) {
+            if (updateError instanceof Error && (updateError.message.includes("No document to update") || updateError.message.includes("not found"))) {
               console.warn(`Documento no encontrado, eliminando operación: ${op.id}`);
               usePendingOperationsStore.getState().removeOperation(op.id);
               errorCount++;
               continue;
             }
-            
+
             // Si es un error temporal, no eliminar la operación
-            if (updateError instanceof Error && 
-                (updateError.message.includes('network') || 
-                 updateError.message.includes('unavailable'))) {
+            if (updateError instanceof Error && (updateError.message.includes("network") || updateError.message.includes("unavailable"))) {
               console.warn(`Error temporal al actualizar documento, reintentando más tarde: ${updateError.message}`);
               errorCount++;
               continue;
             }
-            
+
             // Para otros errores, eliminar la operación
             console.error(`Error desconocido al actualizar documento, eliminando operación: ${updateError}`);
             usePendingOperationsStore.getState().removeOperation(op.id);
@@ -441,18 +435,14 @@ export const createFinanceService = (entityType: "incomes" | "expenses") => {
           try {
             const itemRef = doc(db, entityType, op.data);
             await deleteDoc(itemRef);
-            
+
             syncedCount++;
           } catch (deleteError) {
             // Si el documento ya no existe, la operación de eliminación se considera exitosa
-            if (deleteError instanceof Error && 
-                (deleteError.message.includes('No document to delete') || 
-                 deleteError.message.includes('not found'))) {
+            if (deleteError instanceof Error && (deleteError.message.includes("No document to delete") || deleteError.message.includes("not found"))) {
               console.log(`Documento ya eliminado, operación completada: ${op.id}`);
               syncedCount++;
-            } else if (deleteError instanceof Error && 
-                      (deleteError.message.includes('network') || 
-                       deleteError.message.includes('unavailable'))) {
+            } else if (deleteError instanceof Error && (deleteError.message.includes("network") || deleteError.message.includes("unavailable"))) {
               console.warn(`Error temporal al eliminar documento, reintentando más tarde: ${deleteError.message}`);
               errorCount++;
               continue;
@@ -469,12 +459,9 @@ export const createFinanceService = (entityType: "incomes" | "expenses") => {
       } catch (error) {
         console.error(`Error syncing operation ${op.id}:`, error);
         errorCount++;
-        
+
         // Si el error es crítico y no podemos sincronizar la operación, la eliminamos
-        if (error instanceof Error && 
-            (error.message.includes('Invalid time value') || 
-             error.message.includes('Invalid date') ||
-             error.message.includes('permission-denied'))) {
+        if (error instanceof Error && (error.message.includes("Invalid time value") || error.message.includes("Invalid date") || error.message.includes("permission-denied"))) {
           console.warn(`Eliminando operación inválida ${op.id} de la cola`);
           usePendingOperationsStore.getState().removeOperation(op.id);
         }
@@ -490,11 +477,11 @@ export const createFinanceService = (entityType: "incomes" | "expenses") => {
         console.error(`Error refreshing ${entityType} after sync:`, e);
       }
     }
-    
-    return { 
-      success: errorCount === 0, 
-      syncedCount, 
-      errorCount 
+
+    return {
+      success: errorCount === 0,
+      syncedCount,
+      errorCount,
     };
   };
 
@@ -554,37 +541,97 @@ export const deleteFinancesByAccountId = async (
   deletedExpensesCount: number;
 }> => {
   try {
-    // Buscar ingresos asociados a la cuenta
+    console.log(`Iniciando eliminación de transacciones para la cuenta ${accountId}`);
+
+    // 1. Buscar en Firebase primero si estamos online
+    let firebaseIncomes: FinanceItem[] = [];
+    let firebaseExpenses: FinanceItem[] = [];
+
+    if (isOnline()) {
+      try {
+        // Consultar ingresos en Firebase
+        const incomesQuery = query(collection(db, "incomes"), where("accountId", "==", accountId));
+        const incomesSnapshot = await getDocs(incomesQuery);
+        firebaseIncomes = incomesSnapshot.docs.map(
+          (doc) =>
+            ({
+              id: doc.id,
+              ...doc.data(),
+            } as unknown as FinanceItem)
+        );
+
+        // Consultar gastos en Firebase
+        const expensesQuery = query(collection(db, "expenses"), where("accountId", "==", accountId));
+        const expensesSnapshot = await getDocs(expensesQuery);
+        firebaseExpenses = expensesSnapshot.docs.map(
+          (doc) =>
+            ({
+              id: doc.id,
+              ...doc.data(),
+            } as unknown as FinanceItem)
+        );
+
+        console.log(`Encontrados en Firebase: ${firebaseIncomes.length} ingresos y ${firebaseExpenses.length} gastos`);
+      } catch (error) {
+        console.error("Error buscando transacciones en Firebase:", error);
+      }
+    }
+
+    // 2. Buscar también en localStorage para asegurar que capturamos todo
     const incomesData = localStorage.getItem("incomes-data") || "[]";
     const parsedIncomes = JSON.parse(incomesData);
-    const incomesToDelete = parsedIncomes.filter((item: FinanceItem) => item.accountId === accountId);
+    const localIncomes = parsedIncomes.filter((item: FinanceItem) => item.accountId === accountId);
 
-    // Buscar gastos asociados a la cuenta
     const expensesData = localStorage.getItem("expenses-data") || "[]";
     const parsedExpenses = JSON.parse(expensesData);
-    const expensesToDelete = parsedExpenses.filter((item: FinanceItem) => item.accountId === accountId);
+    const localExpenses = parsedExpenses.filter((item: FinanceItem) => item.accountId === accountId);
 
-    // Eliminar ingresos
+    console.log(`Encontrados en LocalStorage: ${localIncomes.length} ingresos y ${localExpenses.length} gastos`);
+
+    // 3. Combinar y eliminar duplicados por ID
+    const incomesToDelete = Array.from(
+      new Map<string, FinanceItem>([...firebaseIncomes.map((item: FinanceItem) => [item.id, item]), ...localIncomes.map((item: FinanceItem) => [item.id, item])]).values()
+    );
+
+    const expensesToDelete = Array.from(
+      new Map<string, FinanceItem>([...firebaseExpenses.map((item: FinanceItem) => [item.id, item]), ...localExpenses.map((item: FinanceItem) => [item.id, item])]).values()
+    );
+
+    console.log(`Total a eliminar después de combinar: ${incomesToDelete.length} ingresos y ${expensesToDelete.length} gastos`);
+
+    // 4. Eliminar ingresos
+    const deletedIncomes: string[] = [];
     for (const income of incomesToDelete) {
       try {
-        await incomeService.deleteItem(income.id);
+        if (!deletedIncomes.includes(income.id)) {
+          await incomeService.deleteItem(income.id);
+          deletedIncomes.push(income.id);
+          console.log(`✓ Ingreso eliminado: ${income.id} - ${income.description}`);
+        }
       } catch (error) {
         console.error(`Error al eliminar ingreso ${income.id}:`, error);
       }
     }
 
-    // Eliminar gastos
+    // 5. Eliminar gastos
+    const deletedExpenses: string[] = [];
     for (const expense of expensesToDelete) {
       try {
-        await expenseService.deleteItem(expense.id);
+        if (!deletedExpenses.includes(expense.id)) {
+          await expenseService.deleteItem(expense.id);
+          deletedExpenses.push(expense.id);
+          console.log(`✓ Gasto eliminado: ${expense.id} - ${expense.description}`);
+        }
       } catch (error) {
         console.error(`Error al eliminar gasto ${expense.id}:`, error);
       }
     }
 
+    console.log(`Proceso de eliminación completado. Eliminados: ${deletedIncomes.length} ingresos y ${deletedExpenses.length} gastos`);
+
     return {
-      deletedIncomesCount: incomesToDelete.length,
-      deletedExpensesCount: expensesToDelete.length,
+      deletedIncomesCount: deletedIncomes.length,
+      deletedExpensesCount: deletedExpenses.length,
     };
   } catch (error) {
     console.error("Error eliminando transacciones asociadas a la cuenta:", error);
@@ -731,6 +778,8 @@ export const verifyAndFixAccountBalances = async (
       return { accountsChecked: 0, accountsFixed: 0, fixedAccountIds: [] };
     }
 
+    console.log(`⚠️ Iniciando verificación de saldos para usuario ${userId}`);
+
     // Importar funciones necesarias
     const { getUserAccounts, updateAccount } = await import("./accountService");
 
@@ -738,8 +787,11 @@ export const verifyAndFixAccountBalances = async (
     const incomes = await incomeService.getUserItems(userId);
     const expenses = await expenseService.getUserItems(userId);
 
-    // Obtener todas las cuentas del usuario
-    const accounts = useAccountStore.getState().accounts;
+    console.log(`📊 Datos obtenidos: ${incomes.length} ingresos, ${expenses.length} gastos`);
+
+    // Obtener todas las cuentas del usuario directamente de Firebase para datos actualizados
+    const accounts = await getUserAccounts(userId);
+    console.log(`📊 Verificando ${accounts.length} cuentas`);
 
     // Verificar cada cuenta
     let accountsFixed = 0;
@@ -755,28 +807,38 @@ export const verifyAndFixAccountBalances = async (
 
       const realBalance = incomesTotal - expensesTotal;
 
-      console.log(`Verificando cuenta ${account.name} (${account.id}):`);
+      console.log(`📊 Cuenta ${account.name} (${account.id}):`);
       console.log(`- Ingresos: ${incomesTotal}, Gastos: ${expensesTotal}`);
       console.log(`- Saldo calculado: ${realBalance}, Saldo actual: ${account.balance}`);
 
-      // Verificar si el saldo actual es diferente del real
+      // Verificar si el saldo actual es diferente del real con tolerancia para errores de redondeo
       if (Math.abs(account.balance - realBalance) > 0.001) {
-        // Pequeña tolerancia para errores de redondeo
-        console.log(`- Corrigiendo saldo: ${account.balance} -> ${realBalance}`);
+        console.log(`⚠️ Corrigiendo saldo: ${account.balance} -> ${realBalance}`);
 
-        // Corregir el saldo
-        const updatedAccount = {
-          ...account,
-          balance: realBalance,
-        };
+        try {
+          // Corregir el saldo usando una actualización directa a Firebase
+          const accountRef = doc(db, "accounts", account.id);
+          await updateDoc(accountRef, {
+            balance: realBalance,
+            updatedAt: serverTimestamp(),
+            lastVerified: serverTimestamp(),
+          });
 
-        await updateAccount(updatedAccount);
-        accountsFixed++;
-        fixedAccountIds.push(account.id);
+          // Actualizar también en localStorage
+          const localData = localStorage.getItem("accounts-data") || "[]";
+          const parsedData = JSON.parse(localData);
+          const updatedLocalData = parsedData.map((acc: Account) => (acc.id === account.id ? { ...acc, balance: realBalance } : acc));
+          localStorage.setItem("accounts-data", JSON.stringify(updatedLocalData));
 
-        console.log(`- Saldo corregido para ${account.name}`);
+          accountsFixed++;
+          fixedAccountIds.push(account.id);
+
+          console.log(`✅ Saldo corregido para ${account.name}`);
+        } catch (updateError) {
+          console.error(`❌ Error al corregir saldo de cuenta ${account.id}:`, updateError);
+        }
       } else {
-        console.log(`- El saldo es correcto para ${account.name}`);
+        console.log(`✅ El saldo es correcto para ${account.name}`);
       }
     }
 
@@ -784,6 +846,7 @@ export const verifyAndFixAccountBalances = async (
     if (accountsFixed > 0) {
       const updatedAccounts = await getUserAccounts(userId);
       useAccountStore.getState().setAccounts(updatedAccounts);
+      console.log(`✅ Estado global actualizado con ${updatedAccounts.length} cuentas después de correcciones`);
     }
 
     return {
@@ -792,7 +855,7 @@ export const verifyAndFixAccountBalances = async (
       fixedAccountIds,
     };
   } catch (error) {
-    console.error("Error verificando saldos de cuentas:", error);
+    console.error("❌ Error verificando saldos de cuentas:", error);
     return { accountsChecked: 0, accountsFixed: 0, fixedAccountIds: [] };
   }
 };

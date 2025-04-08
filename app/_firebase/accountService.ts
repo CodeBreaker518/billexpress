@@ -296,14 +296,30 @@ export const transferBetweenAccounts = async (fromAccountId: string, toAccountId
   }
 
   try {
-    // Obtener cuentas actualizadas
-    const accounts = await getUserAccounts(userId);
-    const fromAccount = accounts.find((acc) => acc.id === fromAccountId);
-    const toAccount = accounts.find((acc) => acc.id === toAccountId);
+    console.log(`⚠️ Iniciando transferencia de ${amount} desde ${fromAccountId} hacia ${toAccountId} (Usuario: ${userId})`);
 
-    if (!fromAccount || !toAccount) {
-      throw new Error("Una o ambas cuentas no existen");
+    // Obtener cuentas actualizadas directamente de Firebase para tener datos frescos
+    const fromAccountRef = doc(db, "accounts", fromAccountId);
+    const toAccountRef = doc(db, "accounts", toAccountId);
+
+    // Obtener documentos de Firebase
+    const fromAccountDoc = await getDoc(fromAccountRef);
+    const toAccountDoc = await getDoc(toAccountRef);
+
+    if (!fromAccountDoc.exists() || !toAccountDoc.exists()) {
+      throw new Error("Una o ambas cuentas no existen en la base de datos");
     }
+
+    // Convertir a objetos Account
+    const fromAccount = { id: fromAccountId, ...fromAccountDoc.data() } as Account;
+    const toAccount = { id: toAccountId, ...toAccountDoc.data() } as Account;
+
+    // Verificar que las cuentas pertenezcan al usuario
+    if (fromAccount.userId !== userId || toAccount.userId !== userId) {
+      throw new Error("No tienes permiso para transferir entre estas cuentas");
+    }
+
+    console.log(`📊 Saldos actuales: Origen=${fromAccount.balance}, Destino=${toAccount.balance}`);
 
     if (fromAccount.balance < amount) {
       throw new Error("Saldo insuficiente para realizar la transferencia");
@@ -320,13 +336,59 @@ export const transferBetweenAccounts = async (fromAccountId: string, toAccountId
       balance: toAccount.balance + amount,
     };
 
-    // Guardar cambios
-    await updateAccount(updatedFromAccount);
-    await updateAccount(updatedToAccount);
+    console.log(`📊 Nuevos saldos calculados: Origen=${updatedFromAccount.balance}, Destino=${updatedToAccount.balance}`);
+
+    // Usar transacción para actualizar ambas cuentas atómicamente en Firebase
+    const batch = writeBatch(db);
+
+    batch.update(fromAccountRef, {
+      balance: updatedFromAccount.balance,
+      updatedAt: serverTimestamp(),
+    });
+
+    batch.update(toAccountRef, {
+      balance: updatedToAccount.balance,
+      updatedAt: serverTimestamp(),
+    });
+
+    // Commit de la transacción
+    await batch.commit();
+    console.log(`✅ Transacción completada en Firebase`);
+
+    // Actualizar también en localStorage
+    const localData = localStorage.getItem(localStorageKey) || "[]";
+    const parsedData = JSON.parse(localData);
+    const updatedData = parsedData.map((acc: Account) => {
+      if (acc.id === fromAccountId) return updatedFromAccount;
+      if (acc.id === toAccountId) return updatedToAccount;
+      return acc;
+    });
+    localStorage.setItem(localStorageKey, JSON.stringify(updatedData));
+
+    // Actualizar el estado global inmediatamente para reflejar los cambios en la UI
+    const { accounts: storeAccounts, setAccounts } = useAccountStore.getState();
+
+    if (storeAccounts && storeAccounts.length > 0) {
+      const updatedAccounts = storeAccounts.map((acc) => {
+        if (acc.id === fromAccountId) {
+          return updatedFromAccount;
+        } else if (acc.id === toAccountId) {
+          return updatedToAccount;
+        }
+        return acc;
+      });
+
+      // Actualizar el estado global con las cuentas actualizadas
+      setAccounts(updatedAccounts);
+      console.log("✅ Estado global actualizado después de transferencia", {
+        desde: `${updatedFromAccount.name} (${updatedFromAccount.balance})`,
+        hacia: `${updatedToAccount.name} (${updatedToAccount.balance})`,
+      });
+    }
 
     return;
   } catch (error) {
-    console.error(`Error in transferBetweenAccounts:`, error);
+    console.error(`❌ Error in transferBetweenAccounts:`, error);
     throw error;
   }
 };
@@ -715,7 +777,7 @@ export const updateAccountBalanceFromTransactions = async (accountId: string, us
 export const updateAllAccountBalances = async (userId: string): Promise<string[]> => {
   try {
     // Obtener todas las cuentas del usuario
-    const userAccountsQuery = query(collection(db, "accounts"), where("userId", "==", userId));
+    const userAccountsQuery = query(collection_ref, where("userId", "==", userId));
     const snapshot = await getDocs(userAccountsQuery);
     const accounts = snapshot.docs.map((doc) => ({
       id: doc.id,
@@ -723,12 +785,40 @@ export const updateAllAccountBalances = async (userId: string): Promise<string[]
     })) as Account[];
 
     const updatedAccounts: string[] = [];
+    const updatedAccountsData: Account[] = [];
 
     // Para cada cuenta, actualizar su saldo
     for (const account of accounts) {
       const success = await updateAccountBalanceFromTransactions(account.id, userId);
       if (success) {
         updatedAccounts.push(account.id);
+
+        // Obtener la cuenta actualizada para luego actualizar el estado global
+        const updatedAccount = await getAccountById(account.id);
+        if (updatedAccount) {
+          updatedAccountsData.push(updatedAccount);
+        }
+      }
+    }
+
+    // Actualizar el estado global si obtuvimos cuentas actualizadas
+    if (updatedAccountsData.length > 0) {
+      const { accounts: storeAccounts, setAccounts } = useAccountStore.getState();
+
+      if (storeAccounts && storeAccounts.length > 0) {
+        // Crear un nuevo array de cuentas con los saldos actualizados
+        const newAccounts = [...storeAccounts];
+
+        for (const updatedAccount of updatedAccountsData) {
+          const index = newAccounts.findIndex((acc) => acc.id === updatedAccount.id);
+          if (index !== -1) {
+            newAccounts[index] = updatedAccount;
+          }
+        }
+
+        // Actualizar el estado global
+        setAccounts(newAccounts);
+        console.log(`✅ Estado global actualizado con ${updatedAccountsData.length} cuentas recalculadas`);
       }
     }
 
@@ -747,43 +837,42 @@ export const cleanupDuplicateAccounts = async (userId: string): Promise<number> 
   try {
     // 1. Obtener todas las cuentas del usuario
     const accounts = await getUserAccounts(userId);
-    
+
     // 2. Filtrar las cuentas "Efectivo"
-    const efectivoAccounts = accounts.filter(acc => 
-      acc.name === "Efectivo" && acc.isDefault
-    );
-    
+    const efectivoAccounts = accounts.filter((acc) => acc.name === "Efectivo" && acc.isDefault);
+
     // Si hay menos de 2 cuentas, no hay duplicados
     if (efectivoAccounts.length < 2) {
       return 0;
     }
-    
+
     // 3. Ordenar por fecha de creación (asumiendo que el ID contiene timestamp)
     efectivoAccounts.sort((a, b) => {
-      const timestampA = a.id.split('-')[0];
-      const timestampB = b.id.split('-')[0];
+      const timestampA = a.id.split("-")[0];
+      const timestampB = b.id.split("-")[0];
       return parseInt(timestampA) - parseInt(timestampB);
     });
-    
+
     // 4. Mantener la cuenta más antigua y eliminar el resto
-    const [oldestAccount, ...duplicates] = efectivoAccounts;
-    
+    // La primera cuenta es la más antigua y se conserva
+    const duplicates = efectivoAccounts.slice(1); // El resto son duplicados a eliminar
+
     // 5. Eliminar las cuentas duplicadas
     const batch = writeBatch(db);
-    
+
     for (const account of duplicates) {
       // Obtener transacciones asociadas a la cuenta duplicada
-      const { deleteFinancesByAccountId } = await import('./financeService');
+      const { deleteFinancesByAccountId } = await import("./financeService");
       await deleteFinancesByAccountId(account.id);
-      
+
       // Eliminar la cuenta
       const accountRef = doc(db, "accounts", account.id);
       batch.delete(accountRef);
     }
-    
+
     // Ejecutar el batch
     await batch.commit();
-    
+
     return duplicates.length;
   } catch (error) {
     console.error("Error limpiando cuentas duplicadas:", error);

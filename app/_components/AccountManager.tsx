@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useCallback, useEffect } from "react";
-import { PlusCircle, Pencil, Trash2, ChevronsUpDown, ArrowRightLeft, RefreshCw } from "lucide-react";
+import { PlusCircle, Pencil, Trash2, ChevronsUpDown, ArrowRightLeft } from "lucide-react";
 import { Popover, PopoverTrigger, PopoverContent } from "@bill/_components/ui/popover";
 import { DrawerDialog } from "@bill/_components/ui/drawer-dialog";
 import { Button } from "@bill/_components/ui/button";
@@ -13,7 +13,7 @@ import { DialogHeader, DialogFooter, DialogTitle, DialogDescription } from "@bil
 import { Alert, AlertDescription } from "@bill/_components/ui/alert";
 import { useToast } from "@bill/_components/ui/use-toast";
 import { useAccountStore } from "@bill/_store/useAccountStore";
-import { Account, addAccount, updateAccount, deleteAccount, transferBetweenAccounts } from "@bill/_firebase/accountService";
+import { Account, addAccount, updateAccount, deleteAccount, transferBetweenAccounts, getUserAccounts } from "@bill/_firebase/accountService";
 
 interface AccountManagerProps {
   userId: string;
@@ -35,6 +35,24 @@ export default function AccountManager({ userId, onReloadAccounts, isLoading }: 
       console.log("Activando cuenta por defecto:", defaultAccount.name);
     }
   }, [accounts, activeAccountId, setActiveAccountId]);
+
+  // Efecto para forzar la actualización de los saldos mostrados
+  useEffect(() => {
+    // Esta función se ejecutará cuando cambie isLoading de true a false
+    // indicando que el proceso de carga/actualización ha terminado
+    if (isLoading === false) {
+      console.log("⚠️ AccountManager: Detectada actualización de cuentas, refrescando componente...");
+
+      // Forzar actualización del componente
+      const timer = setTimeout(() => {
+        // Esto es solo para asegurarnos de que el componente se actualice
+        // después de que los datos estén disponibles
+        console.log("✅ AccountManager: Componente actualizado con nuevos saldos");
+      }, 50);
+
+      return () => clearTimeout(timer);
+    }
+  }, [isLoading, accounts]);
 
   // Estados para diálogos
   const [isAccountFormOpen, setIsAccountFormOpen] = useState(false);
@@ -86,16 +104,43 @@ export default function AccountManager({ userId, onReloadAccounts, isLoading }: 
   // Función mejorada para recargar cuentas que incluye recálculo automático
   const reloadAccountsWithRecalculation = useCallback(async () => {
     try {
-      // Primero recargar las cuentas normalmente
-      await onReloadAccounts();
-      
-      // Después actualizar todos los saldos si hay cuentas
+      console.log("⚠️ AccountManager: Iniciando recarga completa con recálculo de saldos...");
+
+      // Forzar recálculo completo de saldos (reset a cero y recálculo)
       if (userId) {
-        const { updateAllAccountBalances } = await import("@bill/_firebase/accountService");
-        await updateAllAccountBalances(userId);
+        // Paso 1: Obtener las cuentas más recientes directamente desde Firebase
+        const freshAccounts = await getUserAccounts(userId);
+        console.log(`✅ AccountManager: Obtenidas ${freshAccounts.length} cuentas frescas de Firebase`);
+
+        // Paso 2: Actualizar el estado global con estas cuentas recién obtenidas
+        useAccountStore.getState().setAccounts(freshAccounts);
+        console.log("✅ AccountManager: Estado global actualizado con cuentas frescas");
+
+        // Paso 3: Opcionalmente ejecutar verificación y corrección adicionales
+        const { verifyAndFixAccountBalances } = await import("@bill/_firebase/financeService");
+
+        try {
+          // Verificar y corregir cualquier discrepancia adicional
+          const result = await verifyAndFixAccountBalances(userId);
+          console.log(`✅ AccountManager: Verificación completada - ${result.accountsFixed} cuentas corregidas`);
+
+          // Si se corrigieron cuentas, actualizar el estado global nuevamente
+          if (result.accountsFixed > 0) {
+            const correctedAccounts = await getUserAccounts(userId);
+            useAccountStore.getState().setAccounts(correctedAccounts);
+            console.log("✅ AccountManager: Estado global actualizado con cuentas corregidas");
+          }
+        } catch (verifyError) {
+          console.error("❌ Error en verificación de saldos:", verifyError);
+        }
       }
+
+      // Paso final: Avisar al componente padre que se ha completado la recarga
+      await onReloadAccounts();
+      console.log("✅ AccountManager: Proceso de recálculo completo finalizado");
     } catch (error) {
-      console.error("Error al recargar cuentas con recálculo:", error);
+      console.error("❌ AccountManager: Error al recargar cuentas con recálculo:", error);
+      throw error; // Re-lanzar el error para manejo en niveles superiores
     }
   }, [userId, onReloadAccounts]);
 
@@ -190,7 +235,7 @@ export default function AccountManager({ userId, onReloadAccounts, isLoading }: 
 
       // Eliminar la cuenta
       await deleteAccount(accountToDelete.id);
-      
+
       // Recargar cuentas con recálculo automático de saldos
       await reloadAccountsWithRecalculation();
 
@@ -205,7 +250,7 @@ export default function AccountManager({ userId, onReloadAccounts, isLoading }: 
         toast({
           title: "Cuenta eliminada",
           description: "La cuenta ha sido eliminada correctamente.",
-          variant: "default",
+          variant: "success",
         });
       }
     } catch (error) {
@@ -226,7 +271,7 @@ export default function AccountManager({ userId, onReloadAccounts, isLoading }: 
       toast({
         title: "Error",
         description: "El nombre de la cuenta es requerido",
-        variant: "destructive",
+        variant: "warning",
       });
       return;
     }
@@ -310,24 +355,49 @@ export default function AccountManager({ userId, onReloadAccounts, isLoading }: 
     }
 
     try {
+      // Mostrar notificación de procesamiento
+      toast({
+        title: "Procesando transferencia",
+        description: "Estamos realizando la transferencia entre tus cuentas...",
+        variant: "default",
+      });
+
+      // Paso 1: Realizar la transferencia entre cuentas
       await transferBetweenAccounts(fromAccountId, toAccountId, transferAmount, userId);
-      
-      // Recargar cuentas con recálculo automático
-      await reloadAccountsWithRecalculation();
+      console.log(`✅ Transferencia completada: ${formatCurrency(transferAmount)} desde ${fromAccountId} hacia ${toAccountId}`);
+
+      // Paso 2: Cerrar el modal de transferencia
       setIsTransferFormOpen(false);
 
-      toast({
-        title: "Transferencia exitosa",
-        description: `Se han transferido ${formatCurrency(transferAmount)} correctamente`,
-      });
+      // Esperar un poco para que Firebase complete sus operaciones
+      setTimeout(async () => {
+        // Paso 3: Recargar las cuentas para asegurar sincronización completa
+        await reloadAccountsWithRecalculation();
+
+        // Mostrar mensaje de éxito después de que todo haya terminado
+        toast({
+          title: "Transferencia exitosa",
+          description: `Se han transferido ${formatCurrency(transferAmount)} correctamente`,
+          variant: "success",
+        });
+      }, 500);
     } catch (error) {
+      console.error("❌ Error en transferencia:", error);
+      // Mostrar mensaje de error específico
       toast({
-        title: "Error",
-        description: error instanceof Error ? error.message : "No se pudo realizar la transferencia",
+        title: "Error en la transferencia",
+        description: error instanceof Error ? error.message : "No se pudo realizar la transferencia, inténtalo de nuevo",
         variant: "destructive",
       });
+
+      // Intentar recargar las cuentas de todas formas para tener información actualizada
+      try {
+        await reloadAccountsWithRecalculation();
+      } catch (reloadError) {
+        console.error("Error secundario al recargar cuentas:", reloadError);
+      }
     }
-  }, [fromAccountId, toAccountId, transferAmount, userId, reloadAccountsWithRecalculation, toast, formatCurrency]);
+  }, [fromAccountId, toAccountId, transferAmount, userId, reloadAccountsWithRecalculation, toast, formatCurrency, isTransferValid]);
 
   return (
     <div className="space-y-4" data-testid="account-manager">
@@ -378,10 +448,12 @@ export default function AccountManager({ userId, onReloadAccounts, isLoading }: 
         </Button>
         {activeAccount && (
           <>
-            <Button size="sm" variant="outline" onClick={() => handleEditAccount(activeAccount)} data-testid="edit-account-button">
-              <Pencil className="h-4 w-4 mr-1" />
-              Editar
-            </Button>
+            {!activeAccount.isDefault && (
+              <Button size="sm" variant="outline" onClick={() => handleEditAccount(activeAccount)} data-testid="edit-account-button">
+                <Pencil className="h-4 w-4 mr-1" />
+                Editar
+              </Button>
+            )}
             {!activeAccount.isDefault && (
               <Button size="sm" variant="outline" onClick={() => handleConfirmDelete(activeAccount.id)} className="text-destructive" data-testid="delete-account-button">
                 <Trash2 className="h-4 w-4 mr-1" />

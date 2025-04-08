@@ -7,7 +7,7 @@ import { useIncomeStore } from "@bill/_store/useIncomeStore";
 import { useExpenseStore } from "@bill/_store/useExpenseStore";
 import { getUserIncomes, addIncome, updateIncome, deleteIncome } from "@bill/_firebase/incomeService";
 import { getUserExpenses, addExpense, updateExpense, deleteExpense } from "@bill/_firebase/expenseService";
-import { isValid, format, subMonths, startOfMonth, endOfMonth } from "date-fns";
+import { format, subMonths, startOfMonth, endOfMonth } from "date-fns";
 import { es } from "date-fns/locale";
 import SearchBar from "@bill/_components/SearchBar";
 import FinanceForm from "@bill/_components/FinanceForm";
@@ -25,11 +25,10 @@ import { List, ListItem } from "@bill/_components/ui/list";
 import { DialogDescription } from "@bill/_components/ui/dialog";
 import { translate } from "@bill/_components/ui/t";
 import { INCOME_CATEGORIES, EXPENSE_CATEGORIES } from "../../_lib/utils/categoryConfig";
-import { getUserAccounts, updateAllAccountBalances } from "@bill/_firebase/accountService";
+import { getUserAccounts } from "@bill/_firebase/accountService";
 import { useAccountStore } from "@bill/_store/useAccountStore";
 import AccountManager from "@bill/_components/AccountManager";
 import { useToast } from "@bill/_components/ui/use-toast";
-import { verifyAndFixAccountBalances } from "@bill/_firebase/financeService";
 
 // Define types for income and expense items
 interface FinanceItem {
@@ -39,6 +38,7 @@ interface FinanceItem {
   category: string;
   date: Date;
   time?: string;
+  accountId?: string;
 }
 
 interface Income extends Omit<FinanceItem, "date"> {
@@ -51,6 +51,23 @@ interface Expense extends Omit<FinanceItem, "date"> {
   date: Date | string;
   userId: string;
   accountId?: string;
+}
+
+// Tipo para categorías de finanzas
+interface CategoryStats {
+  category: string;
+  amount: number;
+  percentage: number;
+  [key: string]: string | number; // Índice para compatibilidad con ChartData
+}
+
+// Tipo para datos financieros mensuales
+interface MonthlyFinanceData {
+  month: string;
+  Ingresos: number;
+  Gastos: number;
+  Balance: number;
+  [key: string]: string | number; // Índice para compatibilidad con ChartData
 }
 
 // Categorías de ingresos
@@ -104,153 +121,298 @@ function FinancesPageContent() {
   const [monthlyIncomes, setMonthlyIncomes] = useState(0);
   const [monthlyExpenses, setMonthlyExpenses] = useState(0);
   const [monthlyBalance, setMonthlyBalance] = useState(0);
-  const [incomesByCategory, setIncomesByCategory] = useState<any[]>([]);
-  const [expensesByCategory, setExpensesByCategory] = useState<any[]>([]);
-  const [financesByMonth, setFinancesByMonth] = useState<any[]>([]);
+  const [incomesByCategory, setIncomesByCategory] = useState<CategoryStats[]>([]);
+  const [expensesByCategory, setExpensesByCategory] = useState<CategoryStats[]>([]);
+  const [financesByMonth, setFinancesByMonth] = useState<MonthlyFinanceData[]>([]);
 
-  // Estado para vista de tabla
-  const [showTable, setShowTable] = useState(true);
+  // Función simplificada que recarga TODOS los datos financieros del usuario
+  const reloadAllFinancialData = useCallback(async () => {
+    if (!user?.uid) return;
 
-  // Función para calcular el saldo real de una cuenta basado en sus transacciones
-  const calculateAccountBalance = (accountId: string) => {
-    // Filtrar ingresos y gastos de esta cuenta
-    const accountIncomes = incomes.filter((income) => (income as any).accountId === accountId);
-    const accountExpenses = expenses.filter((expense) => (expense as any).accountId === accountId);
-
-    // Calcular el saldo como la suma de ingresos menos gastos
-    const totalIncome = accountIncomes.reduce((sum, income) => sum + income.amount, 0);
-    const totalExpense = accountExpenses.reduce((sum, expense) => sum + expense.amount, 0);
-
-    return totalIncome - totalExpense;
-  };
-
-  // Función para recalcular los saldos de todas las cuentas
-  const recalculateAllAccountBalances = () => {
-    if (accounts.length === 0) return;
-
-    // Para cada cuenta, calcular el saldo real basado en transacciones
-    const updatedAccounts = accounts.map((account) => {
-      const realBalance = calculateAccountBalance(account.id);
-      return {
-        ...account,
-        balance: realBalance,
-      };
-    });
-
-    // Actualizar el estado de las cuentas con los saldos recalculados
-    setAccounts(updatedAccounts);
-
-    // Actualizar el saldo total (suma de todos los saldos de cuenta)
-    const totalBalance = updatedAccounts.reduce((sum, account) => sum + account.balance, 0);
-    setBalance(totalBalance);
-
-    toast({
-      title: "Saldos actualizados",
-      variant: "default",
-      description: "Los saldos de las cuentas han sido recalculados basados en transacciones reales.",
-    });
-  };
-
-  // Función para manejar la recarga de cuentas y recalcular saldos
-  const handleReloadAccountsAndBalance = async () => {
     try {
-      const loadedAccounts = await getUserAccounts(user?.uid || "");
-      setAccounts(loadedAccounts);
+      console.log("🔄 Iniciando recarga completa de datos financieros...");
+      setAccountsLoading(true);
+      setIncomesLoading(true);
+      setExpensesLoading(true);
 
-      // Después de cargar las cuentas, recalcular los saldos
-      // Esto se hará en el siguiente ciclo de renderizado cuando accounts esté actualizado
-      setTimeout(() => {
-        recalculateAllAccountBalances();
-      }, 100);
+      // 1. Cargar los datos de Firebase directamente en paralelo
+      const [updatedAccounts, updatedIncomes, updatedExpenses] = await Promise.all([getUserAccounts(user.uid), getUserIncomes(user.uid), getUserExpenses(user.uid)]);
 
+      // 2. Actualizar el estado global directamente con los datos de Firebase
+      setAccounts(updatedAccounts);
+      setIncomes(updatedIncomes);
+      setExpenses(updatedExpenses);
+
+      console.log(`✅ Datos actualizados: ${updatedAccounts.length} cuentas, ${updatedIncomes.length} ingresos, ${updatedExpenses.length} gastos`);
+
+      // 3. Mostrar confirmación visual al usuario
       toast({
-        title: "Cuentas actualizadas",
+        title: "Datos actualizados",
+        description: "Todos los datos financieros han sido actualizados",
         variant: "default",
-        description: "Las cuentas han sido actualizadas y los saldos recalculados.",
       });
-    } catch (err) {
-      console.error("Error al recargar las cuentas:", err);
+    } catch (error) {
+      console.error("❌ Error recargando datos financieros:", error);
       toast({
-        title: "Error al actualizar cuentas",
+        title: "Error de sincronización",
+        description: "No se pudieron actualizar los datos. Intenta de nuevo.",
         variant: "destructive",
-        description: "No se pudieron actualizar las cuentas. Inténtalo de nuevo.",
+      });
+    } finally {
+      setAccountsLoading(false);
+      setIncomesLoading(false);
+      setExpensesLoading(false);
+    }
+  }, [user, setAccounts, setIncomes, setExpenses, setAccountsLoading, setIncomesLoading, setExpensesLoading, toast]);
+
+  // Reemplazar la función handleReloadAccountsAndBalance por una más simple
+  const handleReloadData = reloadAllFinancialData;
+
+  // Cargar datos financieros al iniciar
+  useEffect(() => {
+    if (!user) return;
+
+    console.log("⚠️ Cargando datos financieros iniciales...");
+    reloadAllFinancialData();
+  }, [user, reloadAllFinancialData]);
+
+  // Cerrar formulario - función requerida por linter
+  const handleCancel = () => {
+    setIsFormOpen(false);
+  };
+
+  // Operaciones CRUD para ingresos - simplificadas
+  const handleAddIncome = async (incomeData: Partial<Income>) => {
+    try {
+      if (!user?.uid) throw new Error("Usuario no autenticado");
+
+      // 1. Crear el ingreso en Firebase
+      await addIncome({
+        ...incomeData,
+        userId: user.uid,
+        date: incomeData.date || new Date(),
+      } as Omit<FinanceItem, "id">);
+
+      // 2. Recargar los datos financieros
+      await reloadAllFinancialData();
+
+      // 3. Notificar al usuario
+      toast({
+        title: "Ingreso añadido",
+        variant: "success",
+      });
+
+      // 4. Cerrar cualquier diálogo abierto
+      setIsFormOpen(false);
+    } catch (error) {
+      console.error("Error añadiendo ingreso:", error);
+      toast({
+        title: "Error",
+        description: "No se pudo guardar el ingreso",
+        variant: "destructive",
       });
     }
   };
 
-  // Cargar datos financieros
-  useEffect(() => {
-    if (!incomes || !Array.isArray(incomes)) {
-      setIncomes([]);
+  // Operación para actualizar un ingreso - simplificada
+  const handleUpdateIncome = async (incomeData: Income) => {
+    try {
+      if (!user?.uid) throw new Error("Usuario no autenticado");
+
+      // Asegurar que tenga userId
+      const completeData: FinanceItem = {
+        ...incomeData,
+        userId: user.uid,
+        // Asegurar que date es un objeto Date
+        date: incomeData.date instanceof Date ? incomeData.date : new Date(incomeData.date),
+      };
+
+      // 1. Actualizar el ingreso en Firebase
+      await updateIncome(completeData);
+
+      // 2. Recargar los datos financieros
+      await reloadAllFinancialData();
+
+      // 3. Notificar al usuario
+      toast({
+        title: "Ingreso actualizado",
+        variant: "success",
+      });
+
+      // 4. Cerrar cualquier diálogo abierto
+      setIsFormOpen(false);
+    } catch (error) {
+      console.error("Error actualizando ingreso:", error);
+      toast({
+        title: "Error",
+        description: "No se pudo actualizar el ingreso",
+        variant: "destructive",
+      });
     }
+  };
 
-    if (!expenses || !Array.isArray(expenses)) {
-      setExpenses([]);
+  // Operación para eliminar un ingreso - simplificada
+  const handleDeleteIncome = async (id: string) => {
+    try {
+      // 1. Eliminar el ingreso en Firebase
+      await deleteIncome(id);
+
+      // 2. Recargar los datos financieros
+      await reloadAllFinancialData();
+
+      // 3. Notificar al usuario
+      toast({
+        title: "Ingreso eliminado",
+        variant: "success",
+      });
+    } catch (error) {
+      console.error("Error eliminando ingreso:", error);
+      toast({
+        title: "Error",
+        description: "No se pudo eliminar el ingreso",
+        variant: "destructive",
+      });
     }
+  };
 
-    const loadFinances = async () => {
-      if (user) {
-        setIncomesLoading(true);
-        setExpensesLoading(true);
+  // Operaciones CRUD para gastos - simplificadas
+  const handleAddExpense = async (expenseData: Partial<Expense>) => {
+    try {
+      if (!user?.uid) throw new Error("Usuario no autenticado");
 
-        try {
-          // Cargar ingresos
-          const userIncomes = await getUserIncomes(user.uid);
-          setIncomes(userIncomes);
+      // 1. Crear el gasto en Firebase
+      await addExpense({
+        ...expenseData,
+        userId: user.uid,
+        date: expenseData.date || new Date(),
+      } as Omit<FinanceItem, "id">);
 
-          // Cargar gastos
-          const userExpenses = await getUserExpenses(user.uid);
-          setExpenses(userExpenses);
-        } catch (error) {
-          console.error("Error loading finances:", error);
-          setIncomes([]);
-          setExpenses([]);
-        } finally {
-          setIncomesLoading(false);
-          setExpensesLoading(false);
+      // 2. Recargar los datos financieros
+      await reloadAllFinancialData();
+
+      // 3. Notificar al usuario
+      toast({
+        title: "Gasto añadido",
+        variant: "success",
+      });
+
+      // 4. Cerrar cualquier diálogo abierto
+      setIsFormOpen(false);
+    } catch (error) {
+      console.error("Error añadiendo gasto:", error);
+      toast({
+        title: "Error",
+        description: "No se pudo guardar el gasto",
+        variant: "destructive",
+      });
+    }
+  };
+
+  // Operación para actualizar un gasto - simplificada
+  const handleUpdateExpense = async (expenseData: Expense) => {
+    try {
+      if (!user?.uid) throw new Error("Usuario no autenticado");
+
+      // Asegurar que tenga userId
+      const completeData: FinanceItem = {
+        ...expenseData,
+        userId: user.uid,
+        // Asegurar que date es un objeto Date
+        date: expenseData.date instanceof Date ? expenseData.date : new Date(expenseData.date),
+      };
+
+      // 1. Actualizar el gasto en Firebase
+      await updateExpense(completeData);
+
+      // 2. Recargar los datos financieros
+      await reloadAllFinancialData();
+
+      // 3. Notificar al usuario
+      toast({
+        title: "Gasto actualizado",
+        variant: "success",
+      });
+
+      // 4. Cerrar cualquier diálogo abierto
+      setIsFormOpen(false);
+    } catch (error) {
+      console.error("Error actualizando gasto:", error);
+      toast({
+        title: "Error",
+        description: "No se pudo actualizar el gasto",
+        variant: "destructive",
+      });
+    }
+  };
+
+  // Operación para eliminar un gasto - simplificada
+  const handleDeleteExpense = async (id: string) => {
+    try {
+      // 1. Eliminar el gasto en Firebase
+      await deleteExpense(id);
+
+      // 2. Recargar los datos financieros
+      await reloadAllFinancialData();
+
+      // 3. Notificar al usuario
+      toast({
+        title: "Gasto eliminado",
+        variant: "success",
+      });
+    } catch (error) {
+      console.error("Error eliminando gasto:", error);
+      toast({
+        title: "Error",
+        description: "No se pudo eliminar el gasto",
+        variant: "destructive",
+      });
+    }
+  };
+
+  // Función unificada para guardar cualquier tipo de transacción
+  const handleSave = async (item: Partial<FinanceItem & { time?: string; accountId?: string }>) => {
+    try {
+      if (!user) {
+        toast({
+          title: "Error de autenticación",
+          description: "Debes iniciar sesión para realizar esta acción",
+          variant: "destructive",
+        });
+        return;
+      }
+
+      if (!item.amount || item.amount <= 0) {
+        toast({
+          title: "Error en el monto",
+          description: "El monto debe ser mayor que cero",
+          variant: "destructive",
+        });
+        return;
+      }
+
+      // Delegar a la función CRUD correspondiente
+      if (formType === "income") {
+        if (isEditing && item.id) {
+          await handleUpdateIncome(item as Income);
+        } else {
+          await handleAddIncome(item);
+        }
+      } else {
+        if (isEditing && item.id) {
+          await handleUpdateExpense(item as Expense);
+        } else {
+          await handleAddExpense(item);
         }
       }
-    };
-
-    loadFinances();
-  }, [user, setIncomes, setExpenses, setIncomesLoading, setExpensesLoading]);
-
-  // Cargar cuentas al iniciar
-  useEffect(() => {
-    const loadAccounts = async () => {
-      if (user) {
-        setAccountsLoading(true);
-        try {
-          // Cargar cuentas
-          console.log("⚠️ FinancesPage: Cargando cuentas para el usuario:", user.uid);
-          const userAccounts = await getUserAccounts(user.uid);
-          console.log("✅ FinancesPage: Cuentas cargadas:", userAccounts);
-          setAccounts(userAccounts);
-        } catch (error) {
-          console.error("❌ FinancesPage: Error cargando cuentas:", error);
-          setAccounts([]);
-        } finally {
-          setAccountsLoading(false);
-        }
-      }
-    };
-
-    loadAccounts();
-  }, [user, setAccounts, setAccountsLoading]);
-
-  // Forzar la recarga de cuentas y recalcular los saldos al montar el componente
-  useEffect(() => {
-    // Solo ejecutar cuando tengamos el usuario
-    if (user?.uid) {
-      console.log("⚠️ FinancesPage: Forzando recarga de cuentas al iniciar...");
-      // Pequeño retraso para asegurar que otros efectos se completen
-      const timer = setTimeout(() => {
-        handleReloadAccountsAndBalance();
-      }, 1000);
-
-      return () => clearTimeout(timer);
+    } catch (error) {
+      console.error("Error al guardar:", error);
+      toast({
+        title: "Error",
+        description: "No se pudo guardar. Inténtalo de nuevo.",
+        variant: "destructive",
+      });
     }
-  }, [user]);
+  };
 
   // Calcular métricas cuando cambian los datos
   useEffect(() => {
@@ -410,13 +572,20 @@ function FinancesPageContent() {
     }
   }, [incomes, expenses, searchTerm]);
 
+  // Escuchar cambios en las cuentas para actualizar la UI automáticamente
+  useEffect(() => {
+    // Calcular balance basado en los saldos de todas las cuentas
+    const accountsBalance = accounts.reduce((total, account) => total + account.balance, 0);
+    setBalance(accountsBalance);
+  }, [accounts]); // Esta dependencia hará que se recalcule el balance cuando cambien las cuentas
+
   // Manejar cambios en el formulario
-  const handleFormChange = (field: string, value: any) => {
+  const handleFormChange = (field: string, value: unknown) => {
     setCurrentItem({ ...currentItem, [field]: value });
   };
 
   // Abrir formulario para edición
-  const handleEdit = (item: any, type: "income" | "expense") => {
+  const handleEdit = (item: Income | Expense, type: "income" | "expense") => {
     const itemDate = new Date(item.date);
 
     setCurrentItem({
@@ -474,41 +643,6 @@ function FinancesPageContent() {
     setIsFormOpen(true);
   };
 
-  // Recargar ingresos
-  const handleReloadIncomes = async () => {
-    if (user) {
-      setIncomesLoading(true);
-      try {
-        const userIncomes = await getUserIncomes(user.uid);
-        setIncomes(userIncomes);
-      } catch (error) {
-        console.error("Error recargando ingresos:", error);
-      } finally {
-        setIncomesLoading(false);
-      }
-    }
-  };
-
-  // Recargar gastos
-  const handleReloadExpenses = async () => {
-    if (user) {
-      setExpensesLoading(true);
-      try {
-        const userExpenses = await getUserExpenses(user.uid);
-        setExpenses(userExpenses);
-      } catch (error) {
-        console.error("Error recargando gastos:", error);
-      } finally {
-        setExpensesLoading(false);
-      }
-    }
-  };
-
-  // Cerrar formulario
-  const handleCancel = () => {
-    setIsFormOpen(false);
-  };
-
   // Formateador de moneda
   const formatCurrency = (amount: number) => {
     return new Intl.NumberFormat("es-MX", {
@@ -548,143 +682,6 @@ function FinancesPageContent() {
     negativeBalance: "#ef4444", // Rojo para balance negativo
   };
 
-  // Guardar (crear o actualizar)
-  const handleSave = async (item: Partial<FinanceItem & { time?: string; accountId?: string }>) => {
-    try {
-      if (!user) {
-        toast({
-          title: "Error de autenticación",
-          description: "Debes iniciar sesión para realizar esta acción",
-          variant: "destructive",
-        });
-        return;
-      }
-
-      const isCurrentIncome = formType === "income";
-
-      if (!item.amount || item.amount <= 0) {
-        toast({
-          title: "Error en el monto",
-          description: "El monto debe ser mayor que cero",
-          variant: "destructive",
-        });
-        return;
-      }
-
-      // Crear datos con el tipo correcto según sea ingreso o gasto
-      const financeData = {
-        id: item.id || crypto.randomUUID(),
-        userId: user.uid,
-        description: item.description || "",
-        amount: item.amount,
-        category: item.category || "Otros",
-        date: item.date || new Date(),
-        accountId: item.accountId,
-      };
-
-      // Guardar según el tipo (ingreso o gasto)
-      if (isCurrentIncome) {
-        // Es un ingreso
-        if (isEditing) {
-          await updateIncome(financeData);
-        } else {
-          await addIncome(financeData);
-        }
-
-        // Recargar ingresos
-        const userIncomes = await getUserIncomes(user.uid);
-        setIncomes(userIncomes);
-      } else {
-        // Es un gasto
-        if (isEditing) {
-          await updateExpense(financeData);
-        } else {
-          await addExpense(financeData);
-        }
-
-        // Recargar gastos
-        const userExpenses = await getUserExpenses(user.uid);
-        setExpenses(userExpenses);
-      }
-
-      toast({
-        title: `${isCurrentIncome ? "Ingreso" : "Gasto"} ${isEditing ? "actualizado" : "registrado"}`,
-        variant: "default",
-      });
-
-      // Recalcular los saldos después de guardar
-      recalculateAllAccountBalances();
-
-      // Cerrar el formulario
-      setIsFormOpen(false);
-    } catch (error) {
-      console.error("Error al guardar:", error);
-      toast({
-        title: "Error",
-        description: "No se pudo guardar. Inténtalo de nuevo.",
-        variant: "destructive",
-      });
-    }
-  };
-
-  // Eliminar un ingreso
-  const handleDeleteIncome = async (id: string) => {
-    try {
-      // Obtener el ingreso antes de eliminarlo para identificar la cuenta
-      const incomeToDelete = incomes.find((income) => income.id === id) as any;
-      const accountId = incomeToDelete?.accountId;
-
-      // Eliminar en Firebase
-      await deleteIncome(id);
-
-      // Recargar ingresos
-      await handleReloadIncomes();
-
-      toast({
-        title: "Ingreso eliminado",
-        variant: "default",
-      });
-
-      // Recalcular saldos tras eliminar
-      recalculateAllAccountBalances();
-    } catch (error) {
-      console.error("Error deleting income:", error);
-      toast({
-        title: "Error al eliminar",
-        variant: "destructive",
-      });
-    }
-  };
-
-  // Eliminar un gasto
-  const handleDeleteExpense = async (id: string) => {
-    try {
-      // Obtener el gasto antes de eliminarlo para identificar la cuenta
-      const expenseToDelete = expenses.find((expense) => expense.id === id) as any;
-      const accountId = expenseToDelete?.accountId;
-
-      // Eliminar en Firebase
-      await deleteExpense(id);
-
-      // Recargar gastos
-      await handleReloadExpenses();
-
-      toast({
-        title: "Gasto eliminado",
-        variant: "default",
-      });
-
-      // Recalcular saldos tras eliminar
-      recalculateAllAccountBalances();
-    } catch (error) {
-      console.error("Error deleting expense:", error);
-      toast({
-        title: "Error al eliminar",
-        variant: "destructive",
-      });
-    }
-  };
-
   return (
     <div className="flex flex-col p-4 gap-4">
       <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4 mb-6">
@@ -722,26 +719,23 @@ function FinancesPageContent() {
                     {accounts.length} {accounts.length === 1 ? "cuenta disponible" : "cuentas disponibles"}
                   </p>
                   <Button
+                    variant={accountsLoading ? "secondary" : "outline"}
                     size="sm"
-                    variant="outline"
-                    onClick={() => {
-                      // Obtener el componente AccountManager y ejecutar su método handleNewAccount
-                      const accountManagerElement = document.querySelector('[data-testid="account-manager"]');
-                      const addAccountButton = accountManagerElement?.querySelector('[data-testid="add-account-button"]');
-                      if (addAccountButton instanceof HTMLElement) {
-                        addAccountButton.click();
-                      } else {
-                        toast({
-                          title: "Acción no disponible",
-                          description: "Intenta usar el icono + en el gestor de cuentas",
-                          variant: "default",
-                        });
-                      }
-                    }}>
-                    <Plus className="h-4 w-4 mr-1" /> Nueva cuenta
+                    onClick={handleReloadData}
+                    disabled={accountsLoading}
+                    title="Forzar actualización de saldos"
+                    className="relative">
+                    <RefreshCw className={`h-4 w-4 mr-2 ${accountsLoading ? "animate-spin" : ""}`} />
+                    {accountsLoading ? "Actualizando..." : "Actualizar saldos"}
+                    {accountsLoading && (
+                      <span className="absolute -top-1 -right-1 flex h-3 w-3">
+                        <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-primary opacity-75"></span>
+                        <span className="relative inline-flex rounded-full h-3 w-3 bg-primary"></span>
+                      </span>
+                    )}
                   </Button>
                 </div>
-                <AccountManager userId={user.uid} onReloadAccounts={handleReloadAccountsAndBalance} isLoading={accountsLoading} />
+                <AccountManager userId={user.uid} onReloadAccounts={handleReloadData} isLoading={accountsLoading} />
               </>
             )}
           </div>
@@ -809,14 +803,14 @@ function FinancesPageContent() {
               />
 
               <StatsCard
-                title={translate("Balance total")}
-                value={formatCurrency(balance)}
-                valueClassName={balance >= 0 ? "text-green-600 dark:text-green-400" : "text-red-600 dark:text-red-400"}
-                subValue={accounts.length > 0 ? `${accounts.length} cuenta${accounts.length > 1 ? "s" : ""}` : "-"}
-                subTitle={translate("en total")}
-                icon={balance >= 0 ? <ArrowUp className="h-5 w-5 text-green-600 dark:text-green-400" /> : <ArrowDown className="h-5 w-5 text-red-500 dark:text-red-400" />}
-                iconContainerClassName={`bg-${balance >= 0 ? "green" : "red"}-100 dark:bg-${balance >= 0 ? "green" : "red"}-900/30`}
-                decorationColor={balance >= 0 ? "green" : "red"}
+                title={translate("Balance este mes")}
+                value={formatCurrency(monthlyBalance)}
+                valueClassName={monthlyBalance >= 0 ? "text-green-600 dark:text-green-400" : "text-red-600 dark:text-red-400"}
+                subValue={formatPercentage(Math.abs(monthlyBalance), Math.max(monthlyIncomes, monthlyExpenses))}
+                subTitle={translate("del total")}
+                icon={monthlyBalance >= 0 ? <ArrowUp className="h-5 w-5 text-green-600 dark:text-green-400" /> : <ArrowDown className="h-5 w-5 text-red-500 dark:text-red-400" />}
+                iconContainerClassName={`bg-${monthlyBalance >= 0 ? "green" : "red"}-100 dark:bg-${monthlyBalance >= 0 ? "green" : "red"}-900/30`}
+                decorationColor={monthlyBalance >= 0 ? "green" : "red"}
                 className="card-hover shadow-soft"
               />
             </div>
@@ -1067,19 +1061,20 @@ function FinancesPageContent() {
 // Wrap the main component with Suspense
 export default function FinancesPage() {
   return (
-    <Suspense fallback={
-      <div className="container mx-auto p-4">
-        <Card className="w-full">
-          <CardHeader>
-            <CardTitle>Finanzas</CardTitle>
-            <CardDescription>Cargando datos financieros...</CardDescription>
-          </CardHeader>
-          <CardContent className="flex justify-center py-8">
-            <Loader2 className="h-8 w-8 animate-spin" />
-          </CardContent>
-        </Card>
-      </div>
-    }>
+    <Suspense
+      fallback={
+        <div className="container mx-auto p-4">
+          <Card className="w-full">
+            <CardHeader>
+              <CardTitle>Finanzas</CardTitle>
+              <CardDescription>Cargando datos financieros...</CardDescription>
+            </CardHeader>
+            <CardContent className="flex justify-center py-8">
+              <Loader2 className="h-8 w-8 animate-spin" />
+            </CardContent>
+          </Card>
+        </div>
+      }>
       <FinancesPageContent />
     </Suspense>
   );
