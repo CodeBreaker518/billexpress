@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, Suspense } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { Mail, CheckCircle2, AlertCircle, Loader2, RefreshCcw } from "lucide-react";
 import { useAuthStore } from "@bill/_store/useAuthStore";
@@ -10,7 +10,7 @@ import { Text } from "@bill/_components/ui/typography";
 import { auth } from "@bill/_firebase/config";
 import { onAuthStateChanged } from "firebase/auth";
 
-export default function VerifyPage() {
+function VerifyPageContent() {
   const { user, setUser } = useAuthStore();
   const router = useRouter();
   const searchParams = useSearchParams();
@@ -53,6 +53,26 @@ export default function VerifyPage() {
         isCheckingVerification={isCheckingVerification} 
       />
     </div>
+  );
+}
+
+export default function VerifyPage() {
+  return (
+    <Suspense fallback={
+      <div className="container max-w-md mx-auto py-12 flex flex-col items-center justify-center min-h-screen px-4">
+        <Card className="w-full">
+          <CardHeader className="space-y-1">
+            <CardTitle className="text-2xl font-bold text-center">Verificación de Email</CardTitle>
+            <Text className="text-center">Cargando...</Text>
+          </CardHeader>
+          <CardContent className="flex justify-center py-4">
+            <Loader2 className="h-8 w-8 animate-spin" />
+          </CardContent>
+        </Card>
+      </div>
+    }>
+      <VerifyPageContent />
+    </Suspense>
   );
 }
 

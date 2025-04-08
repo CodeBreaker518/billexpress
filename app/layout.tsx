@@ -1,5 +1,5 @@
 import "./globals.css";
-import type { Metadata } from "next";
+import type { Metadata, Viewport } from "next";
 import { Poppins } from "next/font/google";
 import ThemeProvider from "@bill/_components/ThemeProvider";
 import FirebaseAuthProvider from "@bill/_components/FirebaseAuthProvider";
@@ -10,17 +10,22 @@ const poppinsFont = Poppins({
   subsets: ["latin"],
 });
 
+export const viewport: Viewport = {
+  width: "device-width",
+  initialScale: 1,
+  maximumScale: 1,
+  themeColor: "#3b82f6",
+};
+
 export const metadata: Metadata = {
   title: "BillExpress - Control de gastos simplificado",
   description: "Administra tus finanzas personales de manera sencilla",
   manifest: "/manifest.json",
-  themeColor: "#3b82f6",
   appleWebApp: {
     capable: true,
     statusBarStyle: "default",
     title: "BillExpress",
   },
-  viewport: "width=device-width, initial-scale=1, maximum-scale=1",
   icons: {
     icon: "/favicon.ico",
     apple: [{ url: "/icons/apple-icon-180.png", sizes: "180x180", type: "image/png" }],
