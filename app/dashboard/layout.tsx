@@ -124,7 +124,7 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
     },
     {
       name: "Mi Perfil",
-      href: "/dashboard/configuracion",
+      href: "/dashboard/perfil",
       icon: User,
     },
   ];
