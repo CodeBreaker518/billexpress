@@ -48,33 +48,18 @@ export const getUserAccounts = async (userId: string): Promise<Account[]> => {
 
     console.log("📊 Cuentas encontradas:", accounts.length);
 
-    // Verificar si ya existe una cuenta "Efectivo" por defecto
-    const hasDefaultAccount = accounts.some(account => account.name === "Efectivo" && account.isDefault);
-
-    // Si no hay cuentas o no existe la cuenta por defecto, crear la cuenta "Efectivo"
-    if (accounts.length === 0 || !hasDefaultAccount) {
-      // Verificar que no exista ya una cuenta con el nombre "Efectivo"
-      const existingCashAccount = accounts.find(account => account.name === "Efectivo");
-      
-      if (!existingCashAccount) {
-        console.log("⚠️ No hay cuenta Efectivo, creando cuenta por defecto");
-        const defaultAccount = await addAccount({
-          name: "Efectivo",
-          color: "#22c55e", // Verde
-          balance: 0,
-          userId: userId,
-          isDefault: true,
-        });
-        console.log("✅ Cuenta por defecto creada:", defaultAccount);
-        accounts = [defaultAccount, ...accounts];
-      } else if (!existingCashAccount.isDefault) {
-        // Si existe una cuenta "Efectivo" pero no es la predeterminada, establecerla como predeterminada
-        existingCashAccount.isDefault = true;
-        await updateAccount(existingCashAccount);
-        console.log("✅ Cuenta Efectivo existente marcada como predeterminada:", existingCashAccount);
-        // Actualizar la copia local para reflejar el cambio
-        accounts = accounts.map(acc => acc.id === existingCashAccount.id ? existingCashAccount : acc);
-      }
+    // Si no hay cuentas, crear la cuenta por defecto "Efectivo"
+    if (accounts.length === 0) {
+      console.log("⚠️ No hay cuentas, creando cuenta por defecto 'Efectivo'");
+      const defaultAccount = await addAccount({
+        name: "Efectivo",
+        color: "#22c55e", // Verde
+        balance: 0,
+        userId: userId,
+        isDefault: true,
+      });
+      console.log("✅ Cuenta por defecto creada:", defaultAccount);
+      accounts = [defaultAccount];
     }
 
     // Guardar en localStorage para acceso offline
@@ -95,12 +80,9 @@ export const getUserAccounts = async (userId: string): Promise<Account[]> => {
 
         console.log("⚠️ Recuperando cuentas de localStorage:", userAccounts.length);
 
-        // Si no hay cuentas localmente y no hay errores de parseo,
-        // retornar una cuenta Efectivo por defecto solo si no existe
+        // Si no hay cuentas localmente, crea una por defecto
         if (userAccounts.length === 0) {
-          console.log("⚠️ No hay cuentas en localStorage, retornando cuenta por defecto");
-          // En lugar de crear inmediatamente, devolvemos la cuenta temporal
-          // La próxima vez que tenga conexión, se creará correctamente
+          console.log("⚠️ No hay cuentas en localStorage, creando cuenta por defecto");
           return [
             {
               id: `default_${Date.now()}`,
@@ -119,9 +101,7 @@ export const getUserAccounts = async (userId: string): Promise<Account[]> => {
       }
     }
 
-    // Si todo falla, retornar solo la cuenta por defecto como último recurso
-    // Esto evita crear múltiples cuentas y solo sirve como respuesta temporal
-    // hasta que se restaure la conexión
+    // Si todo falla, devolver al menos la cuenta por defecto
     console.log("⚠️ Creando cuenta por defecto como último recurso");
     return [
       {
@@ -143,23 +123,6 @@ export const addAccount = async (account: Omit<Account, "id">): Promise<Account>
 
   try {
     console.log("⚠️ Iniciando creación de cuenta:", account);
-    
-    // Si estamos creando una cuenta Efectivo predeterminada, verificar si ya existe
-    if (account.name === "Efectivo" && account.isDefault) {
-      // Intentar obtener las cuentas actuales del usuario
-      const localData = localStorage.getItem(localStorageKey) || "[]";
-      const parsedData = JSON.parse(localData);
-      const userAccounts = parsedData.filter((acc: Account) => acc.userId === account.userId);
-      
-      // Verificar si ya existe una cuenta Efectivo
-      const existingCashAccount = userAccounts.find((acc: Account) => acc.name === "Efectivo");
-      
-      if (existingCashAccount) {
-        console.log("⚠️ Ya existe una cuenta Efectivo, retornando la existente:", existingCashAccount);
-        return existingCashAccount;
-      }
-    }
-    
     // Guardar en localStorage para recuperación offline
     const localData = localStorage.getItem(localStorageKey) || "[]";
     const parsedData = JSON.parse(localData);
@@ -458,67 +421,62 @@ function calculateNewBalance(currentBalance: number, amountChange: number, opera
 }
 
 // Recalcular el saldo de una cuenta basado en las transacciones reales
-export const recalculateAccountBalance = async (accountId: string, userId: string): Promise<Account | null> => {
+export const recalculateAccountBalance = async (accountId: string, userId: string): Promise<number> => {
   try {
-    console.log(`⚠️ Recalculando saldo para cuenta ${accountId}`);
-    
-    // Obtener la cuenta
-    const accountRef = doc(db, "accounts", accountId);
-    const accountDoc = await getDoc(accountRef);
-    
-    if (!accountDoc.exists()) {
-      console.error(`❌ No se encontró la cuenta ${accountId}`);
-      return null;
+    // Obtener todos los ingresos y gastos del usuario
+    const incomes = await incomeService.getUserItems(userId);
+    const expenses = await expenseService.getUserItems(userId);
+
+    // Filtrar transacciones asociadas a esta cuenta
+    const accountIncomes = incomes.filter((item) => item.accountId === accountId);
+    const accountExpenses = expenses.filter((item) => item.accountId === accountId);
+
+    // Calcular el saldo real basado solo en transacciones existentes
+    const incomesTotal = accountIncomes.reduce((sum, income) => sum + income.amount, 0);
+    const expensesTotal = accountExpenses.reduce((sum, expense) => sum + expense.amount, 0);
+
+    // El saldo real es ingresos menos gastos
+    const realBalance = incomesTotal - expensesTotal;
+
+    console.log(`Recalculando saldo para cuenta ${accountId}:`);
+    console.log(`- Ingresos: ${incomesTotal}`);
+    console.log(`- Gastos: ${expensesTotal}`);
+    console.log(`- Saldo real calculado: ${realBalance}`);
+
+    // Actualizar el saldo en Firebase y localStorage
+    const accountData = await getAccountById(accountId);
+    if (accountData) {
+      console.log(`- Saldo anterior: ${accountData.balance}`);
+
+      // Si el saldo es diferente, actualizarlo
+      if (Math.abs(accountData.balance - realBalance) > 0.001) {
+        console.log(`- Actualización necesaria: ${accountData.balance} -> ${realBalance}`);
+
+        const updatedAccount = {
+          ...accountData,
+          balance: realBalance,
+        };
+
+        // Actualizar en Firebase y localStorage
+        await updateAccount(updatedAccount);
+
+        // Actualizar también en el estado global
+        const accounts = useAccountStore.getState().accounts;
+        const updatedAccounts = accounts.map((acc) => (acc.id === accountId ? { ...acc, balance: realBalance } : acc));
+        useAccountStore.getState().setAccounts(updatedAccounts);
+
+        console.log(`- Saldo actualizado correctamente a ${realBalance}`);
+      } else {
+        console.log(`- El saldo ya es correcto: ${accountData.balance}`);
+      }
+
+      return realBalance;
     }
-    
-    const account = {
-      id: accountDoc.id,
-      ...accountDoc.data()
-    } as Account;
-    
-    // Obtener todas las transacciones de esta cuenta
-    const { getUserIncomes } = await import("./incomeService");
-    const { getUserExpenses } = await import("./expenseService");
-    
-    const allIncomes = await getUserIncomes(userId);
-    const allExpenses = await getUserExpenses(userId);
-    
-    // Filtrar solo las transacciones de esta cuenta
-    const accountIncomes = allIncomes.filter((income: any) => income.accountId === accountId);
-    const accountExpenses = allExpenses.filter((expense: any) => expense.accountId === accountId);
-    
-    // Calcular el saldo real
-    const totalIncome = accountIncomes.reduce((sum: number, income: any) => sum + income.amount, 0);
-    const totalExpense = accountExpenses.reduce((sum: number, expense: any) => sum + expense.amount, 0);
-    const calculatedBalance = totalIncome - totalExpense;
-    
-    console.log(`⚠️ Cuenta ${account.name}: ingresos=${totalIncome}, gastos=${totalExpense}, saldo calculado=${calculatedBalance}, saldo actual=${account.balance}`);
-    
-    // Actualizar el saldo si es diferente
-    if (Math.abs(calculatedBalance - account.balance) > 0.001) {
-      console.log(`⚠️ Actualizando saldo de cuenta ${account.name} de ${account.balance} a ${calculatedBalance}`);
-      
-      const updatedAccount = {
-        ...account,
-        balance: calculatedBalance
-      };
-      
-      await updateAccount(updatedAccount);
-      
-      // Actualizar también el estado global
-      const { accounts, setAccounts } = useAccountStore.getState();
-      const updatedAccounts = accounts.map(acc => 
-        acc.id === accountId ? updatedAccount : acc
-      );
-      setAccounts(updatedAccounts);
-      
-      return updatedAccount;
-    }
-    
-    return account;
+
+    return 0;
   } catch (error) {
-    console.error(`❌ Error recalculando saldo de cuenta ${accountId}:`, error);
-    return null;
+    console.error("Error recalculando saldo de cuenta:", error);
+    return 0;
   }
 };
 
@@ -754,161 +712,29 @@ export const updateAccountBalanceFromTransactions = async (accountId: string, us
  * @param userId ID del usuario
  * @returns Array con IDs de las cuentas actualizadas
  */
-export const updateAllAccountBalances = async (userId: string): Promise<Account[]> => {
+export const updateAllAccountBalances = async (userId: string): Promise<string[]> => {
   try {
-    console.log("⚠️ Recalculando todos los saldos para el usuario:", userId);
-    
     // Obtener todas las cuentas del usuario
-    const accounts = await getUserAccounts(userId);
-    
-    if (accounts.length === 0) {
-      console.log("⚠️ No hay cuentas para recalcular saldos");
-      return [];
-    }
-    
-    // Obtener todas las transacciones (ingresos y gastos)
-    const { getUserIncomes } = await import("./incomeService");
-    const { getUserExpenses } = await import("./expenseService");
-    
-    const incomes = await getUserIncomes(userId);
-    const expenses = await getUserExpenses(userId);
-    
-    console.log(`⚠️ Calculando saldos basados en ${incomes.length} ingresos y ${expenses.length} gastos`);
-    
-    // Calcular saldo real para cada cuenta basado en sus transacciones
-    const updatedAccounts = await Promise.all(
-      accounts.map(async (account) => {
-        // Filtrar ingresos y gastos por cuenta
-        const accountIncomes = incomes.filter((income: any) => income.accountId === account.id);
-        const accountExpenses = expenses.filter((expense: any) => expense.accountId === account.id);
-        
-        // Calcular el saldo como ingresos - gastos
-        const totalIncome = accountIncomes.reduce((sum: number, income: any) => sum + income.amount, 0);
-        const totalExpense = accountExpenses.reduce((sum: number, expense: any) => sum + expense.amount, 0);
-        const calculatedBalance = totalIncome - totalExpense;
-        
-        console.log(`⚠️ Cuenta ${account.name}: ingresos=${totalIncome}, gastos=${totalExpense}, saldo calculado=${calculatedBalance}, saldo actual=${account.balance}`);
-        
-        // Si el saldo calculado es diferente del actual, actualizar
-        if (Math.abs(calculatedBalance - account.balance) > 0.001) {
-          console.log(`⚠️ Actualizando saldo de cuenta ${account.name} de ${account.balance} a ${calculatedBalance}`);
-          
-          // Actualizar en Firebase
-          const updatedAccount = {
-            ...account,
-            balance: calculatedBalance
-          };
-          
-          await updateAccount(updatedAccount);
-          return updatedAccount;
-        }
-        
-        return account;
-      })
-    );
-    
-    // Actualizar el estado global si es necesario
-    const { setAccounts } = useAccountStore.getState();
-    setAccounts(updatedAccounts);
-    
-    console.log("✅ Saldos de cuentas actualizados correctamente");
-    return updatedAccounts;
-  } catch (error) {
-    console.error("❌ Error actualizando saldos de cuentas:", error);
-    throw error;
-  }
-};
+    const userAccountsQuery = query(collection(db, "accounts"), where("userId", "==", userId));
+    const snapshot = await getDocs(userAccountsQuery);
+    const accounts = snapshot.docs.map((doc) => ({
+      id: doc.id,
+      ...doc.data(),
+    })) as Account[];
 
-// Función para eliminar cuentas Efectivo duplicadas para un usuario
-export const cleanupDuplicateAccounts = async (userId: string): Promise<number> => {
-  try {
-    console.log("⚠️ Iniciando limpieza de cuentas duplicadas para usuario:", userId);
-    const q = query(collection_ref, where("userId", "==", userId));
-    const querySnapshot = await getDocs(q);
+    const updatedAccounts: string[] = [];
 
-    const accounts = querySnapshot.docs.map((doc) => {
-      const data = doc.data();
-      return {
-        id: doc.id,
-        name: data.name,
-        color: data.color,
-        balance: data.balance,
-        userId: data.userId,
-        isDefault: data.isDefault || false,
-      } as Account;
-    });
-
-    // Identificar todas las cuentas Efectivo
-    const cashAccounts = accounts.filter(account => account.name === "Efectivo");
-    
-    console.log(`📊 Encontradas ${cashAccounts.length} cuentas Efectivo`);
-    
-    if (cashAccounts.length <= 1) {
-      console.log("✅ No hay cuentas duplicadas para limpiar");
-      return 0;
-    }
-    
-    // Encontrar la cuenta Efectivo que conservaremos (preferir la predeterminada si existe)
-    let accountToKeep = cashAccounts.find(account => account.isDefault);
-    
-    // Si no hay cuenta predeterminada, usar la primera
-    if (!accountToKeep) {
-      accountToKeep = cashAccounts[0];
-      // Marcar esta cuenta como predeterminada
-      accountToKeep.isDefault = true;
-      await updateAccount(accountToKeep);
-      console.log("✅ Cuenta Efectivo marcada como predeterminada:", accountToKeep);
-    }
-    
-    // Obtener las transacciones de todas las cuentas duplicadas y moverlas a la cuenta que conservamos
-    const accountsToDelete = cashAccounts.filter(account => account.id !== accountToKeep?.id);
-    
-    // Para cada cuenta a eliminar, mover sus transacciones y luego eliminarla
-    for (const account of accountsToDelete) {
-      try {
-        // Obtener ingresos de esta cuenta
-        const { updateFinanceWithAccount } = await import("./financeService");
-        const incomesCollectionRef = collection(db, "incomes");
-        const expensesCollectionRef = collection(db, "expenses");
-        
-        // Obtener y actualizar ingresos
-        const incomesQuery = query(incomesCollectionRef, where("accountId", "==", account.id));
-        const incomesSnapshot = await getDocs(incomesQuery);
-        
-        for (const doc of incomesSnapshot.docs) {
-          const incomeData = doc.data();
-          // Actualizar el accountId al de la cuenta que conservamos
-          await updateDoc(doc.ref, { accountId: accountToKeep?.id });
-        }
-        
-        // Obtener y actualizar gastos
-        const expensesQuery = query(expensesCollectionRef, where("accountId", "==", account.id));
-        const expensesSnapshot = await getDocs(expensesQuery);
-        
-        for (const doc of expensesSnapshot.docs) {
-          const expenseData = doc.data();
-          // Actualizar el accountId al de la cuenta que conservamos
-          await updateDoc(doc.ref, { accountId: accountToKeep?.id });
-        }
-        
-        // Eliminar la cuenta duplicada
-        await deleteDoc(doc(db, "accounts", account.id));
-        console.log(`✅ Cuenta duplicada eliminada: ${account.id}`);
-      } catch (error) {
-        console.error(`❌ Error al procesar cuenta duplicada ${account.id}:`, error);
+    // Para cada cuenta, actualizar su saldo
+    for (const account of accounts) {
+      const success = await updateAccountBalanceFromTransactions(account.id, userId);
+      if (success) {
+        updatedAccounts.push(account.id);
       }
     }
-    
-    // Recalcular el balance de la cuenta conservada
-    if (accountToKeep) {
-      await recalculateAccountBalance(accountToKeep.id, userId);
-    }
-    
-    console.log(`✅ Limpieza completada. Eliminadas ${accountsToDelete.length} cuentas duplicadas.`);
-    return accountsToDelete.length;
+
+    return updatedAccounts;
   } catch (error) {
-    console.error(`❌ Error al limpiar cuentas duplicadas:`, error);
-    return 0;
+    console.error("Error updating all account balances:", error);
+    return [];
   }
 };
-
