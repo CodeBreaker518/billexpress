@@ -38,7 +38,7 @@ export const FinanceForm = memo(function FinanceForm({ isEditing, currentItem, c
   const [error, setError] = useState<string | null>(null);
 
   // Estado para cuentas
-  const { accounts, activeAccountId } = useAccountStore();
+  const { accounts, activeAccountId, loading: accountsLoading } = useAccountStore();
   const [selectedAccountId, setSelectedAccountId] = useState<string | null>(null);
 
   // Actualizar el formulario cuando cambia el item actual
@@ -68,12 +68,16 @@ export const FinanceForm = memo(function FinanceForm({ isEditing, currentItem, c
     }
   }, [currentItem, activeAccountId, selectedAccountId]);
 
-  // Actualizar cuenta seleccionada cuando cambia la cuenta activa
+  // Actualizar cuenta seleccionada cuando cambia la cuenta activa o cuando se cargan las cuentas
   useEffect(() => {
-    if (!selectedAccountId && activeAccountId) {
-      setSelectedAccountId(activeAccountId);
+    if (!selectedAccountId) {
+      // Si hay cuentas disponibles, seleccionar la cuenta activa o la primera cuenta
+      if (accounts.length > 0) {
+        const defaultAccount = accounts.find(acc => acc.isDefault);
+        setSelectedAccountId(activeAccountId || (defaultAccount ? defaultAccount.id : accounts[0].id));
+      }
     }
-  }, [activeAccountId, selectedAccountId]);
+  }, [accounts, activeAccountId, selectedAccountId]);
 
   // Reiniciar el formulario a valores predeterminados
   const resetForm = useCallback(() => {
@@ -216,7 +220,7 @@ export const FinanceForm = memo(function FinanceForm({ isEditing, currentItem, c
 
   // Render del formulario
   return (
-    <form onSubmit={handleSubmit} className="space-y-4 pt-4">
+    <form onSubmit={handleSubmit} className="space-y-6">
       {error && <div className="bg-red-100 border border-red-400 text-red-700 px-4 py-2 rounded">{error}</div>}
 
       <div className="space-y-2">
@@ -260,21 +264,34 @@ export const FinanceForm = memo(function FinanceForm({ isEditing, currentItem, c
 
       <div className="space-y-2">
         <Label htmlFor="account">Cuenta</Label>
-        <Select value={selectedAccountId || ""} onValueChange={(value) => setSelectedAccountId(value)}>
-          <SelectTrigger>
-            <SelectValue placeholder="Selecciona una cuenta" />
-          </SelectTrigger>
-          <SelectContent>
-            {accounts.map((account) => (
-              <SelectItem key={account.id} value={account.id}>
-                <div className="flex items-center gap-2">
-                  <div className="w-3 h-3 rounded-full" style={{ backgroundColor: account.color }} />
-                  <span>{account.name}</span>
-                </div>
-              </SelectItem>
-            ))}
-          </SelectContent>
-        </Select>
+        {accountsLoading ? (
+          <div className="flex items-center space-x-2">
+            <Loader2 className="h-4 w-4 animate-spin" />
+            <span className="text-sm text-muted-foreground">Cargando cuentas...</span>
+          </div>
+        ) : accounts.length === 0 ? (
+          <div className="text-sm text-destructive">
+            No hay cuentas disponibles. Por favor, crea una cuenta primero.
+          </div>
+        ) : (
+          <Select
+            value={selectedAccountId || undefined}
+            onValueChange={(value) => {
+              setSelectedAccountId(value);
+              handleChange("accountId", value);
+            }}>
+            <SelectTrigger>
+              <SelectValue placeholder="Selecciona una cuenta" />
+            </SelectTrigger>
+            <SelectContent>
+              {accounts.map((account) => (
+                <SelectItem key={account.id} value={account.id}>
+                  {account.name} {account.isDefault && "(Principal)"}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+        )}
       </div>
 
       <div className="flex justify-end gap-2 pt-4">

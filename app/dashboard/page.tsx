@@ -11,6 +11,8 @@ import { getUserIncomes, addIncome } from "@bill/_firebase/incomeService";
 import { format, subMonths, startOfMonth, endOfMonth } from "date-fns";
 import { es } from "date-fns/locale";
 import FinanceForm from "@bill/_components/FinanceForm";
+import { useAccountStore } from "@bill/_store/useAccountStore";
+import { getUserAccounts } from "@bill/_firebase/accountService";
 
 // Importaciones de componentes shadcn/ui
 import { Card, CardContent, CardHeader, CardTitle } from "@bill/_components/ui/card";
@@ -37,6 +39,7 @@ export default function DashboardPage() {
   const { expenses, setExpenses } = useExpenseStore();
   const { incomes, setIncomes } = useIncomeStore();
   const { loading, setLoading } = useExpenseStore();
+  const { accounts, setAccounts, setLoading: setAccountsLoading } = useAccountStore();
 
   // Estados para métricas
   const [totalExpenses, setTotalExpenses] = useState(0);
@@ -72,6 +75,7 @@ export default function DashboardPage() {
   const loadData = async () => {
     if (user) {
       setLoading(true);
+      setAccountsLoading(true);
       try {
         // Cargar gastos
         const userExpenses = await getUserExpenses(user.uid);
@@ -80,12 +84,18 @@ export default function DashboardPage() {
         // Cargar ingresos
         const userIncomes = await getUserIncomes(user.uid);
         setIncomes(userIncomes);
+
+        // Cargar cuentas
+        const userAccounts = await getUserAccounts(user.uid);
+        setAccounts(userAccounts);
       } catch (error) {
         console.error("Error loading data:", error);
         setExpenses([]);
         setIncomes([]);
+        setAccounts([]);
       } finally {
         setLoading(false);
+        setAccountsLoading(false);
       }
     }
   };
