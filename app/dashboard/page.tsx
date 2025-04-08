@@ -68,44 +68,91 @@ export default function DashboardPage() {
     time: format(new Date(), "HH:mm"),
   });
 
+  // Función para cargar datos de Firebase
+  const loadData = async () => {
+    if (user) {
+      setLoading(true);
+      try {
+        // Cargar gastos
+        const userExpenses = await getUserExpenses(user.uid);
+        setExpenses(userExpenses);
+
+        // Cargar ingresos
+        const userIncomes = await getUserIncomes(user.uid);
+        setIncomes(userIncomes);
+      } catch (error) {
+        console.error("Error loading data:", error);
+        setExpenses([]);
+        setIncomes([]);
+      } finally {
+        setLoading(false);
+      }
+    }
+  };
+
   // Cargar datos de Firebase
   useEffect(() => {
-    const loadData = async () => {
-      if (user) {
-        setLoading(true);
-        try {
-          // Cargar gastos
-          const userExpenses = await getUserExpenses(user.uid);
-          setExpenses(userExpenses);
+    loadData();
+  }, [user, setExpenses, setIncomes, setLoading]);
 
-          // Cargar ingresos
-          const userIncomes = await getUserIncomes(user.uid);
-          setIncomes(userIncomes);
+  // Añadir un efecto que actualice los saldos de las cuentas al cargar el dashboard
+  useEffect(() => {
+    const updateAccountBalances = async () => {
+      if (user?.uid) {
+        try {
+          // Importar la función de actualización de saldos
+          const { updateAllAccountBalances } = await import("@bill/_firebase/accountService");
+
+          // Actualizar los saldos
+          const updatedAccounts = await updateAllAccountBalances(user.uid);
+
+          // Si se actualizaron cuentas, recargar los datos
+          if (updatedAccounts.length > 0) {
+            console.log(`Saldos actualizados para ${updatedAccounts.length} cuentas`);
+            await loadData(); // Ahora loadData está disponible aquí
+          }
         } catch (error) {
-          console.error("Error loading data:", error);
-          setExpenses([]);
-          setIncomes([]);
-        } finally {
-          setLoading(false);
+          console.error("Error al actualizar saldos:", error);
         }
       }
     };
 
-    loadData();
-  }, [user, setExpenses, setIncomes, setLoading]);
+    // Ejecutar solo cuando el usuario esté disponible
+    if (user?.uid) {
+      updateAccountBalances();
+    }
+  }, [user]);
 
   // Calcular métricas y visualizaciones cuando los datos cambian
   useEffect(() => {
     // 1. Calcular totales generales
+    // Calcular gastos
+    const expensesTotal = expenses.reduce((sum, expense) => sum + expense.amount, 0);
+    setTotalExpenses(expensesTotal);
+
+    // Calcular ingresos
+    const incomesTotal = incomes.reduce((sum, income) => sum + income.amount, 0);
+    setTotalIncomes(incomesTotal);
+
+    // Calcular balance real como la diferencia entre ingresos y gastos
+    // Este es el balance real basado en transacciones
+    const realBalance = incomesTotal - expensesTotal;
+    setNetBalance(realBalance);
+
+    // Calcular tasa de ahorro (solo si hay ingresos)
+    if (incomesTotal > 0) {
+      const savingsRate = (realBalance / incomesTotal) * 100;
+      setSavingsRate(parseFloat(savingsRate.toFixed(1)));
+    } else {
+      setSavingsRate(0);
+    }
+
+    // Obtener el mes actual
+    const currentDate = new Date();
+    const firstDayOfMonth = startOfMonth(currentDate);
+    const lastDayOfMonth = endOfMonth(currentDate);
+
     if (expenses.length > 0) {
-      const expensesTotal = expenses.reduce((sum, expense) => sum + expense.amount, 0);
-      setTotalExpenses(expensesTotal);
-
-      // Obtener el mes actual
-      const currentDate = new Date();
-      const firstDayOfMonth = startOfMonth(currentDate);
-      const lastDayOfMonth = endOfMonth(currentDate);
-
       // Calcular gastos del mes actual
       const thisMonthExpenses = expenses.filter((expense) => {
         const expenseDate = new Date(expense.date);
@@ -159,16 +206,7 @@ export default function DashboardPage() {
       setExpensesByMonth(monthlyExpenses);
     }
 
-    // 2. Calcular ingresos
     if (incomes.length > 0) {
-      const incomesTotal = incomes.reduce((sum, income) => sum + income.amount, 0);
-      setTotalIncomes(incomesTotal);
-
-      // Obtener el mes actual
-      const currentDate = new Date();
-      const firstDayOfMonth = startOfMonth(currentDate);
-      const lastDayOfMonth = endOfMonth(currentDate);
-
       // Calcular ingresos del mes actual
       const thisMonthIncomes = incomes.filter((income) => {
         const incomeDate = new Date(income.date);
@@ -220,16 +258,6 @@ export default function DashboardPage() {
       }));
 
       setIncomesByMonth(monthlyIncomes);
-    }
-
-    // 3. Calcular balance y tasa de ahorro
-    if (totalIncomes > 0 && totalExpenses > 0) {
-      const balance = totalIncomes - totalExpenses;
-      setNetBalance(balance);
-
-      // Calcular tasa de ahorro
-      const savingsRate = (balance / totalIncomes) * 100;
-      setSavingsRate(parseFloat(savingsRate.toFixed(1)));
     }
 
     // 4. Obtener transacciones recientes

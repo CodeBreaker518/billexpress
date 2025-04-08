@@ -7,6 +7,9 @@ import { Input } from "@bill/_components/ui/input";
 import { Button } from "@bill/_components/ui/button";
 import { FinanceItem } from "@bill/_firebase/financeService";
 import { CategorySelect } from "@bill/_components/CategorySelect";
+import { useAccountStore } from "@bill/_store/useAccountStore";
+import { Select, SelectTrigger, SelectValue, SelectContent, SelectItem } from "@bill/_components/ui/select";
+import { Loader2 } from "lucide-react";
 
 export interface FinanceFormProps {
   isOpen: boolean;
@@ -34,6 +37,10 @@ export const FinanceForm = memo(function FinanceForm({ isEditing, currentItem, c
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
+  // Estado para cuentas
+  const { accounts, activeAccountId } = useAccountStore();
+  const [selectedAccountId, setSelectedAccountId] = useState<string | null>(null);
+
   // Actualizar el formulario cuando cambia el item actual
   useEffect(() => {
     if (currentItem) {
@@ -41,11 +48,32 @@ export const FinanceForm = memo(function FinanceForm({ isEditing, currentItem, c
         ...currentItem,
         time: currentItem.date ? format(new Date(currentItem.date), "HH:mm") : format(new Date(), "HH:mm"),
       });
+
+      // Si el item tiene una cuenta asignada, usarla
+      if (currentItem.accountId) {
+        setSelectedAccountId(currentItem.accountId);
+      }
     } else {
       // Reset form cuando no hay item
       resetForm();
     }
   }, [currentItem, categories]);
+
+  // Si el item tiene una cuenta asignada, usarla
+  useEffect(() => {
+    if (currentItem && currentItem.accountId) {
+      setSelectedAccountId(currentItem.accountId);
+    } else if (!selectedAccountId && activeAccountId) {
+      setSelectedAccountId(activeAccountId);
+    }
+  }, [currentItem, activeAccountId, selectedAccountId]);
+
+  // Actualizar cuenta seleccionada cuando cambia la cuenta activa
+  useEffect(() => {
+    if (!selectedAccountId && activeAccountId) {
+      setSelectedAccountId(activeAccountId);
+    }
+  }, [activeAccountId, selectedAccountId]);
 
   // Reiniciar el formulario a valores predeterminados
   const resetForm = useCallback(() => {
@@ -117,6 +145,16 @@ export const FinanceForm = memo(function FinanceForm({ isEditing, currentItem, c
           dateObj.setHours(hours, minutes);
         }
 
+        // Asegurarse de tener una cuenta válida
+        const accountToUse = selectedAccountId || activeAccountId;
+
+        // Si no hay cuenta seleccionada o activa, mostrar un error
+        if (!accountToUse) {
+          setError("Debe seleccionar una cuenta");
+          setIsSubmitting(false);
+          return;
+        }
+
         // Crear objeto a guardar
         const itemToSave: Partial<FinanceItem> = {
           id: formData.id || "",
@@ -124,6 +162,7 @@ export const FinanceForm = memo(function FinanceForm({ isEditing, currentItem, c
           amount: Number(formData.amount) || 0,
           category: formData.category || (categories.length > 0 ? categories[0] : ""),
           date: dateObj,
+          accountId: accountToUse,
         };
 
         await onSave(itemToSave);
@@ -135,7 +174,7 @@ export const FinanceForm = memo(function FinanceForm({ isEditing, currentItem, c
         setIsSubmitting(false);
       }
     },
-    [formData, validateForm, categories, onSave, onCancel]
+    [formData, validateForm, categories, onSave, onCancel, selectedAccountId, activeAccountId]
   );
 
   // Gestión de cambio de campos específicos
@@ -219,12 +258,40 @@ export const FinanceForm = memo(function FinanceForm({ isEditing, currentItem, c
         </div>
       </div>
 
+      <div className="space-y-2">
+        <Label htmlFor="account">Cuenta</Label>
+        <Select value={selectedAccountId || ""} onValueChange={(value) => setSelectedAccountId(value)}>
+          <SelectTrigger>
+            <SelectValue placeholder="Selecciona una cuenta" />
+          </SelectTrigger>
+          <SelectContent>
+            {accounts.map((account) => (
+              <SelectItem key={account.id} value={account.id}>
+                <div className="flex items-center gap-2">
+                  <div className="w-3 h-3 rounded-full" style={{ backgroundColor: account.color }} />
+                  <span>{account.name}</span>
+                </div>
+              </SelectItem>
+            ))}
+          </SelectContent>
+        </Select>
+      </div>
+
       <div className="flex justify-end gap-2 pt-4">
         <Button type="button" variant="outline" onClick={onCancel} disabled={isSubmitting}>
           Cancelar
         </Button>
         <Button type="submit" disabled={isSubmitting}>
-          {isSubmitting ? "Guardando..." : isEditing ? "Actualizar" : "Guardar"}
+          {isSubmitting ? (
+            <>
+              <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+              Guardando...
+            </>
+          ) : isEditing ? (
+            "Actualizar"
+          ) : (
+            "Guardar"
+          )}
         </Button>
       </div>
     </form>

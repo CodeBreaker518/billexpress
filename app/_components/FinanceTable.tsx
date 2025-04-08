@@ -1,7 +1,7 @@
 "use client";
 
-import { useMemo } from "react";
-import { Edit, Calendar, Clock, Tag } from "lucide-react";
+import { useMemo, useState } from "react";
+import { Edit, Calendar, Clock, Tag, AlertTriangle, AlertCircle } from "lucide-react";
 import { format } from "date-fns";
 import { es } from "date-fns/locale";
 
@@ -10,8 +10,11 @@ import { Button } from "./ui/button";
 import { Card } from "./ui/card";
 import { Separator } from "./ui/separator";
 import { CategoryBadge } from "./ui/category-badge";
+import { Alert, AlertDescription } from "./ui/alert";
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "./ui/tooltip";
 import AlertDeleteTableElement from "./AlertDeleteTableElement";
 import type { FinanceItem } from "@bill/_firebase/financeService";
+import { useAccountStore } from "@bill/_store/useAccountStore";
 
 interface FinanceTableProps {
   items: FinanceItem[];
@@ -42,6 +45,10 @@ const DateTimeDisplay = ({ date }: { date: Date }) => {
 
 // Componente de tarjeta para vista móvil
 const FinanceCard = ({ item, type, onEdit, onDelete }: { item: FinanceItem; type: "income" | "expense"; onEdit: (item: FinanceItem) => void; onDelete: (id: string) => void }) => {
+  const { accounts } = useAccountStore();
+  const isAccountDeleted = item.accountId && !accounts.some((account) => account.id === item.accountId);
+  const account = item.accountId ? accounts.find((acc) => acc.id === item.accountId) : null;
+
   const formatCurrency = (amount: number) => {
     return new Intl.NumberFormat("es-MX", {
       style: "currency",
@@ -52,7 +59,10 @@ const FinanceCard = ({ item, type, onEdit, onDelete }: { item: FinanceItem; type
   return (
     <Card key={item.id} className="p-3">
       <div className="flex justify-between items-start mb-2">
-        <h3 className="font-medium truncate max-w-[70%]">{item.description}</h3>
+        <h3 className="font-medium truncate max-w-[70%] flex items-center">
+          {item.description}
+          {isAccountDeleted && <AlertCircle className="h-3.5 w-3.5 text-amber-500 ml-1" />}
+        </h3>
         <span className={`font-bold ${type === "income" ? "text-green-600 dark:text-green-400" : "text-red-600 dark:text-red-400"}`}>{formatCurrency(item.amount)}</span>
       </div>
 
@@ -78,6 +88,19 @@ const FinanceCard = ({ item, type, onEdit, onDelete }: { item: FinanceItem; type
         </div>
       </div>
 
+      {/* Mostrar información de cuenta */}
+      <div className="flex items-center gap-2 mt-2 mb-2">
+        <span className="text-xs text-gray-500">Cuenta:</span>
+        {account ? (
+          <div className="flex items-center gap-1">
+            <div className="w-2 h-2 rounded-full" style={{ backgroundColor: account.color || "#888888" }}></div>
+            <span className="text-xs">{account.name}</span>
+          </div>
+        ) : (
+          <span className="text-xs text-gray-400">Sin cuenta asignada</span>
+        )}
+      </div>
+
       <Separator className="my-2" />
 
       <div className="flex justify-end gap-1 mt-2">
@@ -92,6 +115,14 @@ const FinanceCard = ({ item, type, onEdit, onDelete }: { item: FinanceItem; type
 };
 
 export function FinanceTable({ items, loading, type, onEdit, onDelete }: FinanceTableProps) {
+  const [showBalanceInfo, setShowBalanceInfo] = useState(true);
+  const { accounts } = useAccountStore();
+
+  const orphanedItems = useMemo(() => {
+    if (!items || !accounts) return [];
+    return items.filter((item) => item.accountId && !accounts.some((account) => account.id === item.accountId));
+  }, [items, accounts]);
+
   const formatCurrency = (amount: number) => {
     return new Intl.NumberFormat("es-MX", {
       style: "currency",
@@ -115,9 +146,33 @@ export function FinanceTable({ items, loading, type, onEdit, onDelete }: Finance
     return <div className="text-center py-4">{emptySections.noItemsText}</div>;
   }
 
+  const isAccountDeleted = (item: FinanceItem) => {
+    if (!item.accountId) return false;
+    return !accounts.some((account) => account.id === item.accountId);
+  };
+
   // Renderización para móviles: tarjetas en lugar de tabla
   const renderMobileView = () => (
     <div className="space-y-3 sm:hidden">
+      {showBalanceInfo && (
+        <Alert variant="info" className="mb-2">
+          <AlertTriangle className="h-4 w-4" />
+          <AlertDescription>El saldo de las cuentas se actualiza automáticamente al eliminar {type === "income" ? "ingresos" : "gastos"}.</AlertDescription>
+          <Button variant="ghost" size="sm" onClick={() => setShowBalanceInfo(false)} className="ml-auto h-6 px-2 text-xs">
+            Entendido
+          </Button>
+        </Alert>
+      )}
+
+      {orphanedItems.length > 0 && (
+        <Alert variant="warning" className="mb-2">
+          <AlertCircle className="h-4 w-4" />
+          <AlertDescription>
+            {orphanedItems.length} {type === "income" ? "ingreso(s)" : "gasto(s)"} están asociados a cuentas que han sido eliminadas. Edítalos para asignarlos a cuentas existentes.
+          </AlertDescription>
+        </Alert>
+      )}
+
       {items.map((item) => (
         <FinanceCard key={item.id} item={item} type={type} onEdit={onEdit} onDelete={onDelete} />
       ))}
@@ -131,11 +186,32 @@ export function FinanceTable({ items, loading, type, onEdit, onDelete }: Finance
 
       {/* Vista de escritorio */}
       <div className="hidden sm:block overflow-auto">
+        {showBalanceInfo && (
+          <Alert variant="info" className="mb-4">
+            <AlertTriangle className="h-4 w-4" />
+            <AlertDescription>El saldo de las cuentas se actualiza automáticamente al eliminar {type === "income" ? "ingresos" : "gastos"}.</AlertDescription>
+            <Button variant="ghost" size="sm" onClick={() => setShowBalanceInfo(false)} className="ml-auto h-6 px-2 text-xs">
+              Entendido
+            </Button>
+          </Alert>
+        )}
+
+        {orphanedItems.length > 0 && (
+          <Alert variant="warning" className="mb-4">
+            <AlertCircle className="h-4 w-4" />
+            <AlertDescription>
+              {orphanedItems.length} {type === "income" ? "ingreso(s)" : "gasto(s)"} están asociados a cuentas que han sido eliminadas. Edítalos para asignarlos a cuentas
+              existentes.
+            </AlertDescription>
+          </Alert>
+        )}
+
         <Table>
           <TableHeader>
             <TableRow>
               <TableHead>Descripción</TableHead>
               <TableHead>Categoría</TableHead>
+              <TableHead>Cuenta</TableHead>
               <TableHead>Fecha y Hora</TableHead>
               <TableHead>Monto</TableHead>
               <TableHead>Acciones</TableHead>
@@ -143,10 +219,45 @@ export function FinanceTable({ items, loading, type, onEdit, onDelete }: Finance
           </TableHeader>
           <TableBody>
             {items.map((item) => (
-              <TableRow key={item.id}>
-                <TableCell className="max-w-xs truncate">{item.description}</TableCell>
+              <TableRow key={item.id} className={isAccountDeleted(item) ? "bg-amber-50/30 dark:bg-amber-950/20" : undefined}>
+                <TableCell className="max-w-xs truncate">
+                  <div className="flex items-center">
+                    {item.description}
+                    {isAccountDeleted(item) && (
+                      <TooltipProvider>
+                        <Tooltip>
+                          <TooltipTrigger asChild>
+                            <div className="inline-flex">
+                              <AlertCircle className="h-3.5 w-3.5 text-amber-500 ml-1" />
+                            </div>
+                          </TooltipTrigger>
+                          <TooltipContent>
+                            <p>Cuenta eliminada - Asigna una nueva cuenta editando este registro</p>
+                          </TooltipContent>
+                        </Tooltip>
+                      </TooltipProvider>
+                    )}
+                  </div>
+                </TableCell>
                 <TableCell>
                   <CategoryBadge category={item.category} type={type} />
+                </TableCell>
+                <TableCell>
+                  {item.accountId ? (
+                    (() => {
+                      const account = accounts.find((acc) => acc.id === item.accountId);
+                      return account ? (
+                        <div className="flex items-center gap-2">
+                          <div className="w-3 h-3 rounded-full" style={{ backgroundColor: account.color || "#888888" }}></div>
+                          <span>{account.name}</span>
+                        </div>
+                      ) : (
+                        <span className="text-amber-500">Cuenta eliminada</span>
+                      );
+                    })()
+                  ) : (
+                    <span className="text-gray-400">Sin cuenta</span>
+                  )}
                 </TableCell>
                 <TableCell>
                   <DateTimeDisplay date={item.date} />

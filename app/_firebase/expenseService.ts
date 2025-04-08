@@ -1,274 +1,158 @@
-'use client';
+"use client";
 
-import { 
-    collection, 
-    addDoc, 
-    updateDoc, 
-    deleteDoc, 
-    doc, 
-    query, 
-    where, 
-    getDocs,
-    Timestamp,
-    serverTimestamp
-  } from 'firebase/firestore';
-  import { db } from './config';
-  import { Expense } from '@bill/_store/useExpenseStore';
-  import { usePendingOperationsStore } from '@bill/_store/usePendingOperationsStore';
-  
-  // Reference collection
-  const expensesCollection = collection(db, 'expenses');
-  
-  // Verificar si hay conexión a internet
-  const isOnline = (): boolean => {
-    return typeof navigator !== 'undefined' && navigator.onLine;
-  };
-  
-  // Get expenses for a user
-  export const getUserExpenses = async (userId: string): Promise<Expense[]> => {
+import { collection, addDoc, updateDoc, deleteDoc, doc, query, where, getDocs, Timestamp, serverTimestamp } from "firebase/firestore";
+import { db } from "./config";
+import { Expense } from "@bill/_store/useExpenseStore";
+import { usePendingOperationsStore } from "@bill/_store/usePendingOperationsStore";
+import { createFinanceService, FinanceItem } from "./financeService";
+import { updateFinanceWithAccount } from "./accountService";
+
+const { getUserItems, addItem: baseAddItem, updateItem: baseUpdateItem, deleteItem: baseDeleteItem } = createFinanceService("expenses");
+
+// Reference collection
+const expensesCollection = collection(db, "expenses");
+
+// Verificar si hay conexión a internet
+const isOnline = (): boolean => {
+  return typeof navigator !== "undefined" && navigator.onLine;
+};
+
+// Get expenses for a user
+export const getUserExpenses = getUserItems;
+
+// Add a new expense
+export const addExpense = async (item: Omit<FinanceItem, "id">): Promise<FinanceItem> => {
+  console.log("⚠️ addExpense: Agregando nuevo gasto con cuenta:", item.accountId || "sin cuenta");
+
+  // Si no tiene cuenta asignada, buscar y usar la cuenta por defecto
+  if (!item.accountId) {
+    console.warn("No se proporcionó cuenta para el gasto, se buscará la cuenta por defecto");
+
     try {
-      const q = query(expensesCollection, where("userId", "==", userId));
-      const querySnapshot = await getDocs(q);
-      
-      const expenses = querySnapshot.docs.map(doc => {
-        const data = doc.data();
-        return {
-          id: doc.id,
-          amount: data.amount,
-          category: data.category,
-          description: data.description,
-          date: data.date.toDate(),
-          userId: data.userId
-        } as Expense;
-      });
-      
-      // Guardar en localStorage para acceso offline
-      if (expenses.length > 0) {
-        localStorage.setItem('expense-data', JSON.stringify(expenses));
-      }
-      
-      return expenses;
-    } catch (error) {
-      console.error("Error fetching expenses:", error);
-      // Si hay un error, intentamos recuperar datos del almacenamiento local
-      const localData = localStorage.getItem('expense-data');
-      if (localData) {
-        try {
-          const parsedData = JSON.parse(localData);
-          return parsedData.filter((expense: Expense) => expense.userId === userId);
-        } catch (e) {
-          console.error("Error parsing local expenses:", e);
-        }
-      }
-      
-      // Si no hay datos locales, regresamos un array vacío
-      return [];
-    }
-  };
-  
-  // Add a new expense
-  export const addExpense = async (expense: Omit<Expense, 'id'>): Promise<Expense> => {
-    // Crear un ID temporal para operaciones offline
-    const tempId = `temp_${Date.now()}`;
-    
-    // Guardar datos en localStorage para recuperarlos en caso de estar offline
-    try {
-      const localData = localStorage.getItem('expense-data') || '[]';
-      const parsedData = JSON.parse(localData);
-      
-      // Crear un nuevo gasto con ID temporal si estamos offline
-      const newExpense = {
-        ...expense,
-        id: tempId,
-        date: new Date(expense.date) // Asegurar que sea objeto Date
-      };
-      
-      // Actualizar datos locales
-      localStorage.setItem('expense-data', JSON.stringify([...parsedData, newExpense]));
-      
-      // Si estamos online, intenta guardar en Firebase
-      if (isOnline()) {
-        try {
-          const docRef = await addDoc(expensesCollection, {
-            ...expense,
-            date: Timestamp.fromDate(expense.date),
-            createdAt: serverTimestamp()
-          });
-          
-          // Actualizar los datos locales con el ID correcto
-          const updatedData = parsedData.map((item: any) => 
-            item.id === tempId ? { ...expense, id: docRef.id } : item
-          );
-          localStorage.setItem('expense-data', JSON.stringify(updatedData));
-          
-          return {
-            ...expense,
-            id: docRef.id
-          };
-        } catch (error) {
-          console.error("Error adding expense to Firebase:", error);
-          // Si hay error con Firebase pero estamos online, seguimos con el ID temporal
-          // y lo marcamos como pendiente de sincronización
-          usePendingOperationsStore.getState().addOperation({
-            operationType: 'add',
-            collection: 'expenses',
-            data: newExpense
-          });
-          
-          return newExpense;
-        }
-      } else {
-        // Si estamos offline, registrar la operación pendiente
-        usePendingOperationsStore.getState().addOperation({
-          operationType: 'add',
-          collection: 'expenses',
-          data: newExpense
-        });
-        
-        // Regresar el objeto con ID temporal
-        return newExpense;
-      }
-    } catch (error) {
-      console.error("Error in addExpense:", error);
-      // Incluso si hay error, devolver algo para que la UI no se rompa
-      return {
-        ...expense,
-        id: tempId
-      };
-    }
-  };
-  
-  // Update an existing expense
-  export const updateExpense = async (expense: Expense): Promise<void> => {
-    try {
-      // Actualizar datos locales primero
-      const localData = localStorage.getItem('expense-data') || '[]';
-      const parsedData = JSON.parse(localData);
-      const updatedData = parsedData.map((item: any) => 
-        item.id === expense.id ? expense : item
+      // Buscar la cuenta predeterminada
+      const { getUserAccounts } = await import("./accountService");
+      const accounts = await getUserAccounts(item.userId);
+      console.log(
+        "📊 Cuentas disponibles:",
+        accounts.map((acc) => `${acc.name} (${acc.id})`)
       );
-      localStorage.setItem('expense-data', JSON.stringify(updatedData));
-      
-      // Si estamos online, actualizar en Firebase
-      if (isOnline()) {
-        try {
-          const expenseRef = doc(db, 'expenses', expense.id);
-          await updateDoc(expenseRef, {
-            amount: expense.amount,
-            category: expense.category,
-            description: expense.description,
-            date: Timestamp.fromDate(expense.date),
-            updatedAt: serverTimestamp()
-          });
-        } catch (error) {
-          console.error("Error updating expense in Firebase:", error);
-          // Si hay error con Firebase pero estamos online, lo marcamos como pendiente
-          usePendingOperationsStore.getState().addOperation({
-            operationType: 'update',
-            collection: 'expenses',
-            data: expense
-          });
-        }
+
+      const defaultAccount = accounts.find((acc) => acc.isDefault) || accounts[0];
+
+      if (defaultAccount) {
+        console.log(`✅ Asignando gasto a cuenta predeterminada: ${defaultAccount.name} (${defaultAccount.id})`);
+        item.accountId = defaultAccount.id;
       } else {
-        // Si estamos offline, registrar operación pendiente
-        usePendingOperationsStore.getState().addOperation({
-          operationType: 'update',
-          collection: 'expenses',
-          data: expense
-        });
+        console.error("❌ No se encontró ninguna cuenta para asignar el gasto");
       }
     } catch (error) {
-      console.error("Error in updateExpense:", error);
-      throw error;
+      console.error("❌ Error al buscar cuenta predeterminada:", error);
     }
-  };
-  
-  // Delete an expense
-  export const deleteExpense = async (id: string): Promise<void> => {
+  }
+
+  // Guardar el gasto
+  const savedItem = await baseAddItem(item);
+  console.log("✅ Gasto guardado:", savedItem);
+
+  // Actualizar el saldo de la cuenta
+  try {
+    await updateFinanceWithAccount("expenses", savedItem, savedItem.accountId || "", "add");
+    console.log("✅ Saldo de cuenta actualizado para:", savedItem.accountId || "sin cuenta");
+  } catch (error) {
+    console.error("❌ Error al actualizar saldo de cuenta:", error);
+  }
+
+  return savedItem;
+};
+
+// Update an existing expense
+export const updateExpense = async (item: FinanceItem): Promise<void> => {
+  // Obtener la versión anterior para detectar cambios en la cuenta o monto
+  const localData = localStorage.getItem("expenses-data") || "[]";
+  const parsedData = JSON.parse(localData);
+  const previousItem = parsedData.find((localItem: FinanceItem) => localItem.id === item.id);
+
+  // Actualizar el gasto
+  await baseUpdateItem(item);
+
+  // Actualizar el saldo de la cuenta
+  try {
+    await updateFinanceWithAccount("expenses", item, item.accountId || "", "update", previousItem?.accountId);
+  } catch (error) {
+    console.error("Error al actualizar saldo de cuenta:", error);
+  }
+};
+
+// Delete an expense
+export const deleteExpense = async (id: string): Promise<void> => {
+  // Obtener el ítem antes de eliminarlo
+  const localData = localStorage.getItem("expenses-data") || "[]";
+  const parsedData = JSON.parse(localData);
+  const itemToDelete = parsedData.find((item: FinanceItem) => item.id === id);
+
+  if (!itemToDelete) {
+    throw new Error("No se pudo encontrar el gasto a eliminar");
+  }
+
+  // Eliminar el gasto
+  await baseDeleteItem(id);
+
+  // Actualizar el saldo de la cuenta
+  try {
+    await updateFinanceWithAccount("expenses", itemToDelete, itemToDelete.accountId || "", "delete");
+  } catch (error) {
+    console.error("Error al actualizar saldo de cuenta:", error);
+  }
+};
+
+// Sincronizar operaciones pendientes
+export const syncPendingExpenses = async (): Promise<void> => {
+  if (!isOnline()) return; // Solo intentamos sincronizar si estamos online
+
+  const pendingOps = usePendingOperationsStore.getState().operations.filter((op) => op.collection === "expenses");
+
+  if (pendingOps.length === 0) return;
+
+  // Procesar cada operación pendiente
+  for (const op of pendingOps) {
     try {
-      // Eliminar de datos locales primero
-      const localData = localStorage.getItem('expense-data') || '[]';
-      const parsedData = JSON.parse(localData);
-      const filteredData = parsedData.filter((item: any) => item.id !== id);
-      localStorage.setItem('expense-data', JSON.stringify(filteredData));
-      
-      // Si estamos online, eliminar de Firebase
-      if (isOnline()) {
-        try {
-          const expenseRef = doc(db, 'expenses', id);
-          await deleteDoc(expenseRef);
-        } catch (error) {
-          console.error("Error deleting expense from Firebase:", error);
-          // Si hay error con Firebase pero estamos online, lo marcamos como pendiente
-          usePendingOperationsStore.getState().addOperation({
-            operationType: 'delete',
-            collection: 'expenses',
-            data: id
-          });
-        }
-      } else {
-        // Si estamos offline, registrar operación pendiente
-        usePendingOperationsStore.getState().addOperation({
-          operationType: 'delete',
-          collection: 'expenses',
-          data: id
+      if (op.operationType === "add") {
+        const { id, ...rest } = op.data;
+        await addDoc(expensesCollection, {
+          ...rest,
+          date: Timestamp.fromDate(new Date(rest.date)),
+          createdAt: serverTimestamp(),
+          syncedAt: serverTimestamp(),
         });
+      } else if (op.operationType === "update") {
+        const { id, ...rest } = op.data;
+        const expenseRef = doc(db, "expenses", id);
+        await updateDoc(expenseRef, {
+          ...rest,
+          date: Timestamp.fromDate(new Date(rest.date)),
+          updatedAt: serverTimestamp(),
+          syncedAt: serverTimestamp(),
+        });
+      } else if (op.operationType === "delete") {
+        const expenseRef = doc(db, "expenses", op.data);
+        await deleteDoc(expenseRef);
       }
+
+      // Eliminar la operación de la cola después de completarla
+      usePendingOperationsStore.getState().removeOperation(op.id);
     } catch (error) {
-      console.error("Error in deleteExpense:", error);
-      throw error;
+      console.error(`Error syncing operation ${op.id}:`, error);
+      // Continuamos con la siguiente operación incluso si esta falla
     }
-  };
-  
-  // Sincronizar operaciones pendientes
-  export const syncPendingExpenses = async (): Promise<void> => {
-    if (!isOnline()) return; // Solo intentamos sincronizar si estamos online
-    
-    const pendingOps = usePendingOperationsStore.getState().operations
-      .filter(op => op.collection === 'expenses');
-    
-    if (pendingOps.length === 0) return;
-    
-    // Procesar cada operación pendiente
-    for (const op of pendingOps) {
-      try {
-        if (op.operationType === 'add') {
-          const { id, ...rest } = op.data;
-          await addDoc(expensesCollection, {
-            ...rest,
-            date: Timestamp.fromDate(new Date(rest.date)),
-            createdAt: serverTimestamp(),
-            syncedAt: serverTimestamp()
-          });
-        } else if (op.operationType === 'update') {
-          const { id, ...rest } = op.data;
-          const expenseRef = doc(db, 'expenses', id);
-          await updateDoc(expenseRef, {
-            ...rest,
-            date: Timestamp.fromDate(new Date(rest.date)),
-            updatedAt: serverTimestamp(),
-            syncedAt: serverTimestamp()
-          });
-        } else if (op.operationType === 'delete') {
-          const expenseRef = doc(db, 'expenses', op.data);
-          await deleteDoc(expenseRef);
-        }
-        
-        // Eliminar la operación de la cola después de completarla
-        usePendingOperationsStore.getState().removeOperation(op.id);
-      } catch (error) {
-        console.error(`Error syncing operation ${op.id}:`, error);
-        // Continuamos con la siguiente operación incluso si esta falla
-      }
+  }
+
+  // Recargar datos después de sincronizar
+  const localData = localStorage.getItem("current-user-id");
+  if (localData) {
+    try {
+      await getUserExpenses(localData);
+    } catch (e) {
+      console.error("Error refreshing expenses after sync:", e);
     }
-    
-    // Recargar datos después de sincronizar
-    const localData = localStorage.getItem('current-user-id');
-    if (localData) {
-      try {
-        await getUserExpenses(localData);
-      } catch (e) {
-        console.error("Error refreshing expenses after sync:", e);
-      }
-    }
-  };
+  }
+};
