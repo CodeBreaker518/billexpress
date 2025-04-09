@@ -8,6 +8,7 @@ import { useAuth } from "@bill/_hooks/useAuth";
 import { useAuthStore } from "@bill/_store/useAuthStore";
 import AuthGuard from "@bill/_components/AuthGuard";
 import ThemeToggle from "@bill/_components/ThemeToggle";
+import BillExpressLogo from "@bill/_components/BillExpressLogo";
 
 // Importación de componentes de shadcn-ui
 import { Button } from "@bill/_components/ui/button";
@@ -115,10 +116,9 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
       <div className="flex h-screen bg-background">
         {/* Sidebar para escritorio */}
         <aside className="hidden lg:flex lg:w-64 flex-col border-r bg-card">
-          <div className="flex h-14 items-center border-b px-4">
+          <div className="flex h-16 items-center border-b px-4">
             <Link href="/dashboard" className="flex items-center gap-2 font-semibold">
-              <DollarSign className="h-5 w-5 text-primary" />
-              <span className="text-xl">BillExpress</span>
+              <BillExpressLogo width={160} height={45} usePrimaryColor={true} />
             </Link>
           </div>
           <nav className="flex-1 overflow-auto py-4">
@@ -162,10 +162,9 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
                 </Button>
               </SheetTrigger>
               <SheetContent side="left" className="w-64 p-0">
-                <div className="flex h-14 items-center border-b px-4">
+                <div className="flex h-16 items-center border-b px-4">
                   <Link href="/dashboard" className="flex items-center gap-2 font-semibold" onClick={() => setSheetOpen(false)}>
-                    <DollarSign className="h-5 w-5 text-primary" />
-                    <span className="text-xl">BillExpress</span>
+                    <BillExpressLogo width={160} height={45} usePrimaryColor={true} />
                   </Link>
                 </div>
                 <SheetTitle className="sr-only">Menú de navegación</SheetTitle>
