@@ -10,7 +10,7 @@ interface LogoProps {
 
 export const BillExpressLogo: React.FC<LogoProps> = ({ width = 150, height = 40, className, usePrimaryColor = false }) => {
   return (
-    <svg width={width} height={height} viewBox="220 450 1130 150" className={cn("transition-colors duration-200", className)} preserveAspectRatio="xMidYMid meet">
+    <svg width={width} height={height} viewBox="220 450 1130 150" className={cn("transition-colors duration-300", className)} preserveAspectRatio="xMidYMid meet">
       <g transform="translate(0.000000,1024.000000) scale(0.100000,-0.100000)" className={usePrimaryColor ? "fill-primary" : "fill-gray-900 dark:fill-white"}>
         <path
           d="M3148 6591 c-163 -52 -299 -190 -351 -356 l-22 -70 0 -1045 0 -1045

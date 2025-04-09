@@ -8,7 +8,7 @@ export default function Footer() {
         <div className="grid md:grid-cols-4 gap-8 mb-8">
           <div>
             <div className="flex items-center space-x-2 mb-4">
-              <BillExpressLogo width={180} height={50} />
+              <BillExpressLogo width={180} height={50} usePrimaryColor={true} />
             </div>
             <p className="text-gray-600 dark:text-gray-400">Control de gastos simplificado para todos.</p>
           </div>
