@@ -15,6 +15,9 @@ import { useToast } from "@bill/_components/ui/use-toast";
 import { useAccountStore } from "@bill/_store/useAccountStore";
 import { Account, addAccount, updateAccount, deleteAccount, transferBetweenAccounts, getUserAccounts } from "@bill/_firebase/accountService";
 import { Separator } from "@bill/_components/ui/separator";
+import { DndContext, closestCenter, KeyboardSensor, PointerSensor, useSensor, useSensors, DragEndEvent } from "@dnd-kit/core";
+import { arrayMove, SortableContext, sortableKeyboardCoordinates, useSortable, rectSortingStrategy } from "@dnd-kit/sortable";
+import { CSS } from "@dnd-kit/utilities";
 
 interface AccountManagerProps {
   userId: string;
@@ -26,7 +29,36 @@ export default function AccountManager({ userId, onReloadAccounts, isLoading }: 
   const { accounts, activeAccountId, setActiveAccountId } = useAccountStore();
   const { toast } = useToast();
 
-  // Efecto para actualizar las cuentas cuando cambian
+  // Estado para controlar la visualización de todas las cuentas
+  const [showAllAccounts, setShowAllAccounts] = useState(false);
+
+  // Estado para mantener el orden personalizado de las cuentas
+  const [accountOrder, setAccountOrder] = useState<string[]>([]);
+
+  // Estado para controlar si ya se ha cargado el orden desde localStorage
+  const [orderLoaded, setOrderLoaded] = useState(false);
+
+  // Clave para almacenar el orden en localStorage
+  const ACCOUNT_ORDER_KEY = `account-order-${userId}`;
+
+  // Efecto para cargar el orden personalizado desde localStorage (solo una vez al inicio)
+  useEffect(() => {
+    if (typeof window === "undefined" || !userId) return;
+
+    try {
+      const savedOrder = localStorage.getItem(ACCOUNT_ORDER_KEY);
+      if (savedOrder) {
+        const parsedOrder = JSON.parse(savedOrder);
+        setAccountOrder(parsedOrder);
+      }
+      setOrderLoaded(true);
+    } catch (error) {
+      console.error("Error al cargar el orden de cuentas:", error);
+      setOrderLoaded(true);
+    }
+  }, [userId, ACCOUNT_ORDER_KEY]); // Solo se ejecuta cuando cambia el userId
+
+  // Efecto para actualizar la cuenta activa
   useEffect(() => {
     if (accounts.length > 0 && !activeAccountId) {
       // Si hay cuentas pero no hay cuenta activa, activar la primera
@@ -34,6 +66,76 @@ export default function AccountManager({ userId, onReloadAccounts, isLoading }: 
       setActiveAccountId(defaultAccount.id);
     }
   }, [accounts, activeAccountId, setActiveAccountId]);
+
+  // Efecto para sincronizar accountOrder con las cuentas actuales (solo cuando cambian las cuentas)
+  useEffect(() => {
+    // Solo ejecutar esto si tenemos cuentas y ya se ha intentado cargar el orden desde localStorage
+    if (!accounts.length || !orderLoaded) return;
+
+    // Crear un mapa para eliminar duplicados por ID y acceso rápido
+    const accountsMap = new Map(accounts.map((account) => [account.id, account]));
+
+    // Obtener la cuenta predeterminada (si existe)
+    const defaultAccount = accounts.find((acc) => acc.isDefault);
+    const defaultAccountId = defaultAccount?.id;
+
+    // Filtrar el orden guardado para mantener solo IDs de cuentas existentes
+    const filteredOrder = accountOrder.filter((id) => accountsMap.has(id));
+
+    // Determinar qué cuentas no están en el orden actual
+    const missingAccountIds = accounts.filter((account) => !filteredOrder.includes(account.id)).map((account) => account.id);
+
+    // Si no hay nada guardado o todas las cuentas son nuevas
+    if (!filteredOrder.length) {
+      // Crear un orden inicial con la cuenta predeterminada primero
+      const initialOrder = [...accounts]
+        .sort((a, b) => {
+          if (a.isDefault) return -1;
+          if (b.isDefault) return 1;
+          return 0;
+        })
+        .map((acc) => acc.id);
+
+      setAccountOrder(initialOrder);
+      return;
+    }
+
+    // Si existen cuentas que no están en el orden, agregarlas
+    if (missingAccountIds.length) {
+      let newOrder = [...filteredOrder, ...missingAccountIds];
+
+      // Garantizar que la cuenta predeterminada siempre esté primera
+      if (defaultAccountId) {
+        const defaultIndex = newOrder.indexOf(defaultAccountId);
+
+        // Si la cuenta predeterminada existe y no está en primera posición
+        if (defaultIndex > 0) {
+          newOrder.splice(defaultIndex, 1); // Quitar de su posición actual
+          newOrder.unshift(defaultAccountId); // Poner al inicio
+        }
+      }
+
+      setAccountOrder(newOrder);
+      return;
+    }
+
+    // Si el orden filtrado es diferente del actual (debido a cuentas eliminadas)
+    if (filteredOrder.length !== accountOrder.length) {
+      setAccountOrder(filteredOrder);
+    }
+  }, [accounts, orderLoaded, accountOrder]);
+
+  // Efecto para guardar el orden en localStorage cuando cambia
+  useEffect(() => {
+    // Solo guardar si ya cargamos el orden inicial y tenemos cuentas
+    if (typeof window === "undefined" || !userId || !orderLoaded || !accountOrder.length) return;
+
+    try {
+      localStorage.setItem(ACCOUNT_ORDER_KEY, JSON.stringify(accountOrder));
+    } catch (error) {
+      console.error("Error al guardar el orden de cuentas:", error);
+    }
+  }, [accountOrder, userId, ACCOUNT_ORDER_KEY, orderLoaded]);
 
   // Efecto para forzar la actualización de los saldos mostrados
   useEffect(() => {
@@ -100,18 +202,18 @@ export default function AccountManager({ userId, onReloadAccounts, isLoading }: 
         const freshAccounts = await getUserAccounts(userId);
 
         // Verificar que no haya cuentas duplicadas por ID
-        const uniqueAccounts = Array.from(new Map(freshAccounts.map((account) => [account.id, account]))).map((entry) => entry[1]);
+        const uniqueAccountsMap = new Map(freshAccounts.map((account) => [account.id, account]));
 
         // Si se encontraron duplicados, registrar un mensaje de advertencia
-        if (uniqueAccounts.length < freshAccounts.length) {
+        if (uniqueAccountsMap.size < freshAccounts.length) {
           console.warn("Se detectaron y eliminaron cuentas duplicadas", {
             original: freshAccounts.length,
-            unique: uniqueAccounts.length,
+            unique: uniqueAccountsMap.size,
           });
         }
 
         // Actualizar el estado global con estas cuentas recién obtenidas (sin duplicados)
-        useAccountStore.getState().setAccounts(uniqueAccounts);
+        useAccountStore.getState().setAccounts(Array.from(uniqueAccountsMap.values()));
       }
 
       // Paso final: Avisar al componente padre que se ha completado la recarga
@@ -422,6 +524,125 @@ export default function AccountManager({ userId, onReloadAccounts, isLoading }: 
     }
   }, [accounts, toast, onReloadAccounts]);
 
+  // Configurar sensores para drag and drop
+  const sensors = useSensors(
+    useSensor(PointerSensor, {
+      activationConstraint: {
+        // Iniciar arrastre después de mover 8px (evita conflicto con clicks)
+        distance: 8,
+      },
+    }),
+    useSensor(KeyboardSensor, {
+      coordinateGetter: sortableKeyboardCoordinates,
+    })
+  );
+
+  // Manejar el fin del arrastre
+  const handleDragEnd = (event: DragEndEvent) => {
+    const { active, over } = event;
+
+    if (over && active.id !== over.id) {
+      setAccountOrder((items) => {
+        const oldIndex = items.indexOf(active.id.toString());
+        const newIndex = items.indexOf(over.id.toString());
+
+        // No permitir mover la cuenta predeterminada de su posición inicial
+        const defaultAccount = accounts.find((acc) => acc.isDefault);
+        if (defaultAccount && active.id === defaultAccount.id) {
+          toast({
+            title: "No se puede mover",
+            description: "La cuenta predeterminada siempre debe estar en la primera posición",
+            variant: "warning",
+          });
+          return items;
+        }
+
+        // Mover cuentas y guardar en localStorage
+        const newOrder = arrayMove(items, oldIndex, newIndex);
+        return newOrder;
+      });
+    }
+  };
+
+  // Componente para cada cuenta sorteable
+  function SortableAccountCard({ account }: { account: Account }) {
+    const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({ id: account.id });
+
+    const style = {
+      transform: CSS.Transform.toString(transform),
+      transition,
+      zIndex: isDragging ? 10 : 1,
+      opacity: isDragging ? 0.8 : 1,
+    };
+
+    return (
+      <Card
+        ref={setNodeRef}
+        style={style}
+        className={`group ${
+          activeAccountId === account.id ? "ring-2 ring-primary ring-offset-1" : "hover:border-primary/50"
+        } transition-all duration-200 shadow-soft cursor-grab relative overflow-hidden ${isDragging ? "shadow-lg" : ""}`}
+        onClick={() => handleSelectAccount(account.id)}
+        {...attributes}
+        {...listeners}>
+        <CardContent className="p-4 flex flex-col gap-2">
+          <div className="flex items-center justify-between">
+            <div className="flex items-center space-x-2">
+              <div className="w-3 h-3 rounded-full" style={{ backgroundColor: account.color }} />
+              <h3 className="font-medium text-sm">{account.name}</h3>
+              {account.isDefault && <span className="text-xs bg-muted text-muted-foreground px-1.5 py-0.5 rounded">Predeterminada</span>}
+            </div>
+            <div className="flex items-center space-x-1">
+              {account.isDefault && (
+                <Button
+                  variant="ghost"
+                  size="icon"
+                  className="h-7 w-7 opacity-0 group-hover:opacity-100"
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    setIsResetBalanceOpen(true);
+                  }}
+                  title="Reiniciar saldo (Solo para Efectivo)">
+                  <RefreshCcw className="h-3.5 w-3.5 text-amber-500" />
+                </Button>
+              )}
+
+              {!account.isDefault && (
+                <Button
+                  variant="ghost"
+                  size="icon"
+                  className="h-7 w-7 opacity-0 group-hover:opacity-100"
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    handleEditAccount(account);
+                  }}
+                  title="Editar cuenta">
+                  <Pencil className="h-3.5 w-3.5" />
+                </Button>
+              )}
+
+              {!account.isDefault && (
+                <Button
+                  variant="ghost"
+                  size="icon"
+                  className="h-7 w-7 opacity-0 group-hover:opacity-100"
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    handleConfirmDelete(account.id);
+                  }}
+                  title="Eliminar cuenta">
+                  <Trash2 className="h-3.5 w-3.5 text-destructive" />
+                </Button>
+              )}
+            </div>
+          </div>
+
+          <div className="text-xl font-semibold">{formatCurrency(account.balance)}</div>
+        </CardContent>
+      </Card>
+    );
+  }
+
   return (
     <div className="space-y-4" data-testid="account-manager">
       <div className="flex items-center justify-between">
@@ -462,90 +683,61 @@ export default function AccountManager({ userId, onReloadAccounts, isLoading }: 
 
       {/* Mostrar cuentas y saldo */}
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3 mt-2">
-        {/* Usar un Set con los IDs para asegurarse de que no haya duplicados */}
-        {(() => {
-          // Crear un mapa para eliminar duplicados por ID
-          const uniqueAccountsMap = new Map();
-          accounts.forEach((account) => uniqueAccountsMap.set(account.id, account));
+        <DndContext sensors={sensors} collisionDetection={closestCenter} onDragEnd={handleDragEnd}>
+          {(() => {
+            // Crear un mapa para eliminar duplicados por ID y acceder rápidamente
+            const accountsMap = new Map(accounts.map((account) => [account.id, account]));
 
-          // Convertir el mapa a array de cuentas únicas
-          const uniqueAccounts = Array.from(uniqueAccountsMap.values());
+            // Filtrar el accountOrder para que solo contenga IDs de cuentas existentes
+            const validAccountIds = accountOrder.filter((id) => accountsMap.has(id));
 
-          // Ordenar las cuentas: primero la cuenta predeterminada, luego el resto
-          const sortedAccounts = uniqueAccounts.sort((a, b) => {
-            // Si a es la cuenta predeterminada, va primero
-            if (a.isDefault) return -1;
-            // Si b es la cuenta predeterminada, va primero
-            if (b.isDefault) return 1;
-            // Si ninguna es predeterminada, mantener el orden original
-            return 0;
-          });
+            // Si hay cuentas que existen pero no están en el orden, agregarlas al final
+            accounts.forEach((account) => {
+              if (!validAccountIds.includes(account.id)) {
+                validAccountIds.push(account.id);
+              }
+            });
 
-          // Renderizar las cuentas únicas con la predeterminada primero
-          return sortedAccounts.map((account) => (
-            <Card
-              key={account.id}
-              className={`group ${
-                activeAccountId === account.id ? "ring-2 ring-primary ring-offset-1" : "hover:border-primary/50"
-              } transition-all duration-200 shadow-soft cursor-pointer relative overflow-hidden`}
-              onClick={() => handleSelectAccount(account.id)}>
-              <CardContent className="p-4 flex flex-col gap-2">
-                <div className="flex items-center justify-between">
-                  <div className="flex items-center space-x-2">
-                    <div className="w-3 h-3 rounded-full" style={{ backgroundColor: account.color }} />
-                    <h3 className="font-medium text-sm">{account.name}</h3>
-                    {account.isDefault && <span className="text-xs bg-muted text-muted-foreground px-1.5 py-0.5 rounded">Predeterminada</span>}
-                  </div>
-                  <div className="flex items-center space-x-1">
-                    {account.isDefault && (
-                      <Button
-                        variant="ghost"
-                        size="icon"
-                        className="h-7 w-7 opacity-0 group-hover:opacity-100"
-                        onClick={(e) => {
-                          e.stopPropagation();
-                          setIsResetBalanceOpen(true);
-                        }}
-                        title="Reiniciar saldo (Solo para Efectivo)">
-                        <RefreshCcw className="h-3.5 w-3.5 text-amber-500" />
-                      </Button>
-                    )}
+            // Aplicar límite según el tamaño de pantalla si no se muestran todas
+            const desktopLimit = 6;
+            const mobileLimit = 4;
 
-                    {!account.isDefault && (
-                      <Button
-                        variant="ghost"
-                        size="icon"
-                        className="h-7 w-7 opacity-0 group-hover:opacity-100"
-                        onClick={(e) => {
-                          e.stopPropagation();
-                          handleEditAccount(account);
-                        }}
-                        title="Editar cuenta">
-                        <Pencil className="h-3.5 w-3.5" />
-                      </Button>
-                    )}
+            // Determinar cuántas cuentas mostrar
+            let accountIdsToShow = validAccountIds;
+            if (!showAllAccounts) {
+              // Aplicar límites solo si hay más cuentas que el límite
+              accountIdsToShow = validAccountIds.slice(0, typeof window !== "undefined" && window.innerWidth < 768 ? mobileLimit : desktopLimit);
+            }
 
-                    {!account.isDefault && (
-                      <Button
-                        variant="ghost"
-                        size="icon"
-                        className="h-7 w-7 opacity-0 group-hover:opacity-100"
-                        onClick={(e) => {
-                          e.stopPropagation();
-                          handleConfirmDelete(account.id);
-                        }}
-                        title="Eliminar cuenta">
-                        <Trash2 className="h-3.5 w-3.5 text-destructive" />
-                      </Button>
-                    )}
-                  </div>
-                </div>
+            // Mapear IDs a objetos de cuenta completos
+            const accountsToShow = accountIdsToShow.map((id) => accountsMap.get(id)!);
 
-                <div className="text-xl font-semibold">{formatCurrency(account.balance)}</div>
-              </CardContent>
-            </Card>
-          ));
-        })()}
+            // Renderizar las cuentas limitadas
+            return (
+              <>
+                <SortableContext items={accountIdsToShow} strategy={rectSortingStrategy}>
+                  {accountsToShow.map((account) => (
+                    <SortableAccountCard key={account.id} account={account} />
+                  ))}
+                </SortableContext>
+
+                {/* Botón "Mostrar todos" cuando hay más cuentas que el límite */}
+                {!showAllAccounts && validAccountIds.length > (typeof window !== "undefined" && window.innerWidth < 768 ? mobileLimit : desktopLimit) && (
+                  <Button variant="outline" className="mt-2 w-full" onClick={() => setShowAllAccounts(true)}>
+                    Mostrar todas ({validAccountIds.length})
+                  </Button>
+                )}
+
+                {/* Botón "Mostrar menos" cuando se muestran todas las cuentas */}
+                {showAllAccounts && validAccountIds.length > (typeof window !== "undefined" && window.innerWidth < 768 ? mobileLimit : desktopLimit) && (
+                  <Button variant="outline" className="mt-2 w-full" onClick={() => setShowAllAccounts(false)}>
+                    Mostrar menos
+                  </Button>
+                )}
+              </>
+            );
+          })()}
+        </DndContext>
       </div>
 
       {/* Modal para creación/edición de cuenta */}

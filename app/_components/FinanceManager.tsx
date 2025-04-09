@@ -1,16 +1,13 @@
 "use client";
 
-import { useState, useEffect, useCallback } from "react";
-import { format, isValid } from "date-fns";
-import { es } from "date-fns/locale";
+import { useCallback, useMemo, useState } from "react";
+import { isValid } from "date-fns";
 import { FinanceItem } from "@bill/_firebase/financeService";
-import { Button } from "@bill/_components/ui/button";
-import { DrawerDialog } from "@bill/_components/ui/drawer-dialog";
-import SearchBar from "@bill/_components/SearchBar";
-import FinanceForm from "@bill/_components/FinanceForm";
-import FinanceTable from "@bill/_components/FinanceTable";
-import { Card } from "@bill/_components/ui/card";
-import { useNetworkStatus } from "@bill/_hooks/useNetworkStatus";
+import FinanceForm from "./FinanceForm";
+import SearchBar from "./SearchBar";
+import FinanceTable from "./FinanceTable";
+import { Card } from "./ui/card";
+import { DrawerDialog } from "./ui/drawer-dialog";
 
 export interface FinanceManagerProps {
   type: "income" | "expense";
@@ -28,75 +25,42 @@ export interface FinanceManagerProps {
 }
 
 export default function FinanceManager({ type, categories, items, loading, user, onAdd, onUpdate, onDelete, onReload }: FinanceManagerProps) {
-  // Estado para búsqueda y filtrado
+  // Estado local
   const [searchTerm, setSearchTerm] = useState("");
-  const [filteredItems, setFilteredItems] = useState<FinanceItem[]>([]);
-
-  // Estado para formulario
   const [isFormOpen, setIsFormOpen] = useState(false);
   const [isEditing, setIsEditing] = useState(false);
-  const [currentItem, setCurrentItem] = useState<Partial<FinanceItem & { time?: string }>>({
-    id: "",
-    description: "",
-    amount: 0,
-    category: categories.length > 0 ? categories[0] : "",
-    date: new Date(),
-    time: format(new Date(), "HH:mm"),
-  });
+  const [currentItem, setCurrentItem] = useState<Partial<FinanceItem & { time?: string }>>({});
 
-  // Hook personalizado para estado de red
-  const isOnline = useNetworkStatus();
-
-  // Filtrar items cuando cambia la búsqueda o los items
-  useEffect(() => {
-    if (!items.length) {
-      setFilteredItems([]);
-      return;
-    }
-
-    const filtered = items.filter((item) => item.description.toLowerCase().includes(searchTerm.toLowerCase()) || item.category.toLowerCase().includes(searchTerm.toLowerCase()));
-
-    // Ordenar por fecha (más reciente primero)
-    filtered.sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
-
-    setFilteredItems(filtered);
+  // Filtrar items según el término de búsqueda
+  const filteredItems = useMemo(() => {
+    return items.filter((item) => {
+      if (!searchTerm.trim()) return true;
+      const search = searchTerm.toLowerCase();
+      return item.description.toLowerCase().includes(search) || item.category.toLowerCase().includes(search) || item.amount.toString().includes(search);
+    });
   }, [items, searchTerm]);
 
-  // Funciones para gestión del formulario
-  const resetForm = useCallback(() => {
-    const now = new Date();
+  // Crear nuevo item
+  const handleNew = useCallback(() => {
+    setIsEditing(false);
     setCurrentItem({
-      id: "",
       description: "",
       amount: 0,
-      category: categories.length > 0 ? categories[0] : "",
-      date: now,
-      time: format(now, "HH:mm"),
+      category: categories[0],
+      date: new Date(),
     });
+    setIsFormOpen(true);
   }, [categories]);
 
-  // Abrir formulario para edición
+  // Editar item existente
   const handleEdit = useCallback((item: FinanceItem) => {
-    const itemDate = new Date(item.date);
-
-    setCurrentItem({
-      id: item.id,
-      description: item.description,
-      amount: item.amount,
-      category: item.category,
-      date: itemDate,
-      time: format(itemDate, "HH:mm"),
-    });
     setIsEditing(true);
+    setCurrentItem({
+      ...item,
+      date: new Date(item.date),
+    });
     setIsFormOpen(true);
   }, []);
-
-  // Abrir formulario para nuevo item
-  const handleNew = useCallback(() => {
-    resetForm();
-    setIsEditing(false);
-    setIsFormOpen(true);
-  }, [resetForm]);
 
   // Cerrar formulario
   const handleCancel = useCallback(() => {
@@ -107,16 +71,6 @@ export default function FinanceManager({ type, categories, items, loading, user,
   const handleFormChange = useCallback((field: string, value: unknown) => {
     setCurrentItem((prev) => ({ ...prev, [field]: value }));
   }, []);
-
-  // Mostrar feedback basado en el estado de la conexión
-  const showConnectionFeedback = useCallback(
-    (action: string) => {
-      if (!isOnline) {
-        alert(`${type === "income" ? "Ingreso" : "Gasto"} ${action} en modo offline. Se sincronizará cuando recuperes conexión a internet.`);
-      }
-    },
-    [isOnline, type]
-  );
 
   // Guardar (nuevo o editado)
   const handleSave = useCallback(
@@ -139,7 +93,6 @@ export default function FinanceManager({ type, categories, items, loading, user,
           } as FinanceItem;
 
           await onUpdate(updatedItem);
-          showConnectionFeedback("actualizado");
         } else {
           // Añadir nuevo item
           await onAdd({
@@ -149,8 +102,6 @@ export default function FinanceManager({ type, categories, items, loading, user,
             date: formData.date || new Date(),
             userId: user.uid,
           });
-
-          showConnectionFeedback("guardado");
         }
 
         // Todo salió bien, recargar datos
@@ -160,7 +111,7 @@ export default function FinanceManager({ type, categories, items, loading, user,
         throw error;
       }
     },
-    [user, isEditing, categories, onUpdate, onAdd, onReload, showConnectionFeedback, type]
+    [user, isEditing, categories, onUpdate, onAdd, onReload, type]
   );
 
   // Eliminar item
@@ -170,7 +121,6 @@ export default function FinanceManager({ type, categories, items, loading, user,
 
       try {
         await onDelete(id);
-        showConnectionFeedback("eliminado");
 
         // Recargar datos
         await onReload();
@@ -179,7 +129,7 @@ export default function FinanceManager({ type, categories, items, loading, user,
         alert(`Ocurrió un error al eliminar. Por favor, intenta de nuevo.`);
       }
     },
-    [type, onDelete, showConnectionFeedback, onReload]
+    [type, onDelete, onReload]
   );
 
   return (

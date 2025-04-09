@@ -24,6 +24,7 @@ import { List, ListItem } from "@bill/_components/ui/list";
 import { StatsCard } from "@bill/_components/ui/stats-card";
 import { CategoryBadge } from "@bill/_components/ui/category-badge";
 import { DialogDescription } from "@bill/_components/ui/dialog";
+import { DashboardSkeleton } from "@bill/_components/ui/skeletons";
 
 // Categorías de gastos
 const expenseCategories = ["Comida", "Transporte", "Entretenimiento", "Servicios", "Compras", "Salud", "Educación", "Vivienda", "Otros"];
@@ -39,7 +40,7 @@ export default function DashboardPage() {
   const { expenses, setExpenses } = useExpenseStore();
   const { incomes, setIncomes } = useIncomeStore();
   const { loading, setLoading } = useExpenseStore();
-  const { accounts, setAccounts, setLoading: setAccountsLoading } = useAccountStore();
+  const { setAccounts, setLoading: setAccountsLoading } = useAccountStore();
 
   // Estados para métricas
   const [totalExpenses, setTotalExpenses] = useState(0);
@@ -49,12 +50,53 @@ export default function DashboardPage() {
   const [monthlyExpenses, setMonthlyExpenses] = useState(0);
   const [monthlyIncomes, setMonthlyIncomes] = useState(0);
 
-  // Estados para visualizaciones
-  const [expensesByCategory, setExpensesByCategory] = useState<any[]>([]);
-  const [incomesByCategory, setIncomesByCategory] = useState<any[]>([]);
-  const [expensesByMonth, setExpensesByMonth] = useState<any[]>([]);
-  const [incomesByMonth, setIncomesByMonth] = useState<any[]>([]);
-  const [recentTransactions, setRecentTransactions] = useState<any[]>([]);
+  // Estados para visualizaciones con tipos más genéricos
+  const [expensesByCategory, setExpensesByCategory] = useState<
+    Array<{
+      category: string;
+      amount: number;
+      percentage: number;
+      [key: string]: string | number;
+    }>
+  >([]);
+
+  const [incomesByCategory, setIncomesByCategory] = useState<
+    Array<{
+      category: string;
+      amount: number;
+      percentage: number;
+      [key: string]: string | number;
+    }>
+  >([]);
+
+  const [expensesByMonth, setExpensesByMonth] = useState<
+    Array<{
+      month: string;
+      Gastos: number;
+      [key: string]: string | number;
+    }>
+  >([]);
+
+  const [incomesByMonth, setIncomesByMonth] = useState<
+    Array<{
+      month: string;
+      Ingresos: number;
+      [key: string]: string | number;
+    }>
+  >([]);
+
+  const [recentTransactions, setRecentTransactions] = useState<
+    Array<{
+      id: string;
+      description: string;
+      amount: number;
+      category: string;
+      date: Date | string;
+      type: string;
+      userId: string;
+      [key: string]: unknown;
+    }>
+  >([]);
 
   // Estado para formulario modal
   const [isFormOpen, setIsFormOpen] = useState(false);
@@ -70,6 +112,12 @@ export default function DashboardPage() {
     date: new Date(),
     time: format(new Date(), "HH:mm"),
   });
+
+  // Primero, añadir un estado para controlar qué pestaña está activa
+  const [activeChartTab, setActiveChartTab] = useState<"expenses" | "incomes">("expenses");
+
+  // Mostrar estado de carga con un timeout para evitar quedarse cargando para siempre
+  const [showTimeout, setShowTimeout] = useState(false);
 
   // Función para cargar datos de Firebase
   const loadData = async () => {
@@ -105,30 +153,7 @@ export default function DashboardPage() {
     loadData();
   }, [user, setExpenses, setIncomes, setLoading]);
 
-  // Añadir un efecto que actualice los saldos de las cuentas al cargar el dashboard
-  useEffect(() => {
-    const updateAccountBalances = async () => {
-      if (user?.uid) {
-        try {
-          // Importar la función de actualización de saldos
-          const { updateAllAccountBalances } = await import("@bill/_firebase/accountService");
-
-          // Recalcular explícitamente todos los saldos
-          const updatedAccounts = await updateAllAccountBalances(user.uid);
-          console.log("✅ Saldos de cuentas recalculados automáticamente al cargar dashboard");
-        } catch (error) {
-          console.error("Error al actualizar saldos:", error);
-        }
-      }
-    };
-
-    // Ejecutar solo cuando tengamos datos de las finanzas cargados
-    if (!loading && user?.uid) {
-      updateAccountBalances();
-    }
-  }, [user, loading]);
-
-  // Calcular métricas y visualizaciones cuando los datos cambian
+  // Calcular métricas y visualizaciones
   useEffect(() => {
     // 1. Calcular totales generales
     // Calcular gastos
@@ -287,20 +312,7 @@ export default function DashboardPage() {
     setRecentTransactions(sortedTransactions);
   }, [expenses, incomes, totalExpenses, totalIncomes]);
 
-  // Combinar datos de gastos e ingresos mensuales para gráfico comparativo
-  const combinedMonthlyData = expensesByMonth.map((expenseData, index) => {
-    const incomeData = incomesByMonth[index] || { month: expenseData.month, Ingresos: 0 };
-    return {
-      month: expenseData.month,
-      Gastos: expenseData.Gastos,
-      Ingresos: incomeData.Ingresos,
-      Balance: incomeData.Ingresos - expenseData.Gastos,
-    };
-  });
-
   // Mostrar estado de carga con un timeout para evitar quedarse cargando para siempre
-  const [showTimeout, setShowTimeout] = useState(false);
-
   useEffect(() => {
     // Si el estado de carga dura más de 5 segundos, mostrar un mensaje
     let timer: NodeJS.Timeout;
@@ -412,24 +424,32 @@ export default function DashboardPage() {
   };
 
   // Manejar cambios en el formulario
-  const handleFormChange = (field: string, value: any) => {
+  const handleFormChange = (field: string, value: unknown) => {
     setCurrentItem({ ...currentItem, [field]: value });
   };
 
   if (loading) {
     return (
-      <div className="flex flex-col items-center justify-center h-64 space-y-4">
-        <div className="animate-spin rounded-full h-10 w-10 border-b-2 border-blue-500"></div>
-        <Text>Cargando datos...</Text>
+      <>
+        <DashboardSkeleton />
         {showTimeout && (
-          <div className="text-center max-w-md">
-            <Text className="text-amber-600">Esto está tomando más tiempo de lo esperado. Puedes intentar recargar la página.</Text>
-            <button onClick={() => window.location.reload()} className="mt-2 px-4 py-2 bg-blue-500 text-white rounded-md hover:bg-blue-600 transition-colors">
-              Recargar página
-            </button>
+          <div className="fixed inset-x-0 bottom-4 flex justify-center">
+            <div className="bg-amber-50 border border-amber-200 text-amber-800 px-4 py-3 rounded-lg shadow-lg max-w-md">
+              <div className="flex items-center">
+                <svg className="h-5 w-5 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+                </svg>
+                <Text className="font-medium">Esto está tomando más tiempo de lo esperado.</Text>
+              </div>
+              <div className="mt-2 flex justify-end">
+                <button onClick={() => window.location.reload()} className="px-3 py-1 bg-amber-200 hover:bg-amber-300 rounded-md text-sm transition-colors">
+                  Recargar página
+                </button>
+              </div>
+            </div>
           </div>
         )}
-      </div>
+      </>
     );
   }
 
@@ -459,6 +479,13 @@ export default function DashboardPage() {
   const expenseCategoryChartColors = expensesByCategory.map((item) => {
     // Obtener el color de la categoría desde la configuración centralizada
     const config = EXPENSE_CATEGORIES[item.category as keyof typeof EXPENSE_CATEGORIES] || EXPENSE_CATEGORIES["Otros"];
+    return config.color;
+  });
+
+  // Generar colores para categorías de ingresos
+  const incomeCategoryChartColors = incomesByCategory.map((item) => {
+    // Obtener el color de la categoría desde la configuración centralizada
+    const config = INCOME_CATEGORIES[item.category as keyof typeof INCOME_CATEGORIES] || INCOME_CATEGORIES["Otros"];
     return config.color;
   });
 
@@ -546,35 +573,48 @@ export default function DashboardPage() {
           </CardHeader>
           <CardContent className="px-2 sm:px-6">
             <List>
-              {recentTransactions.map((transaction, index) => (
-                <ListItem key={transaction.id}>
-                  <div className="flex items-center gap-2 sm:gap-3">
-                    {transaction.type === "income" ? (
-                      <div className="flex h-6 w-6 sm:h-8 sm:w-8 items-center justify-center rounded-full bg-blue-100 dark:bg-blue-900/30">
-                        <ArrowUp className="h-3 w-3 sm:h-4 sm:w-4 text-blue-600" />
+              {recentTransactions.length > 0 ? (
+                recentTransactions.map((transaction) => (
+                  <ListItem key={transaction.id}>
+                    <div className="flex items-center gap-2 sm:gap-3">
+                      {transaction.type === "income" ? (
+                        <div className="flex h-6 w-6 sm:h-8 sm:w-8 items-center justify-center rounded-full bg-blue-100 dark:bg-blue-900/30">
+                          <ArrowUp className="h-3 w-3 sm:h-4 sm:w-4 text-blue-600" />
+                        </div>
+                      ) : (
+                        <div className="flex h-6 w-6 sm:h-8 sm:w-8 items-center justify-center rounded-full bg-red-100 dark:bg-red-900/30">
+                          <ArrowDown className="h-3 w-3 sm:h-4 sm:w-4 text-red-600" />
+                        </div>
+                      )}
+                      <div>
+                        <Text className="text-xs sm:text-sm font-medium truncate max-w-[120px] sm:max-w-none">{transaction.description}</Text>
+                        <Text className="text-[10px] sm:text-xs text-muted-foreground">{formatDate(new Date(transaction.date))}</Text>
                       </div>
-                    ) : (
-                      <div className="flex h-6 w-6 sm:h-8 sm:w-8 items-center justify-center rounded-full bg-red-100 dark:bg-red-900/30">
-                        <ArrowDown className="h-3 w-3 sm:h-4 sm:w-4 text-red-600" />
-                      </div>
-                    )}
-                    <div>
-                      <Text className="text-xs sm:text-sm font-medium truncate max-w-[120px] sm:max-w-none">{transaction.description}</Text>
-                      <Text className="text-[10px] sm:text-xs text-muted-foreground">{formatDate(new Date(transaction.date))}</Text>
                     </div>
+                    <div className="flex flex-col items-end">
+                      <span className={`text-xs sm:text-sm ${transaction.type === "income" ? "text-blue-600 dark:text-blue-400" : "text-red-600 dark:text-red-400"}`}>
+                        {transaction.type === "income" ? "+" : "-"}
+                        {formatCurrency(transaction.amount)}
+                      </span>
+                      <CategoryBadge category={transaction.category} type={transaction.type} className="mt-1 text-[10px] sm:text-xs" />
+                    </div>
+                  </ListItem>
+                ))
+              ) : (
+                <div className="flex flex-col items-center justify-center h-56 py-6 text-center">
+                  <Wallet className="w-12 h-12 text-muted-foreground mb-2 opacity-50" />
+                  <Text className="text-sm text-muted-foreground">No hay transacciones recientes</Text>
+                  <Text className="text-xs text-muted-foreground mt-1">Registra tus primeros movimientos para ver el historial</Text>
+                  <div className="flex gap-2 mt-4">
+                    <Button variant="outline" size="sm" onClick={handleNewIncome}>
+                      <ArrowUp className="h-4 w-4 mr-2 text-blue-600" />
+                      Ingreso
+                    </Button>
+                    <Button variant="outline" size="sm" onClick={handleNewExpense}>
+                      <ArrowDown className="h-4 w-4 mr-2 text-red-600" />
+                      Gasto
+                    </Button>
                   </div>
-                  <div className="flex flex-col items-end">
-                    <span className={`text-xs sm:text-sm ${transaction.type === "income" ? "text-blue-600 dark:text-blue-400" : "text-red-600 dark:text-red-400"}`}>
-                      {transaction.type === "income" ? "+" : "-"}
-                      {formatCurrency(transaction.amount)}
-                    </span>
-                    <CategoryBadge category={transaction.category} type={transaction.type} className="mt-1 text-[10px] sm:text-xs" />
-                  </div>
-                </ListItem>
-              ))}
-              {recentTransactions.length === 0 && (
-                <div className="py-8 text-center">
-                  <Text className="text-sm">No hay transacciones recientes</Text>
                 </div>
               )}
             </List>
@@ -584,26 +624,110 @@ export default function DashboardPage() {
         {/* Gastos por categoría */}
         <Card>
           <CardHeader className="px-4 sm:px-6">
-            <CardTitle className="text-base sm:text-lg">Gastos por Categoría</CardTitle>
+            <div className="flex flex-col space-y-2">
+              <CardTitle className="text-base sm:text-lg">Distribución por Categoría</CardTitle>
+              <div className="flex border-b">
+                <button
+                  className={`px-4 py-2 text-sm font-medium border-b-2 -mb-px transition-colors ${
+                    activeChartTab === "expenses" ? "border-primary text-foreground" : "border-transparent text-muted-foreground hover:text-foreground"
+                  }`}
+                  onClick={() => setActiveChartTab("expenses")}>
+                  Gastos
+                </button>
+                <button
+                  className={`px-4 py-2 text-sm font-medium border-b-2 -mb-px transition-colors ${
+                    activeChartTab === "incomes" ? "border-primary text-foreground" : "border-transparent text-muted-foreground hover:text-foreground"
+                  }`}
+                  onClick={() => setActiveChartTab("incomes")}>
+                  Ingresos
+                </button>
+              </div>
+            </div>
           </CardHeader>
           <CardContent className="px-2 sm:px-6">
-            <div className="h-44 sm:h-60">
-              <DonutChart data={expensesByCategory} category="amount" index="category" valueFormatter={formatCurrency} colors={expenseCategoryChartColors} className="h-full" />
-            </div>
-            <List className="mt-2 sm:mt-4">
-              {expensesByCategory.slice(0, 3).map((category) => (
-                <ListItem key={category.category}>
-                  <div className="flex items-center gap-2">
-                    <CategoryBadge category={category.category} type="expense" className="text-[10px] sm:text-xs" showIcon={true} />
-                    <Text className="text-xs sm:text-sm truncate max-w-[100px] sm:max-w-none">{category.category}</Text>
+            {activeChartTab === "expenses" ? (
+              <>
+                {expensesByCategory.length > 0 ? (
+                  <>
+                    <div className="h-44 sm:h-60">
+                      <DonutChart
+                        data={expensesByCategory}
+                        category="amount"
+                        index="category"
+                        valueFormatter={formatCurrency}
+                        colors={expenseCategoryChartColors}
+                        className="h-full"
+                      />
+                    </div>
+                    <List className="mt-2 sm:mt-4">
+                      {expensesByCategory.slice(0, 3).map((category) => (
+                        <ListItem key={category.category}>
+                          <div className="flex items-center gap-2">
+                            <CategoryBadge category={category.category} type="expense" className="text-[10px] sm:text-xs" showIcon={true} />
+                            <Text className="text-xs sm:text-sm truncate max-w-[100px] sm:max-w-none">{category.category}</Text>
+                          </div>
+                          <div className="flex flex-col items-end">
+                            <span className="text-xs sm:text-sm font-medium">{formatCurrency(category.amount)}</span>
+                            <Text className="text-[10px] sm:text-xs text-muted-foreground">{category.percentage}%</Text>
+                          </div>
+                        </ListItem>
+                      ))}
+                    </List>
+                  </>
+                ) : (
+                  <div className="flex flex-col items-center justify-center h-56 py-6 text-center">
+                    <TrendingDown className="w-12 h-12 text-muted-foreground mb-2 opacity-50" />
+                    <Text className="text-sm text-muted-foreground">No hay gastos registrados</Text>
+                    <Text className="text-xs text-muted-foreground mt-1">Registra tu primer gasto para visualizar esta gráfica</Text>
+                    <Button variant="outline" size="sm" className="mt-4" onClick={handleNewExpense}>
+                      <ArrowDown className="h-4 w-4 mr-2 text-red-600" />
+                      Registrar Gasto
+                    </Button>
                   </div>
-                  <div className="flex flex-col items-end">
-                    <span className="text-xs sm:text-sm font-medium">{formatCurrency(category.amount)}</span>
-                    <Text className="text-[10px] sm:text-xs text-muted-foreground">{category.percentage}%</Text>
+                )}
+              </>
+            ) : (
+              <>
+                {incomesByCategory.length > 0 ? (
+                  <>
+                    <div className="h-44 sm:h-60">
+                      <DonutChart
+                        data={incomesByCategory}
+                        category="amount"
+                        index="category"
+                        valueFormatter={formatCurrency}
+                        colors={incomeCategoryChartColors}
+                        className="h-full"
+                      />
+                    </div>
+                    <List className="mt-2 sm:mt-4">
+                      {incomesByCategory.slice(0, 3).map((category) => (
+                        <ListItem key={category.category}>
+                          <div className="flex items-center gap-2">
+                            <CategoryBadge category={category.category} type="income" className="text-[10px] sm:text-xs" showIcon={true} />
+                            <Text className="text-xs sm:text-sm truncate max-w-[100px] sm:max-w-none">{category.category}</Text>
+                          </div>
+                          <div className="flex flex-col items-end">
+                            <span className="text-xs sm:text-sm font-medium">{formatCurrency(category.amount)}</span>
+                            <Text className="text-[10px] sm:text-xs text-muted-foreground">{category.percentage}%</Text>
+                          </div>
+                        </ListItem>
+                      ))}
+                    </List>
+                  </>
+                ) : (
+                  <div className="flex flex-col items-center justify-center h-56 py-6 text-center">
+                    <TrendingUp className="w-12 h-12 text-muted-foreground mb-2 opacity-50" />
+                    <Text className="text-sm text-muted-foreground">No hay ingresos registrados</Text>
+                    <Text className="text-xs text-muted-foreground mt-1">Registra tu primer ingreso para visualizar esta gráfica</Text>
+                    <Button variant="outline" size="sm" className="mt-4" onClick={handleNewIncome}>
+                      <ArrowUp className="h-4 w-4 mr-2 text-blue-600" />
+                      Registrar Ingreso
+                    </Button>
                   </div>
-                </ListItem>
-              ))}
-            </List>
+                )}
+              </>
+            )}
           </CardContent>
         </Card>
       </div>

@@ -20,7 +20,6 @@
       "purpose": "any maskable"
     }
   ],
-  "offline_enabled": true,
   "shortcuts": [
     {
       "name": "Ingresos",
@@ -35,4 +34,4 @@
       "url": "/dashboard/gastos"
     }
   ]
-} 
+}

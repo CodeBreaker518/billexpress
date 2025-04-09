@@ -29,6 +29,7 @@ import { getUserAccounts } from "@bill/_firebase/accountService";
 import { useAccountStore } from "@bill/_store/useAccountStore";
 import AccountManager from "@bill/_components/AccountManager";
 import { useToast } from "@bill/_components/ui/use-toast";
+import { FinancesPageSkeleton } from "@bill/_components/ui/skeletons";
 
 // Define types for income and expense items
 interface FinanceItem {
@@ -39,6 +40,7 @@ interface FinanceItem {
   date: Date;
   time?: string;
   accountId?: string;
+  userId: string;
 }
 
 interface Income extends Omit<FinanceItem, "date"> {
@@ -117,7 +119,6 @@ function FinancesPageContent() {
   // Estado para métricas
   const [totalIncomes, setTotalIncomes] = useState(0);
   const [totalExpenses, setTotalExpenses] = useState(0);
-  const [balance, setBalance] = useState(0);
   const [monthlyIncomes, setMonthlyIncomes] = useState(0);
   const [monthlyExpenses, setMonthlyExpenses] = useState(0);
   const [monthlyBalance, setMonthlyBalance] = useState(0);
@@ -130,32 +131,33 @@ function FinancesPageContent() {
     if (!user?.uid) return;
 
     try {
-      console.log("🔄 Iniciando recarga completa de datos financieros...");
       setAccountsLoading(true);
       setIncomesLoading(true);
       setExpensesLoading(true);
 
-      // 1. Cargar los datos de Firebase directamente en paralelo
-      const [updatedAccounts, updatedIncomes, updatedExpenses] = await Promise.all([getUserAccounts(user.uid), getUserIncomes(user.uid), getUserExpenses(user.uid)]);
+      // 1. Cargar todos los datos directamente desde Firebase
+      // IMPORTANTE: SIEMPRE confiamos en los datos de Firebase para los saldos
+      const freshAccounts = await getUserAccounts(user.uid);
 
-      // 2. Actualizar el estado global directamente con los datos de Firebase
-      setAccounts(updatedAccounts);
+      // 2. Luego cargamos ingresos y gastos en paralelo
+      const [updatedIncomes, updatedExpenses] = await Promise.all([getUserIncomes(user.uid), getUserExpenses(user.uid)]);
+
+      // 3. Actualizar el estado global con los datos frescos de Firebase
+      setAccounts(freshAccounts);
       setIncomes(updatedIncomes);
       setExpenses(updatedExpenses);
 
-      console.log(`✅ Datos actualizados: ${updatedAccounts.length} cuentas, ${updatedIncomes.length} ingresos, ${updatedExpenses.length} gastos`);
-
-      // 3. Mostrar confirmación visual al usuario
+      // 4. Mostrar confirmación visual al usuario
       toast({
         title: "Datos actualizados",
-        description: "Todos los datos financieros han sido actualizados",
+        description: "Todos los datos financieros han sido actualizados desde Firebase",
         variant: "default",
       });
     } catch (error) {
-      console.error("❌ Error recargando datos financieros:", error);
+      console.error("Error cargando datos financieros:", error);
       toast({
-        title: "Error de sincronización",
-        description: "No se pudieron actualizar los datos. Intenta de nuevo.",
+        title: "Error",
+        description: "No se pudieron cargar los datos financieros",
         variant: "destructive",
       });
     } finally {
@@ -163,7 +165,7 @@ function FinancesPageContent() {
       setIncomesLoading(false);
       setExpensesLoading(false);
     }
-  }, [user, setAccounts, setIncomes, setExpenses, setAccountsLoading, setIncomesLoading, setExpensesLoading, toast]);
+  }, [user, toast, setAccounts, setIncomes, setExpenses]);
 
   // Reemplazar la función handleReloadAccountsAndBalance por una más simple
   const handleReloadData = reloadAllFinancialData;
@@ -172,7 +174,6 @@ function FinancesPageContent() {
   useEffect(() => {
     if (!user) return;
 
-    console.log("⚠️ Cargando datos financieros iniciales...");
     reloadAllFinancialData();
   }, [user, reloadAllFinancialData]);
 
@@ -423,10 +424,6 @@ function FinancesPageContent() {
     setTotalIncomes(incomesTotal);
     setTotalExpenses(expensesTotal);
 
-    // Calcular balance basado en los saldos de todas las cuentas
-    const accountsBalance = accounts.reduce((total, account) => total + account.balance, 0);
-    setBalance(accountsBalance);
-
     // Obtener el mes actual
     const currentDate = new Date();
     const firstDayOfMonth = startOfMonth(currentDate);
@@ -572,13 +569,6 @@ function FinancesPageContent() {
     }
   }, [incomes, expenses, searchTerm]);
 
-  // Escuchar cambios en las cuentas para actualizar la UI automáticamente
-  useEffect(() => {
-    // Calcular balance basado en los saldos de todas las cuentas
-    const accountsBalance = accounts.reduce((total, account) => total + account.balance, 0);
-    setBalance(accountsBalance);
-  }, [accounts]); // Esta dependencia hará que se recalcule el balance cuando cambien las cuentas
-
   // Manejar cambios en el formulario
   const handleFormChange = (field: string, value: unknown) => {
     setCurrentItem({ ...currentItem, [field]: value });
@@ -682,6 +672,11 @@ function FinancesPageContent() {
     negativeBalance: "#ef4444", // Rojo para balance negativo
   };
 
+  // Buscar la condición de carga y reemplazarla por el esqueleto
+  if (incomesLoading || accountsLoading) {
+    return <FinancesPageSkeleton />;
+  }
+
   return (
     <div className="flex flex-col p-4 gap-4">
       <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4 mb-6">
@@ -698,336 +693,302 @@ function FinancesPageContent() {
         </div>
       </div>
 
-      <div className="flex flex-col lg:flex-row gap-6">
-        {/* Panel izquierdo - Cuentas y Balance */}
-        <div className="w-full lg:w-1/3 space-y-6">
-          {/* Gestor de cuentas */}
-          <div className="bg-card rounded-lg p-4 border shadow-sm">
-            <h2 className="text-xl font-semibold mb-4">{translate("Cuentas")}</h2>
-            {!user ? (
-              <div className="p-4 bg-muted/50 rounded-md text-center">
-                <p className="text-sm text-muted-foreground">Inicia sesión para gestionar tus cuentas</p>
-              </div>
-            ) : accountsLoading ? (
-              <div className="flex justify-center p-6">
-                <Loader2 className="h-8 w-8 animate-spin text-primary" />
-              </div>
-            ) : (
-              <>
-                <div className="flex justify-between items-center mb-3">
-                  <p className="text-xs text-muted-foreground">
-                    {accounts.length} {accounts.length === 1 ? "cuenta disponible" : "cuentas disponibles"}
-                  </p>
-                  <Button
-                    variant={accountsLoading ? "secondary" : "outline"}
-                    size="sm"
-                    onClick={handleReloadData}
-                    disabled={accountsLoading}
-                    title="Forzar actualización de saldos"
-                    className="relative">
-                    <RefreshCw className={`h-4 w-4 mr-2 ${accountsLoading ? "animate-spin" : ""}`} />
-                    {accountsLoading ? "Actualizando..." : "Actualizar saldos"}
-                    {accountsLoading && (
-                      <span className="absolute -top-1 -right-1 flex h-3 w-3">
-                        <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-primary opacity-75"></span>
-                        <span className="relative inline-flex rounded-full h-3 w-3 bg-primary"></span>
-                      </span>
-                    )}
-                  </Button>
-                </div>
-                <AccountManager userId={user.uid} onReloadAccounts={handleReloadData} isLoading={accountsLoading} />
-              </>
-            )}
-          </div>
-
-          {/* Tarjeta de Saldos por Cuenta */}
-          <Card className="shadow-md">
-            <CardHeader className="pb-2">
-              <CardTitle className="text-xl">{translate("Resumen")}</CardTitle>
-              <CardDescription>{translate("Desglose de ingresos y gastos")}</CardDescription>
-            </CardHeader>
-            <CardContent>
-              <div className="grid gap-4">
-                <div className="grid grid-cols-2 gap-4">
-                  <div>
-                    <p className="text-sm font-medium text-muted-foreground">{translate("Ingresos")}</p>
-                    <p className="text-xl font-bold text-green-500">{formatCurrency(totalIncomes)}</p>
-                  </div>
-                  <div>
-                    <p className="text-sm font-medium text-muted-foreground">{translate("Gastos")}</p>
-                    <p className="text-xl font-bold text-red-500">{formatCurrency(totalExpenses)}</p>
-                  </div>
-                </div>
-
-                <div className="pt-2 border-t">
-                  <p className="text-sm font-medium text-muted-foreground">{translate("Balance total")}</p>
-                  <p className="text-2xl font-bold" style={{ color: balance >= 0 ? financialTypeColors.balance : financialTypeColors.negativeBalance }}>
-                    {formatCurrency(balance)}
-                  </p>
-                </div>
-              </div>
-            </CardContent>
-          </Card>
-        </div>
-
-        {/* Panel derecho - Gráficos y Transacciones */}
-        <div className="w-full lg:w-2/3">
-          {/* Resumen financiero */}
-          <div className="mb-8">
-            <h2 className="text-xl font-semibold mb-4">{translate("Resumen Financiero")}</h2>
-            <div className="grid grid-cols-1 sm:grid-cols-3 gap-6">
-              {/* Ingresos del mes */}
-              <StatsCard
-                title={translate("Ingresos este mes")}
-                value={formatCurrency(monthlyIncomes)}
-                valueClassName="text-blue-600 dark:text-blue-400"
-                subValue={formatPercentage(monthlyIncomes, totalIncomes)}
-                subTitle={translate("del total")}
-                icon={<TrendingUp className="h-6 w-6 text-blue-700 dark:text-blue-400" />}
-                iconContainerClassName="bg-blue-100 dark:bg-blue-900/30"
-                decorationColor="blue"
-                className="card-hover shadow-soft"
-              />
-
-              {/* Gastos del mes */}
-              <StatsCard
-                title={translate("Gastos este mes")}
-                value={formatCurrency(monthlyExpenses)}
-                valueClassName="text-red-600 dark:text-red-400"
-                subValue={formatPercentage(monthlyExpenses, totalExpenses)}
-                subTitle={translate("del total")}
-                icon={<TrendingDown className="h-6 w-6 text-red-700 dark:text-red-400" />}
-                iconContainerClassName="bg-red-100 dark:bg-red-900/30"
-                decorationColor="red"
-                className="card-hover shadow-soft"
-              />
-
-              <StatsCard
-                title={translate("Balance este mes")}
-                value={formatCurrency(monthlyBalance)}
-                valueClassName={monthlyBalance >= 0 ? "text-green-600 dark:text-green-400" : "text-red-600 dark:text-red-400"}
-                subValue={formatPercentage(Math.abs(monthlyBalance), Math.max(monthlyIncomes, monthlyExpenses))}
-                subTitle={translate("del total")}
-                icon={monthlyBalance >= 0 ? <ArrowUp className="h-5 w-5 text-green-600 dark:text-green-400" /> : <ArrowDown className="h-5 w-5 text-red-500 dark:text-red-400" />}
-                iconContainerClassName={`bg-${monthlyBalance >= 0 ? "green" : "red"}-100 dark:bg-${monthlyBalance >= 0 ? "green" : "red"}-900/30`}
-                decorationColor={monthlyBalance >= 0 ? "green" : "red"}
-                className="card-hover shadow-soft"
-              />
+      {/* Panel con estructura vertical */}
+      <div className="space-y-6">
+        {/* Gestor de cuentas */}
+        <div className="bg-card rounded-lg p-4 border shadow-sm">
+          <h2 className="text-xl font-semibold mb-4">{translate("Cuentas")}</h2>
+          {!user ? (
+            <div className="p-4 bg-muted/50 rounded-md text-center">
+              <p className="text-sm text-muted-foreground">Inicia sesión para gestionar tus cuentas</p>
             </div>
-          </div>
-
-          {/* Gráfico por mes */}
-          <Card className="shadow-soft mb-8">
-            <CardHeader>
-              <CardTitle>Evolución Mensual</CardTitle>
-            </CardHeader>
-            <CardContent>
-              <BarChart
-                className="mt-4 h-72 chart-animate"
-                data={financesByMonth}
-                index="month"
-                categories={["Ingresos", "Gastos", "Balance"]}
-                colors={[
-                  financialTypeColors.income,
-                  financialTypeColors.expense,
-                  // Determinar el color del balance según los datos
-                  financesByMonth.some((item) => item.Balance < 0) ? financialTypeColors.negativeBalance : financialTypeColors.balance,
-                ]}
-                valueFormatter={formatCurrency}
-                stack={false}
-                yAxisWidth={80}
-              />
-            </CardContent>
-          </Card>
-
-          {/* Pestañas para separar vistas */}
-          <TabGroup index={activeTab} onIndexChange={setActiveTab}>
-            <TabList className="w-full">
-              <Tab className="w-full text-sm" value="ingresos">
-                <TrendingUp className="h-4 w-4 mr-2 text-blue-600 dark:text-blue-400" />
-                Ingresos
-              </Tab>
-              <Tab className="w-full text-sm" value="gastos">
-                <TrendingDown className="h-4 w-4 mr-2 text-red-600 dark:text-red-400" />
-                Gastos
-              </Tab>
-            </TabList>
-
-            <TabPanels>
-              {/* Panel de ingresos */}
-              <TabPanel value="ingresos">
-                <div className="mt-4 space-y-6">
-                  {/* Buscador */}
-                  <SearchBar searchTerm={searchTerm} onSearchChange={setSearchTerm} onAddNew={handleNewIncome} placeholder="Buscar ingresos..." addButtonLabel="Nuevo" />
-
-                  {/* Contenido condicional */}
-                  {incomes.length === 0 && !incomesLoading ? (
-                    <Card className="shadow-soft">
-                      <CardContent className="py-12 text-center">
-                        <Text>No hay ingresos registrados.</Text>
-                        <Button className="mt-4" onClick={handleNewIncome}>
-                          <Plus className="h-4 w-4 mr-2" />
-                          Registrar Primer Ingreso
-                        </Button>
-                      </CardContent>
-                    </Card>
-                  ) : (
-                    <>
-                      {/* Tabla de ingresos */}
-                      <Card className="shadow-soft">
-                        <CardHeader className="px-4 sm:px-6">
-                          <CardTitle className="text-base sm:text-lg">Historial de Ingresos</CardTitle>
-                        </CardHeader>
-                        <CardContent className="px-2 sm:px-6">
-                          <FinanceTable
-                            items={
-                              Array.isArray(filteredIncomes)
-                                ? filteredIncomes.map((item) => ({
-                                    ...item,
-                                    userId: user?.uid || "",
-                                    date: new Date(item.date),
-                                  }))
-                                : []
-                            }
-                            loading={incomesLoading}
-                            onEdit={(item) => handleEdit(item, "income")}
-                            onDelete={handleDeleteIncome}
-                            type="income"
-                          />
-                        </CardContent>
-                      </Card>
-
-                      {/* Distribución por categoría */}
-                      <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                        <Card className="shadow-soft card-hover">
-                          <CardHeader className="px-4 sm:px-6">
-                            <CardTitle className="text-base sm:text-lg">Distribución por Categoría</CardTitle>
-                          </CardHeader>
-                          <CardContent className="px-2 sm:px-6">
-                            <DonutChart
-                              className="mt-2 h-44 sm:h-52 chart-animate"
-                              data={incomesByCategory}
-                              category="amount"
-                              index="category"
-                              valueFormatter={formatCurrency}
-                              variant="pie"
-                              colors={incomeCategoryColors}
-                            />
-                          </CardContent>
-                        </Card>
-
-                        <Card className="shadow-soft card-hover">
-                          <CardHeader className="px-4 sm:px-6">
-                            <CardTitle className="text-base sm:text-lg">Desglose por Categoría</CardTitle>
-                          </CardHeader>
-                          <CardContent className="px-2 sm:px-6">
-                            <List className="mt-2">
-                              {incomesByCategory.slice(0, 5).map((item) => (
-                                <ListItem key={item.category}>
-                                  <div className="flex items-center space-x-2">
-                                    <CategoryBadge category={item.category} type="income" showIcon={true} />
-                                    <span className="text-xs sm:text-sm text-blue-600 dark:text-blue-400">{formatCurrency(item.amount)}</span>
-                                  </div>
-                                  <Text className="text-xs sm:text-sm">{item.percentage}%</Text>
-                                </ListItem>
-                              ))}
-                            </List>
-                          </CardContent>
-                        </Card>
-                      </div>
-                    </>
+          ) : accountsLoading ? (
+            <div className="flex justify-center p-6">
+              <Loader2 className="h-8 w-8 animate-spin text-primary" />
+            </div>
+          ) : (
+            <>
+              <div className="flex justify-between items-center mb-3">
+                <p className="text-xs text-muted-foreground">
+                  {accounts.length} {accounts.length === 1 ? "cuenta disponible" : "cuentas disponibles"}
+                </p>
+                <Button
+                  variant={accountsLoading ? "secondary" : "outline"}
+                  size="sm"
+                  onClick={handleReloadData}
+                  disabled={accountsLoading}
+                  title="Forzar actualización de saldos"
+                  className="relative">
+                  <RefreshCw className={`h-4 w-4 mr-2 ${accountsLoading ? "animate-spin" : ""}`} />
+                  {accountsLoading ? "Actualizando..." : "Actualizar saldos"}
+                  {accountsLoading && (
+                    <span className="absolute -top-1 -right-1 flex h-3 w-3">
+                      <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-primary opacity-75"></span>
+                      <span className="relative inline-flex rounded-full h-3 w-3 bg-primary"></span>
+                    </span>
                   )}
-                </div>
-              </TabPanel>
-
-              {/* Panel de gastos */}
-              <TabPanel value="gastos">
-                <div className="mt-4 space-y-6">
-                  {/* Buscador */}
-                  <SearchBar searchTerm={searchTerm} onSearchChange={setSearchTerm} onAddNew={handleNewExpense} placeholder="Buscar gastos..." addButtonLabel="Nuevo" />
-
-                  {/* Contenido condicional */}
-                  {expenses.length === 0 && !expensesLoading ? (
-                    <Card className="shadow-soft">
-                      <CardContent className="py-12 text-center">
-                        <Text>No hay gastos registrados.</Text>
-                        <Button className="mt-4" onClick={handleNewExpense}>
-                          <Plus className="h-4 w-4 mr-2" />
-                          Registrar Primer Gasto
-                        </Button>
-                      </CardContent>
-                    </Card>
-                  ) : (
-                    <>
-                      {/* Tabla de gastos */}
-                      <Card className="shadow-soft">
-                        <CardHeader className="px-4 sm:px-6">
-                          <CardTitle className="text-base sm:text-lg">Historial de Gastos</CardTitle>
-                        </CardHeader>
-                        <CardContent className="px-2 sm:px-6">
-                          <FinanceTable
-                            items={
-                              Array.isArray(filteredExpenses)
-                                ? filteredExpenses.map((item) => ({
-                                    ...item,
-                                    userId: user?.uid || "",
-                                    date: new Date(item.date),
-                                  }))
-                                : []
-                            }
-                            loading={expensesLoading}
-                            onEdit={(item) => handleEdit(item, "expense")}
-                            onDelete={handleDeleteExpense}
-                            type="expense"
-                          />
-                        </CardContent>
-                      </Card>
-
-                      {/* Distribución por categoría */}
-                      <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                        <Card className="shadow-soft card-hover">
-                          <CardHeader className="px-4 sm:px-6">
-                            <CardTitle className="text-base sm:text-lg">Distribución por Categoría</CardTitle>
-                          </CardHeader>
-                          <CardContent className="px-2 sm:px-6">
-                            <DonutChart
-                              className="mt-2 h-44 sm:h-52 chart-animate"
-                              data={expensesByCategory}
-                              category="amount"
-                              index="category"
-                              valueFormatter={formatCurrency}
-                              variant="pie"
-                              colors={expenseCategoryColors}
-                            />
-                          </CardContent>
-                        </Card>
-
-                        <Card className="shadow-soft card-hover">
-                          <CardHeader className="px-4 sm:px-6">
-                            <CardTitle className="text-base sm:text-lg">Desglose por Categoría</CardTitle>
-                          </CardHeader>
-                          <CardContent className="px-2 sm:px-6">
-                            <List className="mt-2">
-                              {expensesByCategory.slice(0, 5).map((item) => (
-                                <ListItem key={item.category}>
-                                  <div className="flex items-center space-x-2">
-                                    <CategoryBadge category={item.category} type="expense" showIcon={true} />
-                                    <span className="text-xs sm:text-sm text-red-600 dark:text-red-400">{formatCurrency(item.amount)}</span>
-                                  </div>
-                                  <Text className="text-xs sm:text-sm">{item.percentage}%</Text>
-                                </ListItem>
-                              ))}
-                            </List>
-                          </CardContent>
-                        </Card>
-                      </div>
-                    </>
-                  )}
-                </div>
-              </TabPanel>
-            </TabPanels>
-          </TabGroup>
+                </Button>
+              </div>
+              <AccountManager userId={user.uid} onReloadAccounts={handleReloadData} isLoading={accountsLoading} />
+            </>
+          )}
         </div>
+
+        {/* Resumen financiero */}
+        <div className="mb-4">
+          <h2 className="text-xl font-semibold mb-4">{translate("Resumen Financiero")}</h2>
+          <div className="grid grid-cols-1 sm:grid-cols-3 gap-6">
+            {/* Ingresos del mes */}
+            <StatsCard
+              title={translate("Ingresos este mes")}
+              value={formatCurrency(monthlyIncomes)}
+              valueClassName="text-blue-600 dark:text-blue-400"
+              subValue={formatPercentage(monthlyIncomes, totalIncomes)}
+              subTitle={translate("del total")}
+              icon={<TrendingUp className="h-6 w-6 text-blue-700 dark:text-blue-400" />}
+              iconContainerClassName="bg-blue-100 dark:bg-blue-900/30"
+              decorationColor="blue"
+              className="card-hover shadow-soft"
+            />
+
+            {/* Gastos del mes */}
+            <StatsCard
+              title={translate("Gastos este mes")}
+              value={formatCurrency(monthlyExpenses)}
+              valueClassName="text-red-600 dark:text-red-400"
+              subValue={formatPercentage(monthlyExpenses, totalExpenses)}
+              subTitle={translate("del total")}
+              icon={<TrendingDown className="h-6 w-6 text-red-700 dark:text-red-400" />}
+              iconContainerClassName="bg-red-100 dark:bg-red-900/30"
+              decorationColor="red"
+              className="card-hover shadow-soft"
+            />
+
+            <StatsCard
+              title={translate("Balance este mes")}
+              value={formatCurrency(monthlyBalance)}
+              valueClassName={monthlyBalance >= 0 ? "text-green-600 dark:text-green-400" : "text-red-600 dark:text-red-400"}
+              subValue={formatPercentage(Math.abs(monthlyBalance), Math.max(monthlyIncomes, monthlyExpenses))}
+              subTitle={translate("del total")}
+              icon={monthlyBalance >= 0 ? <ArrowUp className="h-5 w-5 text-green-600 dark:text-green-400" /> : <ArrowDown className="h-5 w-5 text-red-500 dark:text-red-400" />}
+              iconContainerClassName={`bg-${monthlyBalance >= 0 ? "green" : "red"}-100 dark:bg-${monthlyBalance >= 0 ? "green" : "red"}-900/30`}
+              decorationColor={monthlyBalance >= 0 ? "green" : "red"}
+              className="card-hover shadow-soft"
+            />
+          </div>
+        </div>
+
+        {/* Gráfico por mes */}
+        <Card className="shadow-soft mb-8">
+          <CardHeader>
+            <CardTitle>Evolución Mensual</CardTitle>
+          </CardHeader>
+          <CardContent>
+            <BarChart
+              className="mt-4 h-72 chart-animate"
+              data={financesByMonth}
+              index="month"
+              categories={["Ingresos", "Gastos", "Balance"]}
+              colors={[
+                financialTypeColors.income,
+                financialTypeColors.expense,
+                // Determinar el color del balance según los datos
+                financesByMonth.some((item) => item.Balance < 0) ? financialTypeColors.negativeBalance : financialTypeColors.balance,
+              ]}
+              valueFormatter={formatCurrency}
+              stack={false}
+              yAxisWidth={80}
+            />
+          </CardContent>
+        </Card>
+
+        {/* Pestañas para separar vistas */}
+        <TabGroup index={activeTab} onIndexChange={setActiveTab}>
+          <TabList className="w-full">
+            <Tab className="w-full text-sm" value="ingresos">
+              <TrendingUp className="h-4 w-4 mr-2 text-blue-600 dark:text-blue-400" />
+              Ingresos
+            </Tab>
+            <Tab className="w-full text-sm" value="gastos">
+              <TrendingDown className="h-4 w-4 mr-2 text-red-600 dark:text-red-400" />
+              Gastos
+            </Tab>
+          </TabList>
+
+          <TabPanels>
+            {/* Panel de ingresos */}
+            <TabPanel value="ingresos">
+              <div className="mt-4 space-y-6">
+                {/* Buscador */}
+                <SearchBar searchTerm={searchTerm} onSearchChange={setSearchTerm} onAddNew={handleNewIncome} placeholder="Buscar ingresos..." addButtonLabel="Nuevo" />
+
+                {/* Contenido condicional */}
+                {incomes.length === 0 && !incomesLoading ? (
+                  <Card className="shadow-soft">
+                    <CardContent className="py-12 text-center">
+                      <Text>No hay ingresos registrados.</Text>
+                      <Button className="mt-4" onClick={handleNewIncome}>
+                        <Plus className="h-4 w-4 mr-2" />
+                        Registrar Primer Ingreso
+                      </Button>
+                    </CardContent>
+                  </Card>
+                ) : (
+                  <>
+                    {/* Tabla de ingresos */}
+                    <Card className="shadow-soft">
+                      <CardHeader className="px-4 sm:px-6">
+                        <CardTitle className="text-base sm:text-lg">Historial de Ingresos</CardTitle>
+                      </CardHeader>
+                      <CardContent className="px-2 sm:px-6">
+                        <FinanceTable
+                          items={
+                            Array.isArray(filteredIncomes)
+                              ? filteredIncomes.map((item) => ({
+                                  ...item,
+                                  userId: user?.uid || "",
+                                  date: new Date(item.date),
+                                }))
+                              : []
+                          }
+                          loading={incomesLoading}
+                          onEdit={(item) => handleEdit(item, "income")}
+                          onDelete={handleDeleteIncome}
+                          type="income"
+                        />
+                      </CardContent>
+                    </Card>
+
+                    {/* Distribución por categoría */}
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                      <Card className="shadow-soft card-hover">
+                        <CardHeader className="px-4 sm:px-6">
+                          <CardTitle className="text-base sm:text-lg">Distribución por Categoría</CardTitle>
+                        </CardHeader>
+                        <CardContent className="px-2 sm:px-6">
+                          <DonutChart
+                            className="mt-2 h-44 sm:h-52 chart-animate"
+                            data={incomesByCategory}
+                            category="amount"
+                            index="category"
+                            valueFormatter={formatCurrency}
+                            variant="pie"
+                            colors={incomeCategoryColors}
+                          />
+                        </CardContent>
+                      </Card>
+
+                      <Card className="shadow-soft card-hover">
+                        <CardHeader className="px-4 sm:px-6">
+                          <CardTitle className="text-base sm:text-lg">Desglose por Categoría</CardTitle>
+                        </CardHeader>
+                        <CardContent className="px-2 sm:px-6">
+                          <List className="mt-2">
+                            {incomesByCategory.slice(0, 5).map((item) => (
+                              <ListItem key={item.category}>
+                                <div className="flex items-center space-x-2">
+                                  <CategoryBadge category={item.category} type="income" showIcon={true} />
+                                  <span className="text-xs sm:text-sm text-blue-600 dark:text-blue-400">{formatCurrency(item.amount)}</span>
+                                </div>
+                                <Text className="text-xs sm:text-sm">{item.percentage}%</Text>
+                              </ListItem>
+                            ))}
+                          </List>
+                        </CardContent>
+                      </Card>
+                    </div>
+                  </>
+                )}
+              </div>
+            </TabPanel>
+
+            {/* Panel de gastos */}
+            <TabPanel value="gastos">
+              <div className="mt-4 space-y-6">
+                {/* Buscador */}
+                <SearchBar searchTerm={searchTerm} onSearchChange={setSearchTerm} onAddNew={handleNewExpense} placeholder="Buscar gastos..." addButtonLabel="Nuevo" />
+
+                {/* Contenido condicional */}
+                {expenses.length === 0 && !expensesLoading ? (
+                  <Card className="shadow-soft">
+                    <CardContent className="py-12 text-center">
+                      <Text>No hay gastos registrados.</Text>
+                      <Button className="mt-4" onClick={handleNewExpense}>
+                        <Plus className="h-4 w-4 mr-2" />
+                        Registrar Primer Gasto
+                      </Button>
+                    </CardContent>
+                  </Card>
+                ) : (
+                  <>
+                    {/* Tabla de gastos */}
+                    <Card className="shadow-soft">
+                      <CardHeader className="px-4 sm:px-6">
+                        <CardTitle className="text-base sm:text-lg">Historial de Gastos</CardTitle>
+                      </CardHeader>
+                      <CardContent className="px-2 sm:px-6">
+                        <FinanceTable
+                          items={
+                            Array.isArray(filteredExpenses)
+                              ? filteredExpenses.map((item) => ({
+                                  ...item,
+                                  userId: user?.uid || "",
+                                  date: new Date(item.date),
+                                }))
+                              : []
+                          }
+                          loading={expensesLoading}
+                          onEdit={(item) => handleEdit(item, "expense")}
+                          onDelete={handleDeleteExpense}
+                          type="expense"
+                        />
+                      </CardContent>
+                    </Card>
+
+                    {/* Distribución por categoría */}
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                      <Card className="shadow-soft card-hover">
+                        <CardHeader className="px-4 sm:px-6">
+                          <CardTitle className="text-base sm:text-lg">Distribución por Categoría</CardTitle>
+                        </CardHeader>
+                        <CardContent className="px-2 sm:px-6">
+                          <DonutChart
+                            className="mt-2 h-44 sm:h-52 chart-animate"
+                            data={expensesByCategory}
+                            category="amount"
+                            index="category"
+                            valueFormatter={formatCurrency}
+                            variant="pie"
+                            colors={expenseCategoryColors}
+                          />
+                        </CardContent>
+                      </Card>
+
+                      <Card className="shadow-soft card-hover">
+                        <CardHeader className="px-4 sm:px-6">
+                          <CardTitle className="text-base sm:text-lg">Desglose por Categoría</CardTitle>
+                        </CardHeader>
+                        <CardContent className="px-2 sm:px-6">
+                          <List className="mt-2">
+                            {expensesByCategory.slice(0, 5).map((item) => (
+                              <ListItem key={item.category}>
+                                <div className="flex items-center space-x-2">
+                                  <CategoryBadge category={item.category} type="expense" showIcon={true} />
+                                  <span className="text-xs sm:text-sm text-red-600 dark:text-red-400">{formatCurrency(item.amount)}</span>
+                                </div>
+                                <Text className="text-xs sm:text-sm">{item.percentage}%</Text>
+                              </ListItem>
+                            ))}
+                          </List>
+                        </CardContent>
+                      </Card>
+                    </div>
+                  </>
+                )}
+              </div>
+            </TabPanel>
+          </TabPanels>
+        </TabGroup>
       </div>
 
       {/* Modal de formulario usando DrawerDialog para responsiveness */}

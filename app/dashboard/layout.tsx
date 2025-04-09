@@ -2,16 +2,12 @@
 
 import { useState, useEffect } from "react";
 import Link from "next/link";
-import Image from "next/image";
 import { usePathname, useRouter } from "next/navigation";
-import { LayoutDashboard, BarChart2, Settings, LogOut, Menu, X, DollarSign, User, ChevronDown } from "lucide-react";
+import { LayoutDashboard, BarChart2, LogOut, Menu, DollarSign, User } from "lucide-react";
 import { useAuth } from "@bill/_hooks/useAuth";
 import { useAuthStore } from "@bill/_store/useAuthStore";
-import { useThemeStore } from "@bill/_store/useThemeStore";
 import AuthGuard from "@bill/_components/AuthGuard";
 import ThemeToggle from "@bill/_components/ThemeToggle";
-import ConnectivityStatus from "@bill/_components/ConnectivityStatus";
-import SyncManager from "@bill/_components/SyncManager";
 
 // Importación de componentes de shadcn-ui
 import { Button } from "@bill/_components/ui/button";
@@ -34,26 +30,17 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
     const cleanupAccounts = async () => {
       if (user && !cleanedUpAccounts) {
         try {
-          // Importar la función dinámicamente para evitar problemas de importación circular
-          const { cleanupDuplicateAccounts } = await import("@bill/_firebase/accountService");
-          
-          // Limpiar cuentas duplicadas silenciosamente
-          const deletedCount = await cleanupDuplicateAccounts(user.uid);
-          
-          // Solo registro de depuración en consola, sin notificaciones al usuario
-          if (deletedCount > 0) {
-            console.log(`✅ Se eliminaron ${deletedCount} cuentas "Efectivo" duplicadas automáticamente`);
-          }
-          
+          // Ya no es necesario limpiar cuentas duplicadas con el nuevo sistema
+
           // Marcar como limpiado para no volver a ejecutar
           setCleanedUpAccounts(true);
         } catch (error) {
           // Solo log para desarrollo, el usuario no necesita ver este error
-          console.error("Error en limpieza automática de cuentas duplicadas:", error);
+          console.error("Error en verificación automática de cuentas:", error);
         }
       }
     };
-    
+
     // Ejecutar limpieza silenciosa de cuentas
     cleanupAccounts();
   }, [user, cleanedUpAccounts]);
@@ -65,19 +52,15 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
         try {
           // Importar las funciones necesarias
           const { getUserAccounts, addAccount } = await import("@bill/_firebase/accountService");
-          
+
           // Obtener cuentas del usuario
           const accounts = await getUserAccounts(user.uid);
-          
+
           // Verificar si existe una cuenta Efectivo
-          const hasDefaultAccount = accounts.some(
-            acc => acc.name === "Efectivo" && acc.isDefault
-          );
-          
+          const hasDefaultAccount = accounts.some((acc) => acc.name === "Efectivo" && acc.isDefault);
+
           // Si no existe, crear la cuenta Efectivo por defecto
           if (!hasDefaultAccount) {
-            console.log("⚠️ No se encontró cuenta Efectivo por defecto, creando una");
-            
             await addAccount({
               name: "Efectivo",
               color: "#22c55e", // Verde
@@ -85,8 +68,6 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
               userId: user.uid,
               isDefault: true,
             });
-            
-            console.log("✅ Cuenta Efectivo creada exitosamente para usuario existente");
           }
         } catch (error) {
           console.error("Error al verificar cuenta Efectivo por defecto:", error);
@@ -95,7 +76,7 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
         }
       }
     };
-    
+
     ensureDefaultAccount();
   }, [user, defaultAccountChecked]);
 
@@ -226,11 +207,6 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
               </SheetContent>
             </Sheet>
 
-            {/* Conectividad */}
-            <div className="hidden sm:block">
-              <ConnectivityStatus />
-            </div>
-
             <div className="ml-auto flex items-center gap-2">
               {/* Theme toggle */}
               <ThemeToggle />
@@ -275,20 +251,10 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
           </header>
 
           <main className="flex-1 overflow-auto">
-            <div className="container p-4 py-6">
-              {/* Status de conectividad móvil */}
-              <div className="sm:hidden mb-4">
-                <ConnectivityStatus />
-              </div>
-
-              {children}
-            </div>
+            <div className="container p-4 py-6">{children}</div>
           </main>
         </div>
       </div>
-
-      {/* Componente invisible que gestiona la sincronización */}
-      <SyncManager />
     </AuthGuard>
   );
 }
