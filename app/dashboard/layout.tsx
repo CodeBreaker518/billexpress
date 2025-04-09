@@ -31,7 +31,28 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
     const cleanupAccounts = async () => {
       if (user && !cleanedUpAccounts) {
         try {
-          // Ya no es necesario limpiar cuentas duplicadas con el nuevo sistema
+          // Importar las funciones necesarias
+          const { getUserAccounts } = await import("@bill/_firebase/accountService");
+          const { db } = await import("@bill/_firebase/config");
+          const { doc, updateDoc } = await import("firebase/firestore");
+
+          // Obtener cuentas del usuario
+          const accounts = await getUserAccounts(user.uid);
+
+          // Verificar si hay múltiples cuentas predeterminadas
+          const defaultAccounts = accounts.filter((acc) => acc.isDefault);
+
+          if (defaultAccounts.length > 1) {
+            console.log("Se encontraron cuentas predeterminadas duplicadas. Corrigiendo automáticamente...");
+
+            // Mantener la primera cuenta predeterminada y quitar la marca de las demás
+            for (let i = 1; i < defaultAccounts.length; i++) {
+              const accountRef = doc(db, "accounts", defaultAccounts[i].id);
+              await updateDoc(accountRef, {
+                isDefault: false,
+              });
+            }
+          }
 
           // Marcar como limpiado para no volver a ejecutar
           setCleanedUpAccounts(true);

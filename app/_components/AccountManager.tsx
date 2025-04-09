@@ -155,6 +155,7 @@ export default function AccountManager({ userId, onReloadAccounts, isLoading }: 
     orphanedCount: number;
     orphanedIncomesCount: number;
     orphanedExpensesCount: number;
+    isDuplicateDefault?: boolean;
   } | null>(null);
   const [isResetBalanceOpen, setIsResetBalanceOpen] = useState(false);
 
@@ -294,6 +295,7 @@ export default function AccountManager({ userId, onReloadAccounts, isLoading }: 
           orphanedCount,
           orphanedIncomesCount,
           orphanedExpensesCount,
+          isDuplicateDefault: isDuplicateDefault, // Guardamos esta información para usarla durante la eliminación
         });
 
         setDeleteConfirmOpen(true);
@@ -307,6 +309,7 @@ export default function AccountManager({ userId, onReloadAccounts, isLoading }: 
           orphanedCount: 0,
           orphanedIncomesCount: 0,
           orphanedExpensesCount: 0,
+          isDuplicateDefault: isDuplicateDefault, // Guardamos esta información para usarla durante la eliminación
         });
         setDeleteConfirmOpen(true);
       }
@@ -320,13 +323,27 @@ export default function AccountManager({ userId, onReloadAccounts, isLoading }: 
 
     try {
       const { deleteFinancesByAccountId } = await import("@bill/_firebase/financeService");
+      const { deleteDoc, doc } = await import("firebase/firestore");
+      const { db } = await import("@bill/_firebase/config");
 
       // Eliminar todas las transacciones asociadas a la cuenta
       const { deletedIncomesCount, deletedExpensesCount } = await deleteFinancesByAccountId(accountToDelete.id);
       const totalDeleted = deletedIncomesCount + deletedExpensesCount;
 
-      // Eliminar la cuenta
-      await deleteAccount(accountToDelete.id);
+      // Si es una cuenta predeterminada duplicada, eliminamos directamente el documento
+      // para evitar los controles que impiden eliminar cuentas predeterminadas
+      if (accountToDelete.isDuplicateDefault) {
+        // Eliminar directamente sin usar la función estándar
+        const accountRef = doc(db, "accounts", accountToDelete.id);
+        await deleteDoc(accountRef);
+
+        // Actualizar directamente el estado global
+        const { deleteAccount: deleteAccountFromStore } = useAccountStore.getState();
+        deleteAccountFromStore(accountToDelete.id);
+      } else {
+        // Eliminar la cuenta usando la función estándar
+        await deleteAccount(accountToDelete.id);
+      }
 
       // Recargar cuentas con recálculo automático de saldos
       await reloadAccountsWithRecalculation();
