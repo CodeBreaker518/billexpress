@@ -14,6 +14,7 @@ import { Alert, AlertDescription } from "@bill/_components/ui/alert";
 import { useToast } from "@bill/_components/ui/use-toast";
 import { useAccountStore } from "@bill/_store/useAccountStore";
 import { Account, addAccount, updateAccount, deleteAccount, transferBetweenAccounts, getUserAccounts } from "@bill/_firebase/accountService";
+import { Separator } from "@bill/_components/ui/separator";
 
 interface AccountManagerProps {
   userId: string;
@@ -456,6 +457,97 @@ export default function AccountManager({ userId, onReloadAccounts, isLoading }: 
         )}
       </div>
 
+      {/* Separador visual */}
+      <Separator className="my-4" />
+
+      {/* Mostrar cuentas y saldo */}
+      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3 mt-2">
+        {/* Usar un Set con los IDs para asegurarse de que no haya duplicados */}
+        {(() => {
+          // Crear un mapa para eliminar duplicados por ID
+          const uniqueAccountsMap = new Map();
+          accounts.forEach((account) => uniqueAccountsMap.set(account.id, account));
+
+          // Convertir el mapa a array de cuentas únicas
+          const uniqueAccounts = Array.from(uniqueAccountsMap.values());
+
+          // Ordenar las cuentas: primero la cuenta predeterminada, luego el resto
+          const sortedAccounts = uniqueAccounts.sort((a, b) => {
+            // Si a es la cuenta predeterminada, va primero
+            if (a.isDefault) return -1;
+            // Si b es la cuenta predeterminada, va primero
+            if (b.isDefault) return 1;
+            // Si ninguna es predeterminada, mantener el orden original
+            return 0;
+          });
+
+          // Renderizar las cuentas únicas con la predeterminada primero
+          return sortedAccounts.map((account) => (
+            <Card
+              key={account.id}
+              className={`group ${
+                activeAccountId === account.id ? "ring-2 ring-primary ring-offset-1" : "hover:border-primary/50"
+              } transition-all duration-200 shadow-soft cursor-pointer relative overflow-hidden`}
+              onClick={() => handleSelectAccount(account.id)}>
+              <CardContent className="p-4 flex flex-col gap-2">
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center space-x-2">
+                    <div className="w-3 h-3 rounded-full" style={{ backgroundColor: account.color }} />
+                    <h3 className="font-medium text-sm">{account.name}</h3>
+                    {account.isDefault && <span className="text-xs bg-muted text-muted-foreground px-1.5 py-0.5 rounded">Predeterminada</span>}
+                  </div>
+                  <div className="flex items-center space-x-1">
+                    {account.isDefault && (
+                      <Button
+                        variant="ghost"
+                        size="icon"
+                        className="h-7 w-7 opacity-0 group-hover:opacity-100"
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          setIsResetBalanceOpen(true);
+                        }}
+                        title="Reiniciar saldo (Solo para Efectivo)">
+                        <RefreshCcw className="h-3.5 w-3.5 text-amber-500" />
+                      </Button>
+                    )}
+
+                    {!account.isDefault && (
+                      <Button
+                        variant="ghost"
+                        size="icon"
+                        className="h-7 w-7 opacity-0 group-hover:opacity-100"
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          handleEditAccount(account);
+                        }}
+                        title="Editar cuenta">
+                        <Pencil className="h-3.5 w-3.5" />
+                      </Button>
+                    )}
+
+                    {!account.isDefault && (
+                      <Button
+                        variant="ghost"
+                        size="icon"
+                        className="h-7 w-7 opacity-0 group-hover:opacity-100"
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          handleConfirmDelete(account.id);
+                        }}
+                        title="Eliminar cuenta">
+                        <Trash2 className="h-3.5 w-3.5 text-destructive" />
+                      </Button>
+                    )}
+                  </div>
+                </div>
+
+                <div className="text-xl font-semibold">{formatCurrency(account.balance)}</div>
+              </CardContent>
+            </Card>
+          ));
+        })()}
+      </div>
+
       {/* Modal para creación/edición de cuenta */}
       <DrawerDialog
         open={isAccountFormOpen}
@@ -651,83 +743,6 @@ export default function AccountManager({ userId, onReloadAccounts, isLoading }: 
           </div>
         </div>
       </DrawerDialog>
-
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3 mt-2">
-        {/* Usar un Set con los IDs para asegurarse de que no haya duplicados */}
-        {(() => {
-          // Crear un mapa para eliminar duplicados por ID
-          const uniqueAccountsMap = new Map();
-          accounts.forEach((account) => uniqueAccountsMap.set(account.id, account));
-
-          // Convertir el mapa a array de cuentas únicas
-          const uniqueAccounts = Array.from(uniqueAccountsMap.values());
-
-          // Renderizar las cuentas únicas
-          return uniqueAccounts.map((account) => (
-            <Card
-              key={account.id}
-              className={`group ${
-                activeAccountId === account.id ? "ring-2 ring-primary ring-offset-1" : "hover:border-primary/50"
-              } transition-all duration-200 shadow-soft cursor-pointer relative overflow-hidden`}
-              onClick={() => handleSelectAccount(account.id)}>
-              <CardContent className="p-4 flex flex-col gap-2">
-                <div className="flex items-center justify-between">
-                  <div className="flex items-center space-x-2">
-                    <div className="w-3 h-3 rounded-full" style={{ backgroundColor: account.color }} />
-                    <h3 className="font-medium text-sm">{account.name}</h3>
-                    {account.isDefault && <span className="text-xs bg-muted text-muted-foreground px-1.5 py-0.5 rounded">Predeterminada</span>}
-                  </div>
-                  <div className="flex items-center space-x-1">
-                    {account.isDefault && (
-                      <Button
-                        variant="ghost"
-                        size="icon"
-                        className="h-7 w-7 opacity-0 group-hover:opacity-100"
-                        onClick={(e) => {
-                          e.stopPropagation();
-                          setIsResetBalanceOpen(true);
-                        }}
-                        title="Reiniciar saldo (Solo para Efectivo)">
-                        <RefreshCcw className="h-3.5 w-3.5 text-amber-500" />
-                      </Button>
-                    )}
-
-                    {!account.isDefault && (
-                      <Button
-                        variant="ghost"
-                        size="icon"
-                        className="h-7 w-7 opacity-0 group-hover:opacity-100"
-                        onClick={(e) => {
-                          e.stopPropagation();
-                          handleEditAccount(account);
-                        }}
-                        title="Editar cuenta">
-                        <Pencil className="h-3.5 w-3.5" />
-                      </Button>
-                    )}
-
-                    {!account.isDefault && (
-                      <Button
-                        variant="ghost"
-                        size="icon"
-                        className="h-7 w-7 opacity-0 group-hover:opacity-100"
-                        onClick={(e) => {
-                          e.stopPropagation();
-                          handleConfirmDelete(account.id);
-                        }}
-                        title="Eliminar cuenta">
-                        <Trash2 className="h-3.5 w-3.5 text-destructive" />
-                      </Button>
-                    )}
-                  </div>
-                </div>
-
-                <div className="text-xl font-semibold">{formatCurrency(account.balance)}</div>
-              </CardContent>
-            </Card>
-          ));
-        })()}
-      </div>
     </div>
   );
 }
