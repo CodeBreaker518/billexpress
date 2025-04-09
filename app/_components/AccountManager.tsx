@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useCallback, useEffect } from "react";
-import { PlusCircle, Pencil, Trash2, ChevronsUpDown, ArrowRightLeft } from "lucide-react";
+import { PlusCircle, Pencil, Trash2, ChevronsUpDown, ArrowRightLeft, RefreshCcw } from "lucide-react";
 import { Popover, PopoverTrigger, PopoverContent } from "@bill/_components/ui/popover";
 import { DrawerDialog } from "@bill/_components/ui/drawer-dialog";
 import { Button } from "@bill/_components/ui/button";
@@ -27,12 +27,10 @@ export default function AccountManager({ userId, onReloadAccounts, isLoading }: 
 
   // Efecto para actualizar las cuentas cuando cambian
   useEffect(() => {
-    console.log("AccountManager: Cuentas cargadas:", accounts);
     if (accounts.length > 0 && !activeAccountId) {
       // Si hay cuentas pero no hay cuenta activa, activar la primera
       const defaultAccount = accounts.find((acc) => acc.isDefault) || accounts[0];
       setActiveAccountId(defaultAccount.id);
-      console.log("Activando cuenta por defecto:", defaultAccount.name);
     }
   }, [accounts, activeAccountId, setActiveAccountId]);
 
@@ -41,16 +39,6 @@ export default function AccountManager({ userId, onReloadAccounts, isLoading }: 
     // Esta función se ejecutará cuando cambie isLoading de true a false
     // indicando que el proceso de carga/actualización ha terminado
     if (isLoading === false) {
-      console.log("⚠️ AccountManager: Detectada actualización de cuentas, refrescando componente...");
-
-      // Forzar actualización del componente
-      const timer = setTimeout(() => {
-        // Esto es solo para asegurarnos de que el componente se actualice
-        // después de que los datos estén disponibles
-        console.log("✅ AccountManager: Componente actualizado con nuevos saldos");
-      }, 50);
-
-      return () => clearTimeout(timer);
     }
   }, [isLoading, accounts]);
 
@@ -68,6 +56,7 @@ export default function AccountManager({ userId, onReloadAccounts, isLoading }: 
     orphanedIncomesCount: number;
     orphanedExpensesCount: number;
   } | null>(null);
+  const [isResetBalanceOpen, setIsResetBalanceOpen] = useState(false);
 
   // Estados para formularios
   const [accountName, setAccountName] = useState("");
@@ -91,55 +80,42 @@ export default function AccountManager({ userId, onReloadAccounts, isLoading }: 
   ];
 
   // Formatear valor de moneda
-  const formatCurrency = (amount: number) => {
+  const formatCurrency = useCallback((amount: number) => {
     return new Intl.NumberFormat("es-MX", {
       style: "currency",
       currency: "MXN",
     }).format(amount);
-  };
+  }, []);
 
   // Obtener la cuenta activa
   const activeAccount = accounts.find((account) => account.id === activeAccountId);
 
-  // Función mejorada para recargar cuentas que incluye recálculo automático
+  // Función mejorada para recargar cuentas sin sobrescribir datos de transferencias
   const reloadAccountsWithRecalculation = useCallback(async () => {
     try {
-      console.log("⚠️ AccountManager: Iniciando recarga completa con recálculo de saldos...");
-
-      // Forzar recálculo completo de saldos (reset a cero y recálculo)
       if (userId) {
         // Paso 1: Obtener las cuentas más recientes directamente desde Firebase
+        // SIN recalcular los saldos
         const freshAccounts = await getUserAccounts(userId);
-        console.log(`✅ AccountManager: Obtenidas ${freshAccounts.length} cuentas frescas de Firebase`);
 
-        // Paso 2: Actualizar el estado global con estas cuentas recién obtenidas
-        useAccountStore.getState().setAccounts(freshAccounts);
-        console.log("✅ AccountManager: Estado global actualizado con cuentas frescas");
+        // Verificar que no haya cuentas duplicadas por ID
+        const uniqueAccounts = Array.from(new Map(freshAccounts.map((account) => [account.id, account]))).map((entry) => entry[1]);
 
-        // Paso 3: Opcionalmente ejecutar verificación y corrección adicionales
-        const { verifyAndFixAccountBalances } = await import("@bill/_firebase/financeService");
-
-        try {
-          // Verificar y corregir cualquier discrepancia adicional
-          const result = await verifyAndFixAccountBalances(userId);
-          console.log(`✅ AccountManager: Verificación completada - ${result.accountsFixed} cuentas corregidas`);
-
-          // Si se corrigieron cuentas, actualizar el estado global nuevamente
-          if (result.accountsFixed > 0) {
-            const correctedAccounts = await getUserAccounts(userId);
-            useAccountStore.getState().setAccounts(correctedAccounts);
-            console.log("✅ AccountManager: Estado global actualizado con cuentas corregidas");
-          }
-        } catch (verifyError) {
-          console.error("❌ Error en verificación de saldos:", verifyError);
+        // Si se encontraron duplicados, registrar un mensaje de advertencia
+        if (uniqueAccounts.length < freshAccounts.length) {
+          console.warn("Se detectaron y eliminaron cuentas duplicadas", {
+            original: freshAccounts.length,
+            unique: uniqueAccounts.length,
+          });
         }
+
+        // Actualizar el estado global con estas cuentas recién obtenidas (sin duplicados)
+        useAccountStore.getState().setAccounts(uniqueAccounts);
       }
 
       // Paso final: Avisar al componente padre que se ha completado la recarga
       await onReloadAccounts();
-      console.log("✅ AccountManager: Proceso de recálculo completo finalizado");
     } catch (error) {
-      console.error("❌ AccountManager: Error al recargar cuentas con recálculo:", error);
       throw error; // Re-lanzar el error para manejo en niveles superiores
     }
   }, [userId, onReloadAccounts]);
@@ -206,7 +182,7 @@ export default function AccountManager({ userId, onReloadAccounts, isLoading }: 
 
         setDeleteConfirmOpen(true);
       } catch (error) {
-        console.error("Error al verificar registros asociados:", error);
+        console.error("Error al verificar registros asociados a la cuenta:", error);
         // Si hay un error, mostrar advertencia genérica
         setAccountToDelete({
           id: accountId,
@@ -277,12 +253,6 @@ export default function AccountManager({ userId, onReloadAccounts, isLoading }: 
     }
 
     try {
-      // Antes de cualquier operación, ejecutar limpieza automática de duplicados
-      if (userId) {
-        const { cleanupDuplicateAccounts } = await import("@bill/_firebase/accountService");
-        await cleanupDuplicateAccounts(userId);
-      }
-
       if (editingAccount) {
         // Actualizar cuenta existente
         await updateAccount({
@@ -292,8 +262,7 @@ export default function AccountManager({ userId, onReloadAccounts, isLoading }: 
         });
       } else {
         // Crear nueva cuenta
-        console.log("⚠️ Creando nueva cuenta con nombre:", accountName);
-        const newAccount = await addAccount({
+        await addAccount({
           name: accountName,
           color: accountColor,
           balance: 0,
@@ -301,19 +270,23 @@ export default function AccountManager({ userId, onReloadAccounts, isLoading }: 
           isDefault: false,
         });
 
-        // Actualizar el estado global inmediatamente sin esperar a la recarga
-        const { accounts, setAccounts, setActiveAccountId } = useAccountStore.getState();
-        const updatedAccounts = [...accounts, newAccount];
-        console.log("✅ Cuenta creada:", newAccount);
-        console.log("Añadiendo cuenta inmediatamente al estado:", newAccount);
-        setAccounts(updatedAccounts);
-
-        // Establecer la nueva cuenta como activa
-        setActiveAccountId(newAccount.id);
+        // Ya no actualizamos manualmente el estado para evitar duplicados
+        // Dejamos que la recarga de datos lo haga correctamente
       }
 
       // Recargar todas las cuentas con recálculo para asegurar sincronización
       await reloadAccountsWithRecalculation();
+
+      // Establecer la nueva cuenta como activa (si corresponde)
+      if (!editingAccount) {
+        // Buscar la cuenta recién creada por su nombre (ya que aún no tenemos su ID)
+        const { accounts, setActiveAccountId } = useAccountStore.getState();
+        const newAccount = accounts.find((acc) => acc.name === accountName && !acc.isDefault);
+        if (newAccount) {
+          setActiveAccountId(newAccount.id);
+        }
+      }
+
       setIsAccountFormOpen(false);
 
       toast({
@@ -321,7 +294,6 @@ export default function AccountManager({ userId, onReloadAccounts, isLoading }: 
         description: editingAccount ? "La cuenta ha sido actualizada correctamente" : "La cuenta ha sido creada correctamente",
       });
     } catch (error) {
-      console.error("❌ Error al guardar cuenta:", error);
       toast({
         title: "Error",
         description: error instanceof Error ? error.message : "No se pudo guardar la cuenta",
@@ -339,9 +311,9 @@ export default function AccountManager({ userId, onReloadAccounts, isLoading }: 
   }, [activeAccountId]);
 
   // Validar transferencia
-  const isTransferValid = () => {
+  const isTransferValid = useCallback(() => {
     return fromAccountId && toAccountId && transferAmount > 0 && fromAccountId !== toAccountId;
-  };
+  }, [fromAccountId, toAccountId, transferAmount]);
 
   // Realizar transferencia entre cuentas
   const handleTransfer = useCallback(async () => {
@@ -364,25 +336,24 @@ export default function AccountManager({ userId, onReloadAccounts, isLoading }: 
 
       // Paso 1: Realizar la transferencia entre cuentas
       await transferBetweenAccounts(fromAccountId, toAccountId, transferAmount, userId);
-      console.log(`✅ Transferencia completada: ${formatCurrency(transferAmount)} desde ${fromAccountId} hacia ${toAccountId}`);
 
       // Paso 2: Cerrar el modal de transferencia
       setIsTransferFormOpen(false);
 
-      // Esperar un poco para que Firebase complete sus operaciones
-      setTimeout(async () => {
-        // Paso 3: Recargar las cuentas para asegurar sincronización completa
-        await reloadAccountsWithRecalculation();
+      // Paso 3: Pequeño retraso para asegurar que Firebase ha completado la transacción
+      await new Promise((resolve) => setTimeout(resolve, 500));
 
-        // Mostrar mensaje de éxito después de que todo haya terminado
-        toast({
-          title: "Transferencia exitosa",
-          description: `Se han transferido ${formatCurrency(transferAmount)} correctamente`,
-          variant: "success",
-        });
-      }, 500);
+      // Paso 4: Utilizar nuestra función mejorada de recarga de cuentas
+      // que ya maneja la eliminación de duplicados
+      await reloadAccountsWithRecalculation();
+
+      // Mostrar mensaje de éxito
+      toast({
+        title: "Transferencia exitosa",
+        description: `Se han transferido ${formatCurrency(transferAmount)} correctamente`,
+        variant: "success",
+      });
     } catch (error) {
-      console.error("❌ Error en transferencia:", error);
       // Mostrar mensaje de error específico
       toast({
         title: "Error en la transferencia",
@@ -390,14 +361,65 @@ export default function AccountManager({ userId, onReloadAccounts, isLoading }: 
         variant: "destructive",
       });
 
-      // Intentar recargar las cuentas de todas formas para tener información actualizada
+      // Intentar recargar las cuentas para tener información actualizada
       try {
+        // Usar nuestra función mejorada en caso de error también
         await reloadAccountsWithRecalculation();
       } catch (reloadError) {
-        console.error("Error secundario al recargar cuentas:", reloadError);
+        console.error("Error al recargar datos después de un fallo en la transferencia:", reloadError);
       }
     }
   }, [fromAccountId, toAccountId, transferAmount, userId, reloadAccountsWithRecalculation, toast, formatCurrency, isTransferValid]);
+
+  // Función para reiniciar el saldo de la cuenta Efectivo
+  const handleResetDefaultAccountBalance = useCallback(async () => {
+    try {
+      // Buscar la cuenta predeterminada (Efectivo)
+      const defaultAccount = accounts.find((acc) => acc.isDefault);
+
+      if (!defaultAccount) {
+        toast({
+          title: "Error",
+          description: "No se encontró la cuenta predeterminada",
+          variant: "destructive",
+        });
+        return;
+      }
+
+      // Reiniciar el saldo a cero directamente en Firebase
+      const { doc, updateDoc, serverTimestamp } = await import("firebase/firestore");
+      const { db } = await import("@bill/_firebase/config");
+      const accountRef = doc(db, "accounts", defaultAccount.id);
+      await updateDoc(accountRef, {
+        balance: 0,
+        updatedAt: serverTimestamp(),
+      });
+
+      // Actualizar el estado local
+      useAccountStore.getState().updateAccount({
+        ...defaultAccount,
+        balance: 0,
+      });
+
+      // Notificar al usuario
+      toast({
+        title: "Saldo reiniciado",
+        description: "El saldo de la cuenta Efectivo ha sido reiniciado a cero",
+        variant: "default",
+      });
+
+      // Cerrar el diálogo y recargar datos
+      setIsResetBalanceOpen(false);
+      await onReloadAccounts();
+    } catch (error) {
+      console.error("Error al reiniciar saldo:", error);
+      toast({
+        title: "Error",
+        description: "No se pudo reiniciar el saldo de la cuenta",
+        variant: "destructive",
+      });
+    }
+  }, [accounts, toast, onReloadAccounts]);
 
   return (
     <div className="space-y-4" data-testid="account-manager">
@@ -405,40 +427,6 @@ export default function AccountManager({ userId, onReloadAccounts, isLoading }: 
         <h2 className="text-xl font-semibold">Mis cuentas</h2>
       </div>
       {/* Selector de cuenta activa */}
-      <Popover open={accountDropdownOpen} onOpenChange={setAccountDropdownOpen}>
-        <PopoverTrigger asChild>
-          <Button variant="outline" role="combobox" aria-expanded={accountDropdownOpen} className="w-full justify-between" disabled={accounts.length === 0}>
-            <div className="flex items-center gap-2 truncate">
-              {activeAccount ? (
-                <>
-                  <div className="w-3 h-3 rounded-full" style={{ backgroundColor: activeAccount.color }}></div>
-                  <span className="truncate">{activeAccount.name}</span>
-                </>
-              ) : (
-                <span className="text-muted-foreground">Selecciona una cuenta</span>
-              )}
-            </div>
-            <ChevronsUpDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />
-          </Button>
-        </PopoverTrigger>
-        <PopoverContent className="p-0 min-w-[200px]">
-          <Command>
-            <CommandInput placeholder="Buscar cuenta..." className="h-9" />
-            <CommandList>
-              <CommandEmpty>No se encontraron cuentas.</CommandEmpty>
-              <CommandGroup>
-                {accounts.map((account) => (
-                  <CommandItem key={account.id} value={account.id} onSelect={() => handleSelectAccount(account.id)} className="flex items-center gap-2 cursor-pointer">
-                    <div className="w-3 h-3 rounded-full" style={{ backgroundColor: account.color }}></div>
-                    <span>{account.name}</span>
-                    {account.isDefault && <span className="text-xs text-muted-foreground ml-auto">(Default)</span>}
-                  </CommandItem>
-                ))}
-              </CommandGroup>
-            </CommandList>
-          </Command>
-        </PopoverContent>
-      </Popover>
 
       {/* Botones de acción */}
       <div className="flex flex-wrap gap-2">
@@ -454,33 +442,19 @@ export default function AccountManager({ userId, onReloadAccounts, isLoading }: 
                 Editar
               </Button>
             )}
+            <Button size="sm" variant="outline" onClick={handleOpenTransfer} data-testid="transfer-account-button">
+              <ArrowRightLeft className="h-4 w-4 mr-1" />
+              Transferir
+            </Button>
             {!activeAccount.isDefault && (
               <Button size="sm" variant="outline" onClick={() => handleConfirmDelete(activeAccount.id)} className="text-destructive" data-testid="delete-account-button">
                 <Trash2 className="h-4 w-4 mr-1" />
                 Eliminar
               </Button>
             )}
-            <Button size="sm" variant="outline" onClick={handleOpenTransfer} data-testid="transfer-account-button">
-              <ArrowRightLeft className="h-4 w-4 mr-1" />
-              Transferir
-            </Button>
           </>
         )}
       </div>
-
-      {/* Saldo actual */}
-      {activeAccount && (
-        <Card className="mb-6">
-          <CardHeader className="pb-2">
-            <CardTitle className="text-sm font-medium text-muted-foreground">Saldo disponible</CardTitle>
-          </CardHeader>
-          <CardContent>
-            <div className="flex items-center justify-between">
-              <div className="text-2xl font-bold">{formatCurrency(activeAccount.balance)}</div>
-            </div>
-          </CardContent>
-        </Card>
-      )}
 
       {/* Modal para creación/edición de cuenta */}
       <DrawerDialog
@@ -649,6 +623,111 @@ export default function AccountManager({ userId, onReloadAccounts, isLoading }: 
           </Button>
         </DialogFooter>
       </DrawerDialog>
+
+      {/* Diálogo de confirmación para reiniciar saldo */}
+      <DrawerDialog
+        open={isResetBalanceOpen}
+        onOpenChange={setIsResetBalanceOpen}
+        title="Reiniciar saldo de Efectivo"
+        description={
+          <div className="space-y-2">
+            <p className="text-destructive font-medium">⚠️ Operación de emergencia</p>
+            <p>Esta acción reiniciará el saldo de la cuenta &ldquo;Efectivo&rdquo; a cero.</p>
+            <Alert variant="destructive" className="mt-4">
+              <AlertDescription>
+                Solo usa esta función cuando detectes inconsistencias graves en el saldo. Esta acción no afecta tus registros de ingresos y gastos, solo reinicia el balance a cero.
+              </AlertDescription>
+            </Alert>
+          </div>
+        }>
+        <div className="flex flex-col space-y-4 mt-4">
+          <div className="flex justify-end space-x-2">
+            <Button variant="outline" onClick={() => setIsResetBalanceOpen(false)}>
+              Cancelar
+            </Button>
+            <Button variant="destructive" onClick={handleResetDefaultAccountBalance}>
+              Reiniciar a cero
+            </Button>
+          </div>
+        </div>
+      </DrawerDialog>
+
+      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3 mt-2">
+        {/* Usar un Set con los IDs para asegurarse de que no haya duplicados */}
+        {(() => {
+          // Crear un mapa para eliminar duplicados por ID
+          const uniqueAccountsMap = new Map();
+          accounts.forEach((account) => uniqueAccountsMap.set(account.id, account));
+
+          // Convertir el mapa a array de cuentas únicas
+          const uniqueAccounts = Array.from(uniqueAccountsMap.values());
+
+          // Renderizar las cuentas únicas
+          return uniqueAccounts.map((account) => (
+            <Card
+              key={account.id}
+              className={`group ${
+                activeAccountId === account.id ? "ring-2 ring-primary ring-offset-1" : "hover:border-primary/50"
+              } transition-all duration-200 shadow-soft cursor-pointer relative overflow-hidden`}
+              onClick={() => handleSelectAccount(account.id)}>
+              <CardContent className="p-4 flex flex-col gap-2">
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center space-x-2">
+                    <div className="w-3 h-3 rounded-full" style={{ backgroundColor: account.color }} />
+                    <h3 className="font-medium text-sm">{account.name}</h3>
+                    {account.isDefault && <span className="text-xs bg-muted text-muted-foreground px-1.5 py-0.5 rounded">Predeterminada</span>}
+                  </div>
+                  <div className="flex items-center space-x-1">
+                    {account.isDefault && (
+                      <Button
+                        variant="ghost"
+                        size="icon"
+                        className="h-7 w-7 opacity-0 group-hover:opacity-100"
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          setIsResetBalanceOpen(true);
+                        }}
+                        title="Reiniciar saldo (Solo para Efectivo)">
+                        <RefreshCcw className="h-3.5 w-3.5 text-amber-500" />
+                      </Button>
+                    )}
+
+                    {!account.isDefault && (
+                      <Button
+                        variant="ghost"
+                        size="icon"
+                        className="h-7 w-7 opacity-0 group-hover:opacity-100"
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          handleEditAccount(account);
+                        }}
+                        title="Editar cuenta">
+                        <Pencil className="h-3.5 w-3.5" />
+                      </Button>
+                    )}
+
+                    {!account.isDefault && (
+                      <Button
+                        variant="ghost"
+                        size="icon"
+                        className="h-7 w-7 opacity-0 group-hover:opacity-100"
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          handleConfirmDelete(account.id);
+                        }}
+                        title="Eliminar cuenta">
+                        <Trash2 className="h-3.5 w-3.5 text-destructive" />
+                      </Button>
+                    )}
+                  </div>
+                </div>
+
+                <div className="text-xl font-semibold">{formatCurrency(account.balance)}</div>
+              </CardContent>
+            </Card>
+          ));
+        })()}
+      </div>
     </div>
   );
 }
