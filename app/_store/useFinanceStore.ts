@@ -50,6 +50,7 @@ interface FinanceState {
   isEditing: boolean;
   formType: "income" | "expense";
   currentItem: EditingItem;
+  isLoading: boolean;
 
   // Acciones
   setSearchTerm: (term: string) => void;
@@ -64,6 +65,7 @@ interface FinanceState {
   formatCurrency: (amount: number) => string;
   loadFinanceData: () => Promise<void>;
   calculateCategoryStats: () => void;
+  setLoading: (loading: boolean) => void;
 
   // Constantes
   expenseCategories: string[];
@@ -80,6 +82,7 @@ export const useFinanceStore = create<FinanceState>((set, get) => ({
   isFormOpen: false,
   isEditing: false,
   formType: "income",
+  isLoading: true,
   currentItem: {
     id: "",
     description: "",
@@ -109,8 +112,12 @@ export const useFinanceStore = create<FinanceState>((set, get) => ({
   // Cargar datos de finanzas
   loadFinanceData: async () => {
     const user = useAuthStore.getState().user;
-    if (!user) return;
+    if (!user) {
+      set({ isLoading: false });
+      return;
+    }
 
+    set({ isLoading: true });
     const expenseStore = useExpenseStore.getState();
     const incomeStore = useIncomeStore.getState();
     const accountStore = useAccountStore.getState();
@@ -140,6 +147,8 @@ export const useFinanceStore = create<FinanceState>((set, get) => ({
       get().calculateCategoryStats();
     } catch (error) {
       console.error("Error al cargar datos financieros:", error);
+    } finally {
+      set({ isLoading: false });
     }
   },
 
@@ -412,4 +421,7 @@ export const useFinanceStore = create<FinanceState>((set, get) => ({
       currentItem: { ...currentItem, [field]: value },
     });
   },
+
+  // Nueva acción para controlar el estado de carga
+  setLoading: (loading: boolean) => set({ isLoading: loading }),
 }));

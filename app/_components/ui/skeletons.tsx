@@ -361,3 +361,54 @@ export function ProfilePageSkeleton() {
     </div>
   );
 }
+
+export function FinanceSkeletonLoader() {
+  return (
+    <div className="space-y-6">
+      {/* Skeleton para el resumen financiero */}
+      <div className="grid grid-cols-1 gap-6 sm:grid-cols-2 lg:grid-cols-4">
+        {[...Array(4)].map((_, i) => (
+          <Card key={i} className="shadow-soft">
+            <CardHeader className="px-4 sm:px-6">
+              <Skeleton className="h-4 w-24" />
+            </CardHeader>
+            <CardContent className="px-4 sm:px-6">
+              <Skeleton className="h-8 w-32 mb-2" />
+              <Skeleton className="h-4 w-20" />
+            </CardContent>
+          </Card>
+        ))}
+      </div>
+
+      {/* Skeleton para la tabla de gastos/ingresos */}
+      <Card className="shadow-soft">
+        <CardHeader className="px-4 sm:px-6">
+          <Skeleton className="h-6 w-48" />
+        </CardHeader>
+        <CardContent className="px-2 sm:px-6">
+          <div className="space-y-4">
+            {[...Array(5)].map((_, i) => (
+              <div key={i} className="flex items-center justify-between">
+                <div className="space-y-2">
+                  <Skeleton className="h-4 w-32" />
+                  <Skeleton className="h-3 w-24" />
+                </div>
+                <Skeleton className="h-6 w-24" />
+              </div>
+            ))}
+          </div>
+        </CardContent>
+      </Card>
+
+      {/* Skeleton para el gráfico */}
+      <Card className="shadow-soft">
+        <CardHeader className="px-4 sm:px-6">
+          <Skeleton className="h-6 w-48" />
+        </CardHeader>
+        <CardContent className="px-2 sm:px-6">
+          <Skeleton className="h-72 w-full" />
+        </CardContent>
+      </Card>
+    </div>
+  );
+}
