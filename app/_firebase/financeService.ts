@@ -1,6 +1,6 @@
 "use client";
 
-import { collection, addDoc, updateDoc, deleteDoc, doc, query, where, getDocs, Timestamp, serverTimestamp, getDoc } from "firebase/firestore";
+import { collection, addDoc, updateDoc, deleteDoc, doc, query, where, getDocs, getDoc, serverTimestamp, Timestamp } from "firebase/firestore";
 import { db } from "./config";
 import { useAccountStore } from "@bill/_store/useAccountStore";
 import type { Account } from "./accountService";
@@ -57,9 +57,9 @@ export const createFinanceService = (entityType: "incomes" | "expenses") => {
           safeDate = new Date(item.date.getTime());
         } else if (typeof item.date === "string") {
           safeDate = new Date(item.date);
-        } else if (item.date && typeof item.date === "object" && "seconds" in (item.date as any)) {
+        } else if (item.date && typeof item.date === "object" && "seconds" in (item.date as { seconds: number })) {
           // Es un Timestamp de Firestore
-          safeDate = new Date((item.date as any).seconds * 1000);
+          safeDate = new Date((item.date as { seconds: number }).seconds * 1000);
         } else {
           console.warn("Fecha no válida proporcionada, usando fecha actual");
           safeDate = new Date();
@@ -101,9 +101,9 @@ export const createFinanceService = (entityType: "incomes" | "expenses") => {
           safeDate = new Date(item.date.getTime());
         } else if (typeof item.date === "string") {
           safeDate = new Date(item.date);
-        } else if (item.date && typeof item.date === "object" && "seconds" in (item.date as any)) {
+        } else if (item.date && typeof item.date === "object" && "seconds" in (item.date as { seconds: number })) {
           // Es un Timestamp de Firestore
-          safeDate = new Date((item.date as any).seconds * 1000);
+          safeDate = new Date((item.date as { seconds: number }).seconds * 1000);
         } else {
           console.warn("Fecha no válida proporcionada en actualización, usando fecha actual");
           safeDate = new Date();
@@ -118,15 +118,23 @@ export const createFinanceService = (entityType: "incomes" | "expenses") => {
         safeDate = new Date(); // Usar fecha actual como fallback
       }
 
-      const itemRef = doc(db, entityType, item.id);
-      await updateDoc(itemRef, {
+      // Asegurarse de que accountId siempre tenga un valor válido
+      // Si es undefined o null, no lo incluimos en la actualización
+      const updateData: Record<string, any> = {
         amount: item.amount,
         category: item.category,
         description: item.description,
         date: Timestamp.fromDate(safeDate),
-        accountId: item.accountId || null,
         updatedAt: serverTimestamp(),
-      });
+      };
+
+      // Solo incluir accountId si tiene un valor (cadena vacía, null o undefined no se incluirán)
+      if (item.accountId) {
+        updateData.accountId = item.accountId;
+      }
+
+      const itemRef = doc(db, entityType, item.id);
+      await updateDoc(itemRef, updateData);
     } catch (error) {
       console.error(`Error in update${entityType.slice(0, -1)}:`, error);
       throw error;
@@ -237,9 +245,25 @@ export const updateFinanceWithAccount = async (
   previousAccountId?: string
 ): Promise<void> => {
   try {
-    // Solo actualizar el saldo de la cuenta si hay una cuenta válida
+    if (!financeItem.userId) {
+      console.error("Error: userId es requerido para actualizar el saldo de la cuenta");
+      return;
+    }
+
+    const userId = financeItem.userId as string;
+    console.log(`Operación ${operation} ${collection} para usuario ${userId}`);
+
+    // Para operaciones de actualización o cuando hay cambio de cuenta,
+    // simplemente recalculamos todos los saldos para mayor precisión
+    if (operation === "update" || (previousAccountId && previousAccountId !== accountId)) {
+      console.log("Recalculando todos los saldos para mayor precisión...");
+      await recalculateAllAccountBalances(userId);
+      return;
+    }
+
+    // Para add y delete simples, actualizamos solo la cuenta específica
     if (accountId) {
-      // En lugar de obtener las cuentas del estado, obtenerlas directamente de Firebase
+      // Obtener la cuenta directamente de Firebase
       const accountRef = doc(db, "accounts", accountId);
       const accountSnapshot = await getDoc(accountRef);
 
@@ -249,16 +273,24 @@ export const updateFinanceWithAccount = async (
           ...accountSnapshot.data(),
         } as Account;
 
-        // Actualizar el saldo de la cuenta basado en la operación
-        const newBalance = calculateNewBalance(account.balance, financeItem.amount as number, collection === "incomes" ? "income" : "expense", operation);
+        // Calcular el nuevo saldo
+        const multiplier = collection === "incomes" ? 1 : -1;
+        const amount = financeItem.amount as number;
+        let newBalance = account.balance;
 
-        // Actualizar la cuenta directamente en Firebase
+        if (operation === "add") {
+          newBalance += amount * multiplier;
+        } else if (operation === "delete") {
+          newBalance -= amount * multiplier;
+        }
+
+        // Actualizar en Firebase
         await updateDoc(accountRef, {
           balance: newBalance,
           updatedAt: serverTimestamp(),
         });
 
-        // Actualizar también en el estado local si está disponible
+        // Actualizar en el estado local
         try {
           const { updateAccount } = useAccountStore.getState();
           updateAccount({
@@ -267,48 +299,25 @@ export const updateFinanceWithAccount = async (
           });
         } catch (storeError) {
           console.warn("No se pudo actualizar el estado local:", storeError);
-          // No interrumpir el flujo si falla la actualización local
         }
+
+        console.log(`Cuenta ${accountId} actualizada, nuevo saldo: ${newBalance}`);
+      } else {
+        console.warn(`Cuenta ${accountId} no encontrada, se omite la actualización del saldo`);
       }
-    }
-
-    // Si hay una cuenta anterior y es diferente, actualizar también su saldo
-    if (previousAccountId && previousAccountId !== accountId) {
-      const previousAccountRef = doc(db, "accounts", previousAccountId);
-      const previousAccountSnapshot = await getDoc(previousAccountRef);
-
-      if (previousAccountSnapshot.exists()) {
-        const previousAccount = {
-          id: previousAccountId,
-          ...previousAccountSnapshot.data(),
-        } as Account;
-
-        // Operación inversa en la cuenta anterior (si actualizamos, primero revertimos y luego añadimos)
-        const reverseOperation = operation === "update" ? "delete" : "delete";
-
-        const newBalance = calculateNewBalance(previousAccount.balance, financeItem.amount as number, collection === "incomes" ? "income" : "expense", reverseOperation);
-
-        // Actualizar la cuenta anterior directamente en Firebase
-        await updateDoc(previousAccountRef, {
-          balance: newBalance,
-          updatedAt: serverTimestamp(),
-        });
-
-        // Actualizar también en el estado local si está disponible
-        try {
-          const { updateAccount } = useAccountStore.getState();
-          updateAccount({
-            ...previousAccount,
-            balance: newBalance,
-          });
-        } catch (storeError) {
-          console.warn("No se pudo actualizar el estado local:", storeError);
-          // No interrumpir el flujo si falla la actualización local
-        }
-      }
+    } else {
+      console.warn("No se proporcionó ID de cuenta válido, omitiendo actualización de saldo");
     }
   } catch (error) {
     console.error("Error actualizando finanzas con cuenta:", error);
+    // En caso de error, forzar recálculo completo para asegurar integridad
+    if (financeItem.userId) {
+      try {
+        await recalculateAllAccountBalances(financeItem.userId as string);
+      } catch (recalcError) {
+        console.error("Error en recálculo de emergencia:", recalcError);
+      }
+    }
     throw error;
   }
 };
@@ -325,7 +334,9 @@ export const calculateNewBalance = (currentBalance: number, amountChange: number
     case "delete":
       return currentBalance - amountChange * multiplier;
     case "update":
-      // La actualización se maneja descomponiendo en delete + add
+      // La actualización se debe manejar por separado, ya que necesitamos
+      // tanto el valor anterior como el nuevo valor
+      console.warn("La operación 'update' debe ser manejada por updateFinanceWithAccount");
       return currentBalance;
     default:
       return currentBalance;
@@ -335,44 +346,68 @@ export const calculateNewBalance = (currentBalance: number, amountChange: number
 // Recalcular todos los saldos de cuentas
 export const recalculateAllAccountBalances = async (userId: string): Promise<void> => {
   try {
+    console.log("Iniciando recálculo de saldos para todas las cuentas del usuario:", userId);
     const { accounts, updateAccount } = useAccountStore.getState();
+    const userAccounts = accounts.filter((acc) => acc.userId === userId);
 
-    for (const account of accounts) {
-      if (account.userId === userId) {
-        // Obtener ingresos asociados a la cuenta
-        const incomesQuery = query(collection(db, "incomes"), where("accountId", "==", account.id), where("userId", "==", userId));
-        const incomesSnapshot = await getDocs(incomesQuery);
+    console.log(`Encontradas ${userAccounts.length} cuentas para recalcular`);
 
-        // Calcular total de ingresos
-        let totalIncome = 0;
-        incomesSnapshot.forEach((doc) => {
-          totalIncome += doc.data().amount || 0;
-        });
+    for (const account of userAccounts) {
+      console.log(`Recalculando saldo para cuenta: ${account.id} (${account.name})`);
 
-        // Obtener gastos asociados a la cuenta
-        const expensesQuery = query(collection(db, "expenses"), where("accountId", "==", account.id), where("userId", "==", userId));
-        const expensesSnapshot = await getDocs(expensesQuery);
+      // Obtener ingresos asociados a la cuenta
+      const incomesQuery = query(collection(db, "incomes"), where("accountId", "==", account.id), where("userId", "==", userId));
+      const incomesSnapshot = await getDocs(incomesQuery);
 
-        // Calcular total de gastos
-        let totalExpense = 0;
-        expensesSnapshot.forEach((doc) => {
-          totalExpense += doc.data().amount || 0;
-        });
+      // Calcular total de ingresos
+      let totalIncome = 0;
+      let incomesCount = 0;
+      incomesSnapshot.forEach((doc) => {
+        const amount = doc.data().amount || 0;
+        totalIncome += amount;
+        incomesCount++;
+      });
+      console.log(`Encontrados ${incomesCount} ingresos, total: ${totalIncome}`);
 
-        // Actualizar saldo de la cuenta
-        const newBalance = totalIncome - totalExpense;
+      // Obtener gastos asociados a la cuenta
+      const expensesQuery = query(collection(db, "expenses"), where("accountId", "==", account.id), where("userId", "==", userId));
+      const expensesSnapshot = await getDocs(expensesQuery);
+
+      // Calcular total de gastos
+      let totalExpense = 0;
+      let expensesCount = 0;
+      expensesSnapshot.forEach((doc) => {
+        const amount = doc.data().amount || 0;
+        totalExpense += amount;
+        expensesCount++;
+      });
+      console.log(`Encontrados ${expensesCount} gastos, total: ${totalExpense}`);
+
+      // Actualizar saldo de la cuenta
+      const newBalance = totalIncome - totalExpense;
+      console.log(`Nuevo saldo calculado: ${newBalance} (Ingresos ${totalIncome} - Gastos ${totalExpense})`);
+
+      if (newBalance !== account.balance) {
+        console.log(`Actualizando saldo de ${account.balance} a ${newBalance}`);
 
         // Actualizar la cuenta en Firebase
         const accountRef = doc(db, "accounts", account.id);
-        await updateDoc(accountRef, { balance: newBalance });
+        await updateDoc(accountRef, {
+          balance: newBalance,
+          updatedAt: serverTimestamp(),
+        });
 
         // Actualizar en el estado de la aplicación
         await updateAccount({
           ...account,
           balance: newBalance,
         });
+      } else {
+        console.log("El saldo ya está correcto, no se requiere actualización");
       }
     }
+
+    console.log("Recálculo de saldos completado con éxito");
   } catch (error) {
     console.error("Error recalculando saldos:", error);
     throw error;

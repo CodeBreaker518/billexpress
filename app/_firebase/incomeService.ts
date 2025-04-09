@@ -52,31 +52,74 @@ export const addIncome = async (item: Omit<FinanceItem, "id">): Promise<FinanceI
 // Update an existing income
 export const updateIncome = async (item: FinanceItem): Promise<void> => {
   try {
+    console.log("Iniciando actualización de ingreso con ID:", item.id, "y cuenta:", item.accountId);
+
     // Obtener el ingreso actual desde Firebase para tener la versión más reciente
     const incomeSnapshot = await getDocs(query(collection(db, "incomes"), where("__name__", "==", item.id)));
 
     let previousAccountId: string | undefined;
+    let previousItem: any = null;
 
     if (!incomeSnapshot.empty) {
-      const previousIncome = incomeSnapshot.docs[0].data();
-      previousAccountId = previousIncome.accountId || undefined;
+      previousItem = incomeSnapshot.docs[0].data();
+      previousAccountId = previousItem.accountId || undefined;
+      console.log("Ingreso anterior:", { ...previousItem, date: previousItem.date?.toDate?.() || previousItem.date, accountId: previousAccountId });
     }
+
+    // Verificación: si no hay accountId en el item pero sí había uno antes, mantenerlo
+    if (!item.accountId && previousAccountId) {
+      console.log("Restaurando accountId previo:", previousAccountId);
+      item.accountId = previousAccountId;
+    }
+
+    // Si sigue sin haber accountId, asignar la cuenta predeterminada
+    if (!item.accountId) {
+      try {
+        console.log("Buscando cuenta predeterminada para asignar");
+        // Buscar la cuenta predeterminada
+        const { getUserAccounts } = await import("./accountService");
+        const accounts = await getUserAccounts(item.userId);
+        const defaultAccount = accounts.find((acc) => acc.isDefault) || accounts[0];
+
+        if (defaultAccount) {
+          console.log("Asignando cuenta predeterminada:", defaultAccount.id);
+          item.accountId = defaultAccount.id;
+        } else {
+          console.warn("No se encontró ninguna cuenta para asignar al ingreso");
+        }
+      } catch (error) {
+        console.error("Error al buscar cuenta predeterminada:", error);
+      }
+    }
+
+    console.log("Actualizando ingreso con cuenta final:", item.accountId);
 
     // Actualizar el ingreso
     await baseUpdateItem(item);
 
-    // Actualizar el saldo de la cuenta
-    await updateFinanceWithAccount(
-      "incomes",
-      {
-        amount: item.amount,
-        id: item.id,
-        userId: item.userId,
-      },
-      item.accountId || "",
-      "update",
-      previousAccountId
-    );
+    // Si estamos cambiando la cuenta, realizar una operación especial
+    if (previousAccountId && previousAccountId !== item.accountId) {
+      console.log("Detectado cambio de cuenta:", previousAccountId, "->", item.accountId);
+      // Actualizar el saldo de la cuenta
+      await updateFinanceWithAccount(
+        "incomes",
+        {
+          amount: item.amount,
+          id: item.id,
+          userId: item.userId,
+        },
+        item.accountId || "",
+        "update",
+        previousAccountId
+      );
+    } else {
+      // Para evitar errores de cálculo, simplemente recalculamos el saldo completo
+      console.log("Recalculando saldos de todas las cuentas");
+      const { recalculateAllAccountBalances } = await import("./financeService");
+      await recalculateAllAccountBalances(item.userId);
+    }
+
+    console.log("Actualización de ingreso completada con éxito");
   } catch (error) {
     console.error("Error al actualizar ingreso:", error);
     throw error;
