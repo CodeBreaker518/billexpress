@@ -1,4 +1,4 @@
-import { create } from 'zustand';
+import { create } from "zustand";
 
 export interface Expense {
   id: string;
@@ -7,6 +7,7 @@ export interface Expense {
   description: string;
   date: Date;
   userId: string;
+  accountId?: string;
 }
 
 interface ExpenseState {
@@ -23,16 +24,17 @@ export const useExpenseStore = create<ExpenseState>((set) => ({
   expenses: [],
   loading: false,
   setExpenses: (expenses) => set({ expenses }),
-  addExpense: (expense) => set((state) => ({ 
-    expenses: [...state.expenses, expense] 
-  })),
-  updateExpense: (expense) => set((state) => ({
-    expenses: state.expenses.map((e) => 
-      e.id === expense.id ? expense : e
-    )
-  })),
-  deleteExpense: (id) => set((state) => ({
-    expenses: state.expenses.filter((e) => e.id !== id)
-  })),
+  addExpense: (expense) =>
+    set((state) => ({
+      expenses: [...state.expenses, expense],
+    })),
+  updateExpense: (expense) =>
+    set((state) => ({
+      expenses: state.expenses.map((e) => (e.id === expense.id ? expense : e)),
+    })),
+  deleteExpense: (id) =>
+    set((state) => ({
+      expenses: state.expenses.filter((e) => e.id !== id),
+    })),
   setLoading: (loading) => set({ loading }),
 }));

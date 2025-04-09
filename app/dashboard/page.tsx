@@ -35,6 +35,32 @@ const incomeCategories = ["Salario", "Freelance", "Inversiones", "Ventas", "Rega
 // Agregar importación de nuestro sistema centralizado
 import { INCOME_CATEGORIES, EXPENSE_CATEGORIES } from "../_lib/utils/categoryConfig";
 
+// Definición de tipo para cumplir con ChartData del DonutChart
+type ChartData = Record<string, string | number>;
+
+// Interfaces para estadísticas por categoría
+interface CategoryStat extends ChartData {
+  category: string;
+  amount: number;
+  percentage: number;
+}
+
+// Interface para datos mensuales
+interface MonthlyData extends ChartData {
+  month: string;
+  [key: string]: string | number;
+}
+
+// Interface para transacciones
+interface Transaction extends ChartData {
+  id: string;
+  description: string;
+  amount: number;
+  category: string;
+  date: string;
+  type: "income" | "expense";
+}
+
 export default function DashboardPage() {
   const { user } = useAuthStore();
   const { expenses, setExpenses } = useExpenseStore();
@@ -51,52 +77,12 @@ export default function DashboardPage() {
   const [monthlyIncomes, setMonthlyIncomes] = useState(0);
 
   // Estados para visualizaciones con tipos más genéricos
-  const [expensesByCategory, setExpensesByCategory] = useState<
-    Array<{
-      category: string;
-      amount: number;
-      percentage: number;
-      [key: string]: string | number;
-    }>
-  >([]);
+  const [expensesByCategory, setExpensesByCategory] = useState<CategoryStat[]>([]);
+  const [incomesByCategory, setIncomesByCategory] = useState<CategoryStat[]>([]);
+  const [expensesByMonth, setExpensesByMonth] = useState<MonthlyData[]>([]);
+  const [incomesByMonth, setIncomesByMonth] = useState<MonthlyData[]>([]);
 
-  const [incomesByCategory, setIncomesByCategory] = useState<
-    Array<{
-      category: string;
-      amount: number;
-      percentage: number;
-      [key: string]: string | number;
-    }>
-  >([]);
-
-  const [expensesByMonth, setExpensesByMonth] = useState<
-    Array<{
-      month: string;
-      Gastos: number;
-      [key: string]: string | number;
-    }>
-  >([]);
-
-  const [incomesByMonth, setIncomesByMonth] = useState<
-    Array<{
-      month: string;
-      Ingresos: number;
-      [key: string]: string | number;
-    }>
-  >([]);
-
-  const [recentTransactions, setRecentTransactions] = useState<
-    Array<{
-      id: string;
-      description: string;
-      amount: number;
-      category: string;
-      date: Date | string;
-      type: string;
-      userId: string;
-      [key: string]: unknown;
-    }>
-  >([]);
+  const [recentTransactions, setRecentTransactions] = useState<Transaction[]>([]);
 
   // Estado para formulario modal
   const [isFormOpen, setIsFormOpen] = useState(false);
@@ -309,7 +295,13 @@ export default function DashboardPage() {
       })
       .slice(0, 5);
 
-    setRecentTransactions(sortedTransactions);
+    const recentTransactionsData = sortedTransactions.map((transaction) => ({
+      ...transaction,
+      date: format(new Date(transaction.date), "dd MMM yyyy", { locale: es }),
+      type: transaction.type as "income" | "expense",
+    }));
+
+    setRecentTransactions(recentTransactionsData);
   }, [expenses, incomes, totalExpenses, totalIncomes]);
 
   // Mostrar estado de carga con un timeout para evitar quedarse cargando para siempre
@@ -461,11 +453,16 @@ export default function DashboardPage() {
     }).format(amount);
   };
 
-  // Formatear fecha
-  const formatDate = (date: Date) => {
-    if (!date) return "-";
+  // Definir una función formatDate que no cause conflictos
+  function formatDate(date: Date | string): string {
     return format(new Date(date), "dd MMM yyyy", { locale: es });
-  };
+  }
+
+  // En algún lugar donde se detectaron errores con operaciones aritméticas
+  // Típicamente al calcular porcentajes
+  function calculatePercentage(value: number, total: number): number {
+    return total > 0 ? Math.round((value / total) * 100) : 0;
+  }
 
   // Colores consistentes para gráficos según tipo de finanza
   const financialTypeColors = {
@@ -588,7 +585,7 @@ export default function DashboardPage() {
                       )}
                       <div>
                         <Text className="text-xs sm:text-sm font-medium truncate max-w-[120px] sm:max-w-none">{transaction.description}</Text>
-                        <Text className="text-[10px] sm:text-xs text-muted-foreground">{formatDate(new Date(transaction.date))}</Text>
+                        <Text className="text-[10px] sm:text-xs text-muted-foreground">{transaction.date}</Text>
                       </div>
                     </div>
                     <div className="flex flex-col items-end">

@@ -6,11 +6,21 @@ interface LogoProps {
   height?: number;
   className?: string;
   usePrimaryColor?: boolean;
+  responsive?: boolean;
 }
 
-export const BillExpressLogo: React.FC<LogoProps> = ({ width = 150, height = 40, className, usePrimaryColor = false }) => {
+export const BillExpressLogo: React.FC<LogoProps> = ({ width = 150, height = 40, className, usePrimaryColor = false, responsive = false }) => {
+  // Si responsive es true, no pasamos width y height como props directas
+  // sino que los controlamos con clases de Tailwind
+  const responsiveClasses = responsive ? "w-[120px] h-[30px] sm:w-[150px] sm:h-[40px] md:w-[200px] md:h-[60px]" : "";
+
   return (
-    <svg width={width} height={height} viewBox="220 450 1130 150" className={cn("transition-colors duration-300", className)} preserveAspectRatio="xMidYMid meet">
+    <svg
+      width={responsive ? undefined : width}
+      height={responsive ? undefined : height}
+      viewBox="220 450 1130 150"
+      className={cn("transition-colors duration-300", responsiveClasses, className)}
+      preserveAspectRatio="xMidYMid meet">
       <g transform="translate(0.000000,1024.000000) scale(0.100000,-0.100000)" className={usePrimaryColor ? "fill-primary" : "fill-gray-900 dark:fill-white"}>
         <path
           d="M3148 6591 c-163 -52 -299 -190 -351 -356 l-22 -70 0 -1045 0 -1045
