@@ -81,9 +81,10 @@ export default function ExpensePanel() {
             </CardContent>
           </Card>
 
-          {/* Distribución por categoría */}
+          {/* Gráficas de categorías en grid responsive */}
           {expensesByCategory.length > 0 && (
-            <>
+            <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+              {/* Distribución por categoría */}
               <Card className="shadow-soft card-hover">
                 <CardHeader className="px-4 sm:px-6">
                   <CardTitle className="text-base sm:text-lg">Distribución por Categoría</CardTitle>
@@ -101,6 +102,7 @@ export default function ExpensePanel() {
                 </CardContent>
               </Card>
 
+              {/* Desglose por categoría */}
               <Card className="shadow-soft card-hover">
                 <CardHeader className="px-4 sm:px-6">
                   <CardTitle className="text-base sm:text-lg">Desglose por Categoría</CardTitle>
@@ -119,7 +121,7 @@ export default function ExpensePanel() {
                   </List>
                 </CardContent>
               </Card>
-            </>
+            </div>
           )}
         </>
       )}

@@ -718,9 +718,6 @@ export default function AccountManager({ userId, onReloadAccounts, isLoading }: 
 
   return (
     <div className="space-y-4" data-testid="account-manager">
-      <div className="flex items-center justify-between">
-        <h2 className="text-xl font-semibold">Mis cuentas</h2>
-      </div>
       {/* Selector de cuenta activa */}
 
       {/* Botones de acción */}

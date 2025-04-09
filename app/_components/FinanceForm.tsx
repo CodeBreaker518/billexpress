@@ -8,8 +8,18 @@ import { Button } from "@bill/_components/ui/button";
 import { FinanceItem } from "@bill/_firebase/financeService";
 import { CategorySelect } from "@bill/_components/CategorySelect";
 import { useAccountStore } from "@bill/_store/useAccountStore";
-import { Select, SelectTrigger, SelectValue, SelectContent, SelectItem } from "@bill/_components/ui/select";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@bill/_components/ui/select";
 import { Loader2 } from "lucide-react";
+import { Textarea } from "@bill/_components/ui/textarea";
+import { INCOME_CATEGORIES, EXPENSE_CATEGORIES } from "@bill/_lib/utils/categoryConfig";
+import { IncomeCategoryType, ExpenseCategoryType, CategoryConfig } from "@bill/_lib/utils/types";
+import { ChangeEvent } from "react";
 
 export interface FinanceFormProps {
   isOpen: boolean;
@@ -43,7 +53,7 @@ export const FinanceForm = memo(function FinanceForm({ isEditing, currentItem, c
 
   // Actualizar el formulario cuando cambia el item actual
   useEffect(() => {
-    if (currentItem) {
+    if (isEditing && currentItem) {
       setFormData({
         ...currentItem,
         time: currentItem.date ? format(new Date(currentItem.date), "HH:mm") : format(new Date(), "HH:mm"),
@@ -57,7 +67,7 @@ export const FinanceForm = memo(function FinanceForm({ isEditing, currentItem, c
       // Reset form cuando no hay item
       resetForm();
     }
-  }, [currentItem, categories]);
+  }, [isEditing, currentItem, categories]);
 
   // Si el item tiene una cuenta asignada, usarla
   useEffect(() => {
@@ -218,6 +228,10 @@ export const FinanceForm = memo(function FinanceForm({ isEditing, currentItem, c
     [handleChange]
   );
 
+  const getCategoryLabel = (type: "income" | "expense", category: string): string => {
+    return category;
+  };
+
   // Render del formulario
   return (
     <form onSubmit={handleSubmit} className="space-y-6">
@@ -225,10 +239,10 @@ export const FinanceForm = memo(function FinanceForm({ isEditing, currentItem, c
 
       <div className="space-y-2">
         <Label htmlFor="description">Descripción</Label>
-        <Input
+        <Textarea
           id="description"
           value={formData.description || ""}
-          onChange={handleDescriptionChange}
+          onChange={(e: ChangeEvent<HTMLTextAreaElement>) => handleChange("description", e.target.value)}
           placeholder={`Ej. ${type === "income" ? "Pago de salario" : "Compra de supermercado"}`}
           required
         />
@@ -248,7 +262,21 @@ export const FinanceForm = memo(function FinanceForm({ isEditing, currentItem, c
         />
       </div>
 
-      <CategorySelect type={type} value={formData.category || ""} onValueChange={handleCategoryChange} label="Categoría" required />
+      <div className="space-y-2">
+        <Label htmlFor="category">Categoría</Label>
+        <Select value={formData.category || ""} onValueChange={handleCategoryChange}>
+          <SelectTrigger>
+            <SelectValue placeholder="Selecciona una categoría" />
+          </SelectTrigger>
+          <SelectContent>
+            {categories.map((category) => (
+              <SelectItem key={category} value={category}>
+                {getCategoryLabel(type, category)}
+              </SelectItem>
+            ))}
+          </SelectContent>
+        </Select>
+      </div>
 
       <div className="grid grid-cols-2 gap-4">
         <div className="space-y-2">
