@@ -19,7 +19,7 @@ export default function FinanzasPage() {
 
   if (isLoading) {
     return (
-      <div className="space-y-6 p-4 sm:p-8">
+      <div className="space-y-6 p-0 sm:p-4">
         <h1 className="text-2xl font-bold mb-6">Finanzas</h1>
         <FinanceSkeletonLoader />
       </div>
@@ -27,7 +27,7 @@ export default function FinanzasPage() {
   }
 
   return (
-    <div className="space-y-6 p-4 sm:p-8">
+    <div className="space-y-6 p-0 sm:p-4">
       <h1 className="text-2xl font-bold mb-6">Finanzas</h1>
 
       {/* Resumen financiero */}

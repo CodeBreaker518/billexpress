@@ -52,7 +52,7 @@ export default function RecentTransactions() {
     <Card className="shadow-soft">
       <CardHeader className="px-4 sm:px-6 flex flex-row items-center justify-between">
         <CardTitle className="text-base sm:text-lg">Transacciones Recientes</CardTitle>
-        <Link href="/transactions">
+        <Link href="/dashboard/finanzas/#historial-transacciones">
           <Button variant="ghost" size="sm" className="text-xs flex items-center gap-1">
             Ver todas <ChevronRight className="h-3 w-3" />
           </Button>

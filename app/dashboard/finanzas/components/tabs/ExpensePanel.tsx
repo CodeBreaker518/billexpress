@@ -58,7 +58,7 @@ export default function ExpensePanel() {
       ) : (
         <>
           {/* Tabla de gastos */}
-          <Card className="shadow-soft">
+          <Card className="shadow-soft" id="historial-gastos">
             <CardHeader className="px-4 sm:px-6">
               <CardTitle className="text-base sm:text-lg">Historial de Gastos</CardTitle>
             </CardHeader>
