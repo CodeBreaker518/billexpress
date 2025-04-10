@@ -19,6 +19,7 @@ export const viewport: Viewport = {
 };
 
 export const metadata: Metadata = {
+  metadataBase: new URL(process.env.NEXT_PUBLIC_BASE_URL || 'http://localhost:3000'),
   title: "BillExpress - Control de gastos simplificado",
   description: "Administra tus finanzas personales de manera sencilla",
   manifest: "/manifest.json",
@@ -28,8 +29,17 @@ export const metadata: Metadata = {
     title: "BillExpress",
   },
   icons: {
-    icon: "/favicon.ico",
-    apple: [{ url: "/logo.png", sizes: "192x192", type: "image/png" }],
+    icon: [
+      { url: '/favicon.svg', type: 'image/svg+xml' },
+      { url: '/favicon.ico', sizes: 'any', rel: 'icon' },
+    ],
+    shortcut: '/favicon.ico',
+    apple: [
+      { url: '/icons/apple-icon-180.png', sizes: '180x180', type: 'image/png' },
+    ],
+    other: [
+      { rel: 'icon', url: '/logo.png', sizes: '32x32', type: 'image/png' }, 
+    ],
   },
 };
 
@@ -40,16 +50,7 @@ export default function RootLayout({
 }>) {
   return (
     <html lang="es" suppressHydrationWarning>
-      <head>
-        <meta name="application-name" content="BillExpress" />
-        <meta name="apple-mobile-web-app-capable" content="yes" />
-        <meta name="apple-mobile-web-app-status-bar-style" content="default" />
-        <meta name="apple-mobile-web-app-title" content="BillExpress" />
-        <meta name="format-detection" content="telephone=no" />
-        <meta name="mobile-web-app-capable" content="yes" />
-        <link rel="apple-touch-icon" href="/logo.png" />
-        <link rel="icon" href="/favicon.ico" />
-      </head>
+      <head />
       <body className={`${poppinsFont.className} antialiased bg-gray-50 dark:bg-gray-900 text-gray-900 dark:text-gray-100`}>
         <ThemeProvider>
           <FirebaseAuthProvider>

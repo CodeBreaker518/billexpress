@@ -9,7 +9,8 @@ import FinanceTabs from "./components/FinanceTabs";
 import FinanceFormDialog from "./components/FinanceFormDialog";
 import { FinanceSkeletonLoader } from "@bill/_components/ui/skeletons";
 import QuickActions from "../components/QuickActions";
-
+import { es } from "date-fns/locale";
+import { format } from "date-fns";
 export default function FinanzasPage() {
   const { loadFinanceData, isLoading } = useFinanceStore();
 
@@ -29,8 +30,14 @@ export default function FinanzasPage() {
 
   return (
     <div className="space-y-6 p-0 sm:p-4">
-      <h1 className="text-2xl font-bold mb-6">Finanzas</h1>
-
+      {/* Cabecera de la página */}
+      <div className="mb-6">
+        <h1 className="text-2xl font-semibold tracking-tight">Finanzas</h1>
+        <p className="text-sm text-muted-foreground mt-1">
+          {format(new Date(), "EEEE, d MMM yyyy", { locale: es })} - Resumen de tus finanzas
+        </p>
+      </div>
+      
       {/* Acciones rápidas */}
       <QuickActions />
 

@@ -21,7 +21,7 @@ export default function DashboardPage() {
 
   if (isLoading) {
     return (
-      <div className="space-y-6 p-4 sm:p-8">
+      <div className="space-y-6 p-0 sm:p-4">
         <h1 className="text-2xl font-bold mb-6">Dashboard</h1>
         <FinanceSkeletonLoader />
           </div>
@@ -29,7 +29,7 @@ export default function DashboardPage() {
   }
 
   return (
-    <div className="space-y-6 p-4 sm:p-8">
+    <div className="space-y-6 p-0 sm:p-4">
       {/* Cabecera de la página */}
       <div className="mb-6">
         <h1 className="text-2xl font-semibold tracking-tight">Dashboard</h1>
