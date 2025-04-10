@@ -25,27 +25,36 @@ export function CategorySelect({ type, value, onValueChange, placeholder = "Sele
       {label && <Label htmlFor={id}>{label}</Label>}
       <Select value={value} onValueChange={onValueChange} required={required}>
         <SelectTrigger id={id}>
-          <SelectValue placeholder={placeholder} />
+          {value ? (
+            <div className="flex items-center gap-2">
+              {(() => {
+                const config = getCategoryConfig(type, value);
+                const Icon = config.icon;
+                return <Icon className="h-4 w-4" style={{ color: config.color }} />;
+              })()}
+              <span>{value}</span>
+            </div>
+          ) : (
+            <SelectValue placeholder={placeholder} />
+          )}
         </SelectTrigger>
         <SelectContent>
           {categories.map((category) => {
             const config = getCategoryConfig(type, category);
+            const Icon = config.icon;
             return (
               <SelectItem
                 key={category}
                 value={category}
-                // Aplicar color suave al fondo del item cuando está seleccionado
-                className="flex items-center gap-2 data-[selected]:bg-opacity-20"
-                style={
-                  {
-                    "--selected-bg": config.color,
-                    backgroundColor: value === category ? `${config.color}20` : undefined,
-                  } as React.CSSProperties
-                }>
-                <span className="flex items-center gap-2">
-                  <config.icon className="h-4 w-4" style={{ color: config.color }} />
+                className="flex items-center gap-2"
+                style={{
+                  backgroundColor: value === category ? `${config.bgColor}` : undefined
+                }}
+              >
+                <div className="flex items-center gap-2">
+                  <Icon className="h-4 w-4" style={{ color: config.color }} />
                   <span>{category}</span>
-                </span>
+                </div>
               </SelectItem>
             );
           })}

@@ -228,10 +228,6 @@ export const FinanceForm = memo(function FinanceForm({ isEditing, currentItem, c
     [handleChange]
   );
 
-  const getCategoryLabel = (type: "income" | "expense", category: string): string => {
-    return category;
-  };
-
   // Render del formulario
   return (
     <form onSubmit={handleSubmit} className="space-y-6">
@@ -264,18 +260,13 @@ export const FinanceForm = memo(function FinanceForm({ isEditing, currentItem, c
 
       <div className="space-y-2">
         <Label htmlFor="category">Categoría</Label>
-        <Select value={formData.category || ""} onValueChange={handleCategoryChange}>
-          <SelectTrigger>
-            <SelectValue placeholder="Selecciona una categoría" />
-          </SelectTrigger>
-          <SelectContent>
-            {categories.map((category) => (
-              <SelectItem key={category} value={category}>
-                {getCategoryLabel(type, category)}
-              </SelectItem>
-            ))}
-          </SelectContent>
-        </Select>
+        <CategorySelect 
+          type={type}
+          value={formData.category || ""}
+          onValueChange={handleCategoryChange}
+          id="category"
+          required
+        />
       </div>
 
       <div className="grid grid-cols-2 gap-4">

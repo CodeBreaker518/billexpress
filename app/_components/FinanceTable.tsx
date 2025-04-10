@@ -59,7 +59,7 @@ const FinanceCard = ({ item, type, onEdit, onDelete }: { item: FinanceItem; type
   return (
     <Card key={item.id} className="p-3">
       <div className="flex justify-between items-start mb-2">
-        <h3 className="font-medium truncate max-w-[70%] flex items-center">
+        <h3 className="font-medium text-base truncate max-w-[70%] flex items-center">
           {item.description}
           {isAccountDeleted && <AlertCircle className="h-3.5 w-3.5 text-amber-500 ml-1" />}
         </h3>
@@ -68,8 +68,7 @@ const FinanceCard = ({ item, type, onEdit, onDelete }: { item: FinanceItem; type
 
       <div className="flex flex-wrap items-start gap-3 justify-between mb-2">
         <div className="flex items-center gap-1">
-          <Tag className="h-3 w-3 text-gray-500" />
-          <CategoryBadge category={item.category} type={type} />
+          <CategoryBadge category={item.category} type={type} showIcon={true} />
         </div>
 
         <div className="text-xs text-gray-500">
@@ -240,7 +239,7 @@ export function FinanceTable({ items, loading, type, onEdit, onDelete }: Finance
                   </div>
                 </TableCell>
                 <TableCell>
-                  <CategoryBadge category={item.category} type={type} />
+                  <CategoryBadge category={item.category} type={type} showIcon={true} />
                 </TableCell>
                 <TableCell>
                   {item.accountId ? (

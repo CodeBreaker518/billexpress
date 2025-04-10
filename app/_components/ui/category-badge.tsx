@@ -15,12 +15,19 @@ export function CategoryBadge({ category, type, className, showIcon = false, ...
   // Obtener la configuración de la categoría
   const config = getCategoryConfig(type, category);
 
-  // Construir la clase de color basada en la configuración
-  const colorClass = `${config.bgColor} ${config.textColor} ${config.darkBgColor} ${config.darkTextColor}`;
-
+  // En lugar de usar clases, usar estilos inline para los colores
   return (
-    <Badge variant="outline" className={cn(colorClass, "gap-1", className)} {...props}>
-      {showIcon && <config.icon className="h-3 w-3" />}
+    <Badge 
+      variant="outline" 
+      className={cn("gap-1", className)} 
+      style={{
+        backgroundColor: config.bgColor,
+        color: config.textColor,
+        borderColor: config.color
+      }}
+      {...props}
+    >
+      {showIcon && <config.icon className="h-3 w-3" style={{ color: config.color }} />}
       {category}
     </Badge>
   );
