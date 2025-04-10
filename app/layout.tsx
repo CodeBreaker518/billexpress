@@ -19,7 +19,7 @@ export const viewport: Viewport = {
 };
 
 export const metadata: Metadata = {
-  metadataBase: new URL(process.env.NEXT_PUBLIC_BASE_URL || 'http://localhost:3000'),
+  metadataBase: new URL(process.env.NEXT_PUBLIC_BASE_URL || "http://localhost:3000"),
   title: "BillExpress - Control de gastos simplificado",
   description: "Administra tus finanzas personales de manera sencilla",
   manifest: "/manifest.json",
@@ -30,16 +30,12 @@ export const metadata: Metadata = {
   },
   icons: {
     icon: [
-      { url: '/favicon.svg', type: 'image/svg+xml' },
-      { url: '/favicon.ico', sizes: 'any', rel: 'icon' },
+      { url: "/favicon.svg", type: "image/svg+xml" },
+      { url: "/favicon.ico", sizes: "any", rel: "icon" },
     ],
-    shortcut: '/favicon.ico',
-    apple: [
-      { url: '/icons/apple-icon-180.png', sizes: '180x180', type: 'image/png' },
-    ],
-    other: [
-      { rel: 'icon', url: '/logo.png', sizes: '32x32', type: 'image/png' }, 
-    ],
+    shortcut: "/favicon.ico",
+    apple: [{ url: "/icons/apple-icon-180.png", sizes: "180x180", type: "image/png" }],
+    other: [{ rel: "icon", url: "/logo.png", sizes: "32x32", type: "image/png" }],
   },
 };
 
@@ -51,7 +47,7 @@ export default function RootLayout({
   return (
     <html lang="es" suppressHydrationWarning>
       <head />
-      <body className={`${poppinsFont.className} antialiased bg-gray-50 dark:bg-gray-900 text-gray-900 dark:text-gray-100 overflow-hidden`}>
+      <body className={`${poppinsFont.className} antialiased bg-gray-50 dark:bg-gray-900 text-gray-900 dark:text-gray-100 overflow-y-auto`}>
         <ThemeProvider>
           <FirebaseAuthProvider>
             <AuthRedirect>{children}</AuthRedirect>

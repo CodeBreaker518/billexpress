@@ -17,7 +17,7 @@ export default function Header() {
   return (
     <header className="fixed w-full bg-white/75 dark:bg-gray-900/75 backdrop-blur-xl z-50 shadow-md">
       <div className="container mx-auto px-3 sm:px-4 py-2 sm:py-4 flex justify-between items-center">
-        <div className="w-full flex justify-center items-center">
+        <div className="flex justify-center items-center">
           <BillExpressLogo responsive={true} usePrimaryColor={true} />
         </div>
         <nav className="hidden md:flex space-x-6">
