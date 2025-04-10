@@ -12,7 +12,7 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@
 import { CategoryBadge } from "@bill/_components/ui/category-badge";
 import { format } from "date-fns";
 import { es } from "date-fns/locale";
-import { AlertCircle, Calendar, ArrowUp, ArrowDown, Clock, Edit, Search, Filter, FilterX } from "lucide-react";
+import { AlertCircle, Calendar, ArrowUp, ArrowDown, Clock, Edit, Search, Filter, FilterX, ChevronLeft, ChevronRight, ChevronsLeft, ChevronsRight } from "lucide-react";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@bill/_components/ui/tooltip";
 import AlertDeleteTableElement from "@bill/_components/AlertDeleteTableElement";
 import { useAccountStore } from "@bill/_store/useAccountStore";
@@ -95,6 +95,10 @@ export default function TransactionsTable() {
   const [categoryFilter, setCategoryFilter] = useState("all");
   const [accountFilter, setAccountFilter] = useState("all");
 
+  // Estados para paginación
+  const [currentPage, setCurrentPage] = useState(1);
+  const [itemsPerPage, setItemsPerPage] = useState(5);
+
   // Combinar y ordenar transacciones
   const allTransactions = useMemo(() => {
     // Combinar ingresos y gastos en un solo array
@@ -153,6 +157,58 @@ export default function TransactionsTable() {
     });
   }, [allTransactions, searchTerm, typeFilter, categoryFilter, accountFilter]);
 
+  // Calcular paginación
+  const totalPages = Math.ceil(filteredTransactions.length / itemsPerPage);
+  const startIndex = (currentPage - 1) * itemsPerPage;
+  const endIndex = startIndex + itemsPerPage;
+  const currentItems = filteredTransactions.slice(startIndex, endIndex);
+  
+  // Cambiar de página
+  const goToPage = (page: number) => {
+    // Asegurarse de que la página está dentro de límites válidos
+    const validPage = Math.max(1, Math.min(page, totalPages));
+    setCurrentPage(validPage);
+    // Hacer scroll al inicio de la tabla
+    const element = document.getElementById("historial-transacciones");
+    if (element) {
+      element.scrollIntoView({ behavior: "smooth", block: "start" });
+    }
+  };
+  
+  // Ir a la siguiente página
+  const nextPage = () => {
+    if (currentPage < totalPages) {
+      goToPage(currentPage + 1);
+    }
+  };
+  
+  // Ir a la página anterior
+  const prevPage = () => {
+    if (currentPage > 1) {
+      goToPage(currentPage - 1);
+    }
+  };
+  
+  // Ir a la primera página
+  const firstPage = () => {
+    goToPage(1);
+  };
+  
+  // Ir a la última página
+  const lastPage = () => {
+    goToPage(totalPages);
+  };
+  
+  // Cambiar items por página
+  const handleItemsPerPageChange = (value: string) => {
+    const newItemsPerPage = parseInt(value);
+    setItemsPerPage(newItemsPerPage);
+    // Recalcular la página actual para mantener visible el primer elemento de la página actual
+    const firstItemIndex = (currentPage - 1) * itemsPerPage;
+    const newPage = Math.floor(firstItemIndex / newItemsPerPage) + 1;
+    setCurrentPage(Math.max(1, Math.min(newPage, Math.ceil(filteredTransactions.length / newItemsPerPage))));
+  };
+  
   // Verificar si una cuenta ha sido eliminada
   const isAccountDeleted = (item: Transaction) => {
     if (!item.accountId) return false;
@@ -186,8 +242,81 @@ export default function TransactionsTable() {
     );
   };
 
+  // Componente de paginación
+  const Pagination = () => (
+    <div className="flex flex-col sm:flex-row items-center justify-between mt-4 gap-4">
+      <div className="flex items-center gap-2 text-sm">
+        <span className="text-muted-foreground">Mostrar</span>
+        <Select
+          value={itemsPerPage.toString()}
+          onValueChange={handleItemsPerPageChange}
+        >
+          <SelectTrigger className="h-8 w-[70px]">
+            <SelectValue placeholder={itemsPerPage.toString()} />
+          </SelectTrigger>
+          <SelectContent>
+            <SelectItem value="5">5</SelectItem>
+            <SelectItem value="10">10</SelectItem>
+            <SelectItem value="20">20</SelectItem>
+            <SelectItem value="50">50</SelectItem>
+            <SelectItem value="100">100</SelectItem>
+          </SelectContent>
+        </Select>
+        <span className="text-muted-foreground whitespace-nowrap">por página</span>
+      </div>
+      
+      <div className="flex items-center justify-center gap-1">
+        <Button
+          variant="outline"
+          size="icon"
+          className="h-8 w-8"
+          onClick={firstPage}
+          disabled={currentPage === 1}
+        >
+          <ChevronsLeft className="h-4 w-4" />
+          <span className="sr-only">Primera página</span>
+        </Button>
+        <Button
+          variant="outline"
+          size="icon"
+          className="h-8 w-8"
+          onClick={prevPage}
+          disabled={currentPage === 1}
+        >
+          <ChevronLeft className="h-4 w-4" />
+          <span className="sr-only">Página anterior</span>
+        </Button>
+        
+        <span className="text-sm mx-2">
+          Página <strong>{currentPage}</strong> de <strong>{totalPages || 1}</strong>
+        </span>
+        
+        <Button
+          variant="outline"
+          size="icon"
+          className="h-8 w-8"
+          onClick={nextPage}
+          disabled={currentPage === totalPages || totalPages === 0}
+        >
+          <ChevronRight className="h-4 w-4" />
+          <span className="sr-only">Página siguiente</span>
+        </Button>
+        <Button
+          variant="outline"
+          size="icon"
+          className="h-8 w-8"
+          onClick={lastPage}
+          disabled={currentPage === totalPages || totalPages === 0}
+        >
+          <ChevronsRight className="h-4 w-4" />
+          <span className="sr-only">Última página</span>
+        </Button>
+      </div>
+    </div>
+  );
+
   return (
-    <Card className="shadow-soft" id="historial-transacciones">
+    <Card id="historial-transacciones">
       <CardHeader className="px-4 sm:px-6">
         <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
           <CardTitle className="text-lg font-semibold">Historial de Transacciones</CardTitle>
@@ -393,7 +522,7 @@ export default function TransactionsTable() {
           <>
             {/* Vista móvil: Tarjetas */}
             <div className="space-y-4 sm:hidden">
-              {filteredTransactions.map((transaction) => (
+              {currentItems.map((transaction) => (
                 <Card 
                   key={transaction.id} 
                   className={`p-4 ${isAccountDeleted(transaction) ? "border-amber-200 dark:border-amber-800" : ""}`}
@@ -479,6 +608,9 @@ export default function TransactionsTable() {
                   </div>
                 </Card>
               ))}
+              
+              {/* Paginación para móvil */}
+              <Pagination />
             </div>
 
             {/* Vista desktop: Tabla */}
@@ -496,7 +628,7 @@ export default function TransactionsTable() {
                   </TableRow>
                 </TableHeader>
                 <TableBody>
-                  {filteredTransactions.map((transaction) => (
+                  {currentItems.map((transaction) => (
                     <TableRow key={transaction.id} className={isAccountDeleted(transaction) ? "bg-amber-50/30 dark:bg-amber-950/20" : undefined}>
                       <TableCell>
                         {transaction.type === "income" ? (
@@ -571,6 +703,9 @@ export default function TransactionsTable() {
                   ))}
                 </TableBody>
               </Table>
+              
+              {/* Paginación para desktop */}
+              <Pagination />
             </div>
           </>
         )}
