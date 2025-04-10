@@ -17,6 +17,7 @@ function VerifyPageContent() {
   const isNewRegistration = searchParams.get("new") === "true";
   const [emailParam, setEmailParam] = useState<string | null>(searchParams.get("email"));
   const [isCheckingVerification, setIsCheckingVerification] = useState(false);
+  const [error, setError] = useState("");
 
   // Verificar el estado de verificación de email cada vez que se actualiza el usuario
   useEffect(() => {
@@ -65,16 +66,8 @@ function VerifyPageContent() {
 export default function VerifyPage() {
   return (
     <Suspense fallback={
-      <div className="container max-w-md mx-auto py-12 flex flex-col items-center justify-center min-h-screen px-4">
-        <Card className="w-full">
-          <CardHeader className="space-y-1">
-            <CardTitle className="text-2xl font-bold text-center">Verificación de Email</CardTitle>
-            <Text className="text-center">Cargando...</Text>
-          </CardHeader>
-          <CardContent className="flex justify-center py-4">
-            <Loader2 className="h-8 w-8 animate-spin" />
-          </CardContent>
-        </Card>
+      <div className="flex items-center justify-center min-h-screen">
+        <div className="animate-spin rounded-full h-12 w-12 border-t-2 border-b-2 border-primary"></div>
       </div>
     }>
       <VerifyPageContent />
@@ -91,7 +84,6 @@ interface VerifyEmailFormProps {
 function VerifyEmailForm({ isNewRegistration, emailParam, isCheckingVerification }: VerifyEmailFormProps) {
   const { user } = useAuthStore();
   const [loading, setLoading] = useState(false);
-  const [error, setError] = useState("");
   const [success, setSuccess] = useState("");
 
   const handleResendVerification = async () => {
