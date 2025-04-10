@@ -1,12 +1,11 @@
 'use client';
 
-import { useEffect } from 'react';
+import { useEffect, Suspense } from 'react';
 import { useRouter, usePathname, useSearchParams } from 'next/navigation';
 import { useAuthStore } from '@bill/_store/useAuthStore';
 
-// This component is used on auth pages (login/register) to redirect
-// authenticated users to the dashboard
-export default function AuthRedirect({ children }: { children: React.ReactNode }) {
+// Componente interno que utiliza useSearchParams
+function AuthRedirectInner({ children }: { children: React.ReactNode }) {
   const { user, loading } = useAuthStore();
   const router = useRouter();
   const pathname = usePathname();
@@ -43,4 +42,13 @@ export default function AuthRedirect({ children }: { children: React.ReactNode }
 
   // Renderizar los hijos mientras se procesa la redirección
   return <>{children}</>;
+}
+
+// Componente principal que envuelve el componente interno en un Suspense
+export default function AuthRedirect({ children }: { children: React.ReactNode }) {
+  return (
+    <Suspense fallback={<div>Cargando...</div>}>
+      <AuthRedirectInner>{children}</AuthRedirectInner>
+    </Suspense>
+  );
 }

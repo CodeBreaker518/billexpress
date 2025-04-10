@@ -1,8 +1,12 @@
+'use client';
+
 import Link from "next/link";
 import { ArrowLeft } from "lucide-react";
 import { Button } from "@bill/_components/ui/button";
+import { Suspense } from "react";
 
-export default function NotFound() {
+// Componente principal, no usa hooks de cliente
+function NotFoundContent() {
   return (
     <div className="flex flex-col items-center justify-center min-h-screen p-4 text-center">
       <h1 className="text-6xl font-bold text-primary mb-4">404</h1>
@@ -17,5 +21,14 @@ export default function NotFound() {
         </Link>
       </Button>
     </div>
+  );
+}
+
+// Componente envuelto en Suspense para asegurar compatibilidad
+export default function NotFound() {
+  return (
+    <Suspense fallback={<div>Cargando...</div>}>
+      <NotFoundContent />
+    </Suspense>
   );
 } 
