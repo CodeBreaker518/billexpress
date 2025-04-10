@@ -57,7 +57,9 @@ function VerifyPageContent() {
       <VerifyEmailForm 
         isNewRegistration={isNewRegistration} 
         emailParam={emailParam} 
-        isCheckingVerification={isCheckingVerification} 
+        isCheckingVerification={isCheckingVerification}
+        error={error}
+        setError={setError}
       />
     </div>
   );
@@ -79,9 +81,11 @@ interface VerifyEmailFormProps {
   isNewRegistration: boolean;
   emailParam: string | null;
   isCheckingVerification: boolean;
+  error: string;
+  setError: (error: string) => void;
 }
 
-function VerifyEmailForm({ isNewRegistration, emailParam, isCheckingVerification }: VerifyEmailFormProps) {
+function VerifyEmailForm({ isNewRegistration, emailParam, isCheckingVerification, error, setError }: VerifyEmailFormProps) {
   const { user } = useAuthStore();
   const [loading, setLoading] = useState(false);
   const [success, setSuccess] = useState("");
