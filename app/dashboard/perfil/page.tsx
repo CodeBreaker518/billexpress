@@ -4,7 +4,7 @@ import { useState, useEffect, useRef } from "react";
 import { useRouter } from "next/navigation";
 import Image from "next/image";
 import { useAuthStore } from "@bill/_store/useAuthStore";
-import { updateUserProfile, sendVerificationEmail, uploadProfileImage, deleteUserAccount, reauthenticateUser } from "@bill/_firebase/authService";
+import { updateUserProfile, sendVerificationEmail, uploadProfileImage, deleteUserAccount, reauthenticateUser, changeUserPassword } from "@bill/_firebase/authService";
 import { User as UserIcon, Mail, Camera, Save, AlertCircle, CheckCircle2, Upload, Trash2, Moon, Sun, Monitor, LogOut, Info, Shield, AlertTriangle } from "lucide-react";
 import { useTheme } from "next-themes";
 import { toast } from "@bill/_components/ui/use-toast";
@@ -39,8 +39,15 @@ export default function PerfilPage() {
   const [success, setSuccess] = useState("");
   const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
   const [deletePassword, setDeletePassword] = useState("");
+  const [deleteConfirmation, setDeleteConfirmation] = useState("");
   const [deletingAccount, setDeletingAccount] = useState(false);
   const { theme, setTheme } = useTheme();
+  const [currentPassword, setCurrentPassword] = useState("");
+  const [newPassword, setNewPassword] = useState("");
+  const [confirmPassword, setConfirmPassword] = useState("");
+  const [passwordError, setPasswordError] = useState("");
+  const [passwordSuccess, setPasswordSuccess] = useState("");
+  const [passwordLoading, setPasswordLoading] = useState(false);
 
   useEffect(() => {
     if (user) {
@@ -179,22 +186,28 @@ export default function PerfilPage() {
   const handleDeleteAccount = async () => {
     if (!user) return;
 
+    // Verificar que el usuario haya escrito "ELIMINAR"
+    if (deleteConfirmation !== "ELIMINAR") {
+      setError("Debes escribir ELIMINAR (en mayúsculas) para confirmar");
+      return;
+    }
+
     setDeletingAccount(true);
     setError("");
 
     try {
-      // Solo reautenticar para proveedores de email y contraseña
-      if (user.providerData[0].providerId === "password" && deletePassword) {
-        const reauth = await reauthenticateUser(user, deletePassword);
-        if (!reauth.success) {
-          setError(reauth.error || "Contraseña incorrecta");
-          setDeletingAccount(false);
-          return;
-        }
+      // Enviar la contraseña solo para usuarios de correo/contraseña
+      const isEmailProvider = user.providerData.length > 0 && user.providerData[0].providerId === "password";
+      
+      // Si es usuario de email/password, verificar que ingresó contraseña
+      if (isEmailProvider && !deletePassword) {
+        setError("Debes ingresar tu contraseña para eliminar la cuenta");
+        setDeletingAccount(false);
+        return;
       }
 
       // Eliminar todos los datos del usuario
-      const result = await deleteUserAccount(user, deletePassword);
+      const result = await deleteUserAccount(user, isEmailProvider ? deletePassword : undefined);
 
       if (result.success) {
         toast({
@@ -206,7 +219,8 @@ export default function PerfilPage() {
         // Redirigir al inicio de sesión
         router.push("/auth/login");
       } else {
-        setError(result.error || "Error al eliminar la cuenta");
+        // La propiedad error puede no existir, así que la manejamos condicionalmente
+        setError('error' in result ? result.error : "Error al eliminar la cuenta");
       }
     } catch (err: any) {
       setError(err.message || "Ocurrió un error inesperado");
@@ -222,6 +236,52 @@ export default function PerfilPage() {
       router.push("/auth/login");
     } catch (error) {
       console.error("Error al cerrar sesión:", error);
+    }
+  };
+
+  const handlePasswordChange = async () => {
+    if (!user) return;
+
+    // Validaciones
+    if (!currentPassword) {
+      setPasswordError("Debes ingresar tu contraseña actual");
+      return;
+    }
+
+    if (!newPassword) {
+      setPasswordError("Debes ingresar una nueva contraseña");
+      return;
+    }
+
+    if (newPassword.length < 6) {
+      setPasswordError("La nueva contraseña debe tener al menos 6 caracteres");
+      return;
+    }
+
+    if (newPassword !== confirmPassword) {
+      setPasswordError("Las contraseñas no coinciden");
+      return;
+    }
+
+    setPasswordLoading(true);
+    setPasswordError("");
+    setPasswordSuccess("");
+
+    try {
+      const result = await changeUserPassword(user, currentPassword, newPassword);
+
+      if (result.success) {
+        setPasswordSuccess("Contraseña actualizada correctamente");
+        setCurrentPassword("");
+        setNewPassword("");
+        setConfirmPassword("");
+      } else {
+        setPasswordError(result.error || "Error al cambiar la contraseña");
+      }
+    } catch (err: any) {
+      setPasswordError(err.message || "Ocurrió un error inesperado");
+    } finally {
+      setPasswordLoading(false);
     }
   };
 
@@ -321,30 +381,7 @@ export default function PerfilPage() {
             </CardFooter>
           </Card>
 
-          {/* Tarjeta de tema */}
-          <Card className="mt-6">
-            <CardHeader>
-              <CardTitle>Tema</CardTitle>
-            </CardHeader>
-            <CardContent>
-              <div className="flex justify-between items-center">
-                <Button variant={theme === "light" ? "default" : "outline"} onClick={() => setTheme("light")} className="flex-1 mr-2">
-                  <Sun className="h-4 w-4 mr-2" />
-                  Claro
-                </Button>
-
-                <Button variant={theme === "dark" ? "default" : "outline"} onClick={() => setTheme("dark")} className="flex-1">
-                  <Moon className="h-4 w-4 mr-2" />
-                  Oscuro
-                </Button>
-
-                <Button variant={theme === "system" ? "default" : "outline"} onClick={() => setTheme("system")} className="flex-1 ml-2">
-                  <Monitor className="h-4 w-4 mr-2" />
-                  Sistema
-                </Button>
-              </div>
-            </CardContent>
-          </Card>
+        
         </div>
 
         {/* Columna 2: Información y configuración */}
@@ -462,6 +499,76 @@ export default function PerfilPage() {
                     )}
                   </div>
 
+                  {/* Cambio de contraseña - Solo para proveedores de email/password */}
+                  {isEmailProvider && (
+                    <>
+                      <Separator />
+                      
+                      <div>
+                        <Text className="font-medium mb-2">Cambiar contraseña</Text>
+                        
+                        {passwordError && (
+                          <div className="p-3 mb-4 text-sm text-red-700 bg-red-100 rounded-md flex items-center gap-2 dark:bg-red-900/20 dark:text-red-400">
+                            <AlertCircle className="h-4 w-4" />
+                            <span>{passwordError}</span>
+                          </div>
+                        )}
+                        
+                        {passwordSuccess && (
+                          <div className="p-3 mb-4 text-sm text-green-700 bg-green-100 rounded-md flex items-center gap-2 dark:bg-green-900/20 dark:text-green-400">
+                            <CheckCircle2 className="h-4 w-4" />
+                            <span>{passwordSuccess}</span>
+                          </div>
+                        )}
+                        
+                        <div className="space-y-4 mt-3">
+                          <div>
+                            <Text className="text-sm mb-1">Contraseña actual</Text>
+                            <Input 
+                              type="password" 
+                              placeholder="Ingresa tu contraseña actual" 
+                              value={currentPassword}
+                              onChange={(e) => setCurrentPassword(e.target.value)}
+                              autoComplete="current-password"
+                            />
+                          </div>
+                          
+                          <div>
+                            <Text className="text-sm mb-1">Nueva contraseña</Text>
+                            <Input 
+                              type="password" 
+                              placeholder="Ingresa tu nueva contraseña" 
+                              value={newPassword}
+                              onChange={(e) => setNewPassword(e.target.value)}
+                              autoComplete="new-password"
+                            />
+                          </div>
+                          
+                          <div>
+                            <Text className="text-sm mb-1">Confirmar nueva contraseña</Text>
+                            <Input 
+                              type="password" 
+                              placeholder="Confirma tu nueva contraseña" 
+                              value={confirmPassword}
+                              onChange={(e) => setConfirmPassword(e.target.value)}
+                              autoComplete="new-password"
+                            />
+                          </div>
+                          
+                          <Button 
+                            onClick={handlePasswordChange} 
+                            disabled={passwordLoading}
+                            className="mt-2"
+                          >
+                            {passwordLoading && <span className="mr-2 h-4 w-4 animate-spin rounded-full border-2 border-gray-300 border-t-white"></span>}
+                            <Shield className="mr-2 h-4 w-4" />
+                            Actualizar contraseña
+                          </Button>
+                        </div>
+                      </div>
+                    </>
+                  )}
+
                   <Separator />
 
                   {/* Eliminar cuenta */}
@@ -481,34 +588,59 @@ export default function PerfilPage() {
                           <DialogTitle>¿Estás seguro de que quieres eliminar tu cuenta?</DialogTitle>
                           <DialogDescription>
                             Esta acción no se puede deshacer. Se eliminarán permanentemente todos tus datos, incluyendo:
-                            <ul className="list-disc pl-5 mt-2 space-y-1">
-                              <li>Todas tus cuentas financieras</li>
-                              <li>Todos tus ingresos y gastos registrados</li>
-                              <li>Toda tu información de perfil</li>
-                              <li>Cualquier dato pendiente por sincronizar</li>
-                            </ul>
                           </DialogDescription>
                         </DialogHeader>
+                        
+                        <ul className="list-disc pl-5 mt-2 space-y-1">
+                          <li>Todas tus cuentas financieras</li>
+                          <li>Todos tus ingresos y gastos registrados</li>
+                          <li>Toda tu información de perfil</li>
+                          <li>Cualquier dato pendiente por sincronizar</li>
+                        </ul>
 
                         {isEmailProvider && (
                           <div className="py-4">
-                            <Text className="text-sm font-medium mb-2">Confirma tu contraseña para continuar:</Text>
-                            <Input type="password" placeholder="Ingresa tu contraseña" value={deletePassword} onChange={(e) => setDeletePassword(e.target.value)} />
+                            <Text className="text-sm font-medium mb-2">Confirma tu contraseña:</Text>
+                            <Input 
+                              type="password" 
+                              placeholder="Ingresa tu contraseña" 
+                              value={deletePassword} 
+                              onChange={(e) => setDeletePassword(e.target.value)}
+                              autoComplete="current-password"
+                            />
                           </div>
                         )}
+
+                        <div className="py-4">
+                          <Text className="text-sm font-medium mb-2">Para confirmar escribe "ELIMINAR" (en mayúsculas):</Text>
+                          <Input 
+                            placeholder="ELIMINAR" 
+                            value={deleteConfirmation} 
+                            onChange={(e) => setDeleteConfirmation(e.target.value)}
+                            className="border-red-300 focus:border-red-400 focus:ring-red-400"
+                          />
+                        </div>
 
                         <DialogFooter>
                           <Button variant="outline" onClick={() => setDeleteDialogOpen(false)}>
                             Cancelar
                           </Button>
-                          <Button variant="destructive" onClick={handleDeleteAccount} disabled={(isEmailProvider && !deletePassword) || deletingAccount}>
+                          <Button 
+                            variant="destructive" 
+                            onClick={handleDeleteAccount} 
+                            disabled={
+                              deleteConfirmation !== "ELIMINAR" || 
+                              (isEmailProvider && !deletePassword) || 
+                              deletingAccount
+                            }
+                          >
                             {deletingAccount ? (
                               <>
                                 <span className="mr-2 h-4 w-4 animate-spin rounded-full border-2 border-gray-300 border-t-white"></span>
                                 Eliminando...
                               </>
                             ) : (
-                              "Confirmar eliminación"
+                              "Eliminar permanentemente"
                             )}
                           </Button>
                         </DialogFooter>

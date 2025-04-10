@@ -4,6 +4,7 @@ import { Poppins } from "next/font/google";
 import ThemeProvider from "@bill/_components/ThemeProvider";
 import FirebaseAuthProvider from "@bill/_components/FirebaseAuthProvider";
 import { Toaster } from "@bill/_components/ui/toaster";
+import AuthRedirect from "@bill/_components/AuthRedirect";
 
 const poppinsFont = Poppins({
   weight: ["300", "400", "500", "600", "700"],
@@ -50,7 +51,9 @@ export default function RootLayout({
       </head>
       <body className={`${poppinsFont.className} antialiased bg-gray-50 dark:bg-gray-900 text-gray-900 dark:text-gray-100`}>
         <ThemeProvider>
-          <FirebaseAuthProvider>{children}</FirebaseAuthProvider>
+          <FirebaseAuthProvider>
+            <AuthRedirect>{children}</AuthRedirect>
+          </FirebaseAuthProvider>
         </ThemeProvider>
         <Toaster />
       </body>

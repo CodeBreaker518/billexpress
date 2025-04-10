@@ -33,17 +33,23 @@ function VerifyPageContent() {
       });
     };
 
+    // Si es una nueva registración o hay un parámetro "new", no redirigir automáticamente
+    // Esto permite que el usuario vea la página de verificación
+    if (isNewRegistration) {
+      // Solo verificar periódicamente
+      const interval = setInterval(checkVerification, 5000);
+      return () => clearInterval(interval);
+    }
+
     // Si hay un usuario y tiene el email verificado, redirigir al dashboard
     if (user && user.emailVerified) {
       router.push("/dashboard");
+    } else if (user) {
+      // Si hay un usuario pero no tiene el email verificado, verificar periódicamente
+      const interval = setInterval(checkVerification, 5000);
+      return () => clearInterval(interval);
     }
-
-    // Verificar cada 5 segundos si el correo ha sido verificado
-    const interval = setInterval(checkVerification, 5000);
-
-    // Limpiar el intervalo cuando el componente se desmonte
-    return () => clearInterval(interval);
-  }, [user, router, setUser]);
+  }, [user, router, setUser, isNewRegistration]);
 
   return (
     <div className="container max-w-md mx-auto py-12 flex flex-col items-center justify-center min-h-screen px-4">

@@ -126,6 +126,11 @@ function LoginForm() {
               {showPassword ? <EyeOff className="h-4 w-4 text-gray-500" /> : <Eye className="h-4 w-4 text-gray-500" />}
             </button>
           </div>
+          <div className="w-full flex items-center justify-between text-sm">
+            <Link href="/auth/forgot-password" className="w-full text-sm text-blue-600 hover:underline text-center">
+              ¿Olvidaste tu contraseña?
+            </Link>
+          </div>
           <div className="mt-4 text-center text-sm">
             <Text>
               ¿No tienes una cuenta?{" "}

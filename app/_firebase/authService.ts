@@ -7,7 +7,8 @@ import {
   User,
   deleteUser,
   reauthenticateWithCredential,
-  EmailAuthProvider
+  EmailAuthProvider,
+  updatePassword
 } from 'firebase/auth';
 import { auth, storage, db } from './config';
 import { ref, uploadBytes, getDownloadURL, listAll, deleteObject } from 'firebase/storage';
@@ -91,12 +92,51 @@ export const reauthenticateUser = async (user: User, password: string) => {
   try {
     // Solo para proveedores de email y contraseña
     if (user.providerData.length > 0 && user.providerData[0].providerId === 'password') {
-      const credential = EmailAuthProvider.credential(user.email || '', password);
+      console.log("Reautenticando usuario con proveedor de email/contraseña");
+      
+      if (!user.email) {
+        return {
+          success: false,
+          error: "El usuario no tiene un email asociado"
+        };
+      }
+      
+      const credential = EmailAuthProvider.credential(user.email, password);
       await reauthenticateWithCredential(user, credential);
+      console.log("Reautenticación exitosa");
       return { success: true };
     }
     
-    // Para otros proveedores, asumimos que ya está autenticado
+    // Para proveedores como Google, intentaremos continuar con la operación
+    // La verificación de "ELIMINAR" en la UI será suficiente como confirmación
+    console.log("Proveedor OAuth detectado, continuando sin reautenticación específica.");
+    return { success: true };
+  } catch (error: any) {
+    console.error("Error en reautenticación:", error);
+    return {
+      success: false,
+      error: error.message || "Error de autenticación, verifica tu contraseña."
+    };
+  }
+};
+
+/**
+ * Change user password (requires recent authentication)
+ */
+export const changeUserPassword = async (user: User, currentPassword: string, newPassword: string) => {
+  try {
+    // Primero reautenticar al usuario
+    const reauth = await reauthenticateUser(user, currentPassword);
+    if (!reauth.success) {
+      return {
+        success: false,
+        error: reauth.error || "Error al verificar la contraseña actual"
+      };
+    }
+    
+    // Actualizar la contraseña
+    await updatePassword(user, newPassword);
+    
     return { success: true };
   } catch (error: any) {
     return {
@@ -111,78 +151,122 @@ export const reauthenticateUser = async (user: User, password: string) => {
  */
 export const deleteUserAccount = async (user: User, password?: string) => {
   try {
-    // Reautenticar al usuario si se proporciona una contraseña
-    if (password) {
+    // Verificar si es un usuario de email/password
+    const isEmailProvider = user.providerData.length > 0 && user.providerData[0].providerId === 'password';
+    
+    // Reautenticar al usuario si se proporciona una contraseña y usa email/password
+    if (isEmailProvider && password) {
+      console.log("Intentando reautenticar usuario de email/password");
       const result = await reauthenticateUser(user, password);
       if (!result.success) {
+        console.error("Fallo en reautenticación:", result.error);
         return result;
       }
+    } else if (isEmailProvider && !password) {
+      // Si es un usuario de email/password pero no proporcionó contraseña
+      return {
+        success: false,
+        error: "Se requiere tu contraseña para eliminar la cuenta"
+      };
+    } else {
+      // Para proveedores OAuth como Google, la confirmación "ELIMINAR" es suficiente
+      console.log("Usuario de OAuth (Google, etc.) procediendo con confirmación de UI");
     }
 
-    // 1. Eliminar todas las cuentas financieras
-    const accountsRef = collection(db, 'accounts');
-    const accountsQuery = query(accountsRef, where('userId', '==', user.uid));
-    const accountsSnapshot = await getDocs(accountsQuery);
-    
-    // Almacenar IDs de cuentas para eliminar transacciones relacionadas
-    const accountIds: string[] = [];
-    
-    // Usar un batch para eliminar múltiples documentos
-    const batch = writeBatch(db);
-    
-    accountsSnapshot.forEach(doc => {
-      accountIds.push(doc.id);
-      batch.delete(doc.ref);
-    });
-    
-    // 2. Eliminar transacciones financieras (ingresos)
-    const incomesRef = collection(db, 'incomes');
-    const incomesQuery = query(incomesRef, where('userId', '==', user.uid));
-    const incomesSnapshot = await getDocs(incomesQuery);
-    
-    incomesSnapshot.forEach(doc => {
-      batch.delete(doc.ref);
-    });
-    
-    // 3. Eliminar transacciones financieras (gastos)
-    const expensesRef = collection(db, 'expenses');
-    const expensesQuery = query(expensesRef, where('userId', '==', user.uid));
-    const expensesSnapshot = await getDocs(expensesQuery);
-    
-    expensesSnapshot.forEach(doc => {
-      batch.delete(doc.ref);
-    });
-    
-    // 4. Eliminar operaciones pendientes
-    const pendingOpsRef = collection(db, 'pendingOperations');
-    const pendingOpsQuery = query(pendingOpsRef, where('userId', '==', user.uid));
-    const pendingOpsSnapshot = await getDocs(pendingOpsQuery);
-    
-    pendingOpsSnapshot.forEach(doc => {
-      batch.delete(doc.ref);
-    });
-    
-    // Ejecutar el batch
-    await batch.commit();
-    
-    // 5. Eliminar archivos de Storage
     try {
-      // Eliminar imágenes de perfil
-      const profileImagesRef = ref(storage, `profileImages/${user.uid}`);
-      const profileImagesList = await listAll(profileImagesRef);
+      // 1. Eliminar todas las cuentas financieras
+      console.log("Eliminando cuentas financieras");
+      const accountsRef = collection(db, 'accounts');
+      const accountsQuery = query(accountsRef, where('userId', '==', user.uid));
+      const accountsSnapshot = await getDocs(accountsQuery);
       
-      // Eliminar cada archivo
-      const deletePromises = profileImagesList.items.map(item => deleteObject(item));
-      await Promise.all(deletePromises);
-    } catch (error) {
-      console.error("Error al eliminar archivos de Storage:", error);
+      // Almacenar IDs de cuentas para eliminar transacciones relacionadas
+      const accountIds: string[] = [];
+      
+      // Usar un batch para eliminar múltiples documentos
+      const batch = writeBatch(db);
+      
+      accountsSnapshot.forEach(doc => {
+        accountIds.push(doc.id);
+        batch.delete(doc.ref);
+      });
+      
+      // 2. Eliminar transacciones financieras (ingresos)
+      console.log("Eliminando ingresos");
+      const incomesRef = collection(db, 'incomes');
+      const incomesQuery = query(incomesRef, where('userId', '==', user.uid));
+      const incomesSnapshot = await getDocs(incomesQuery);
+      
+      incomesSnapshot.forEach(doc => {
+        batch.delete(doc.ref);
+      });
+      
+      // 3. Eliminar transacciones financieras (gastos)
+      console.log("Eliminando gastos");
+      const expensesRef = collection(db, 'expenses');
+      const expensesQuery = query(expensesRef, where('userId', '==', user.uid));
+      const expensesSnapshot = await getDocs(expensesQuery);
+      
+      expensesSnapshot.forEach(doc => {
+        batch.delete(doc.ref);
+      });
+      
+      // Ejecutar el batch
+      console.log("Ejecutando batch para eliminar todos los datos");
+      await batch.commit();
+    } catch (dbError: any) {
+      console.error("Error al eliminar datos de Firestore:", dbError);
+      // Continuamos intentando eliminar la cuenta de usuario
+    }
+    
+    // 4. Eliminar fotos de perfil de Firebase Storage
+    // Nota: Esto se refiere a los archivos de imagen subidos a Firebase Storage, no a localStorage
+    let storageCleanupSuccess = true;
+    try {
+      // Eliminar imagen de perfil si hay alguna
+      if (user.photoURL) {
+        console.log("Intentando eliminar foto de perfil");
+        // Intentar eliminar directamente la imagen del perfil actual si conocemos la URL
+        try {
+          // Extraer la ruta del storage de la URL si es posible
+          if (user.photoURL.includes('firebasestorage.googleapis.com')) {
+            const fileRef = ref(storage, user.photoURL);
+            await deleteObject(fileRef).catch(e => console.warn("No se pudo eliminar la imagen específica:", e));
+          }
+        } catch (photoError) {
+          console.warn("Error al eliminar foto específica:", photoError);
+        }
+      }
+      
+      // Nota: localStorage para theme y otras preferencias se mantiene intacto
+      // ya que no está vinculado a la cuenta de usuario
+      
+    } catch (storageError) {
+      console.warn("Error al limpiar archivos de Storage:", storageError);
+      storageCleanupSuccess = false;
       // Continuamos con la eliminación del usuario aunque falle esta parte
     }
     
-    // 6. Finalmente eliminar el usuario
-    await deleteUser(user);
+    // 5. Finalmente eliminar el usuario
+    console.log("Eliminando cuenta de usuario");
+    try {
+      await deleteUser(user);
+      console.log("Cuenta eliminada exitosamente");
+    } catch (authError: any) {
+      console.error("Error al eliminar la cuenta de usuario:", authError);
+      if (authError.code === 'auth/requires-recent-login') {
+        return {
+          success: false,
+          error: "Para eliminar tu cuenta, por favor escribe 'ELIMINAR' para confirmar. Si el problema persiste, cierra sesión y vuelve a iniciar antes de intentar de nuevo."
+        };
+      }
+      throw authError; // Re-lanzar para que sea capturado por el catch general
+    }
     
-    return { success: true };
+    return { 
+      success: true,
+      storageCleanupSuccess
+    };
   } catch (error: any) {
     console.error("Error al eliminar cuenta:", error);
     return {
