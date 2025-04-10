@@ -3,6 +3,8 @@
 import { collection, addDoc, updateDoc, deleteDoc, doc, query, where, getDocs, getDoc, serverTimestamp, writeBatch } from "firebase/firestore";
 import { db } from "./config";
 import { useAccountStore } from "@bill/_store/useAccountStore";
+import { getAuth } from "firebase/auth";
+import { countOrphanedFinances, deleteFinancesByAccountId } from "./financeService";
 
 // Tipo para cuentas
 export interface Account {
@@ -20,9 +22,19 @@ const collection_ref = collection(db, "accounts");
 // Obtener cuentas para un usuario
 export const getUserAccounts = async (userId: string): Promise<Account[]> => {
   try {
+    // SEGURIDAD: Verificar que hay un userId válido
+    if (!userId) {
+      console.error("No se proporcionó un userId válido en getUserAccounts");
+      return [];
+    }
+
+    console.log(`Consultando cuentas para usuario: ${userId}`);
+    
+    // Filtrar SIEMPRE por userId en la query de Firestore
     const q = query(collection_ref, where("userId", "==", userId));
     const querySnapshot = await getDocs(q);
 
+    // Mapear resultados a objetos Account
     let accounts = querySnapshot.docs.map((doc) => {
       const data = doc.data();
       return {
@@ -35,8 +47,22 @@ export const getUserAccounts = async (userId: string): Promise<Account[]> => {
       } as Account;
     });
 
-    // Si no hay cuentas, crear la cuenta por defecto "Efectivo"
+    // SEGURIDAD: Validación adicional - Verificar que todas las cuentas pertenecen al usuario
+    const validAccounts = accounts.filter(acc => acc.userId === userId);
+    
+    if (validAccounts.length !== accounts.length) {
+      console.error(`ALERTA DE SEGURIDAD: Se encontraron ${accounts.length - validAccounts.length} cuentas que no pertenecen al usuario ${userId}`);
+      // Aquí podrías implementar algún mecanismo de auditoría o notificación
+      accounts = validAccounts;
+    }
+
+    console.log(`Recuperadas ${accounts.length} cuentas para el usuario ${userId}`);
+
+    // Si no hay cuentas, crear la cuenta por defecto "Efectivo" para este usuario
     if (accounts.length === 0) {
+      console.log(`Creando cuenta Efectivo por defecto para el usuario: ${userId}`);
+      
+      // Verificar explícitamente que estamos creando una cuenta con el userId correcto
       const defaultAccount = await addAccount({
         name: "Efectivo",
         color: "#22c55e", // Verde
@@ -44,13 +70,39 @@ export const getUserAccounts = async (userId: string): Promise<Account[]> => {
         userId: userId,
         isDefault: true,
       });
+      
+      console.log(`Cuenta por defecto creada con éxito para ${userId}: ${defaultAccount.id}`);
       accounts = [defaultAccount];
+    } else {
+      // Verificar si hay una cuenta por defecto
+      const hasDefault = accounts.some(acc => acc.isDefault);
+      
+      if (!hasDefault && accounts.length > 0) {
+        // Si no hay ninguna cuenta marcada como predeterminada, marcar la primera
+        console.log(`No se encontró cuenta por defecto para ${userId}. Estableciendo la primera como predeterminada`);
+        const accountToMakeDefault = accounts[0];
+        const accountRef = doc(db, "accounts", accountToMakeDefault.id);
+        
+        try {
+          await updateDoc(accountRef, {
+            isDefault: true,
+            updatedAt: serverTimestamp()
+          });
+          
+          // Actualizar en memoria también
+          accountToMakeDefault.isDefault = true;
+        } catch (updateError) {
+          console.error("Error al establecer cuenta predeterminada:", updateError);
+        }
+      }
     }
 
     return accounts;
   } catch (error) {
-    console.error("Error al obtener cuentas del usuario:", error);
-    // Último recurso - cuenta predeterminada
+    console.error(`Error al obtener cuentas del usuario ${userId}:`, error);
+    
+    // Último recurso - cuenta predeterminada temporal (no se guarda en la BD)
+    console.warn(`Generando cuenta temporal para ${userId} como último recurso`);
     return [
       {
         id: `default_${Date.now()}`,
@@ -67,6 +119,13 @@ export const getUserAccounts = async (userId: string): Promise<Account[]> => {
 // Añadir una nueva cuenta
 export const addAccount = async (account: Omit<Account, "id">): Promise<Account> => {
   try {
+    // SEGURIDAD: Verificar que haya un userId
+    if (!account.userId) {
+      throw new Error("No se puede crear una cuenta sin un ID de usuario");
+    }
+
+    console.log(`Creando nueva cuenta "${account.name}" para usuario: ${account.userId}`);
+
     const docRef = await addDoc(collection_ref, {
       ...account,
       createdAt: serverTimestamp(),
@@ -78,17 +137,24 @@ export const addAccount = async (account: Omit<Account, "id">): Promise<Account>
       id: docRef.id,
     };
 
-    // Actualizar directamente el estado global de cuentas
-    const { accounts, addAccount: addAccountToStore } = useAccountStore.getState();
+    console.log(`Cuenta creada con ID: ${createdAccount.id} para usuario: ${account.userId}`);
 
-    // Solo añadir si no existe ya
-    if (!accounts.some((acc) => acc.id === createdAccount.id)) {
-      addAccountToStore(createdAccount);
+    // Actualizar directamente el estado global de cuentas
+    try {
+      const { accounts, addAccount: addAccountToStore } = useAccountStore.getState();
+
+      // Solo añadir si no existe ya y pertenece al usuario actual
+      if (!accounts.some((acc) => acc.id === createdAccount.id)) {
+        addAccountToStore(createdAccount);
+      }
+    } catch (storeError) {
+      console.warn("Error actualizando el estado global de cuentas:", storeError);
+      // Continuamos, ya que la cuenta ya está creada en Firestore
     }
 
     return createdAccount;
   } catch (error) {
-    console.error("Error al añadir cuenta:", error);
+    console.error(`Error al añadir cuenta para usuario ${account.userId}:`, error);
     throw error;
   }
 };
@@ -121,11 +187,19 @@ export const updateAccount = async (account: Account): Promise<void> => {
 // Eliminar una cuenta
 export const deleteAccount = async (id: string): Promise<void> => {
   try {
+    // Obtener el usuario actual
+    const auth = getAuth();
+    const currentUser = auth.currentUser;
+    
+    if (!currentUser) {
+      throw new Error("Usuario no autenticado");
+    }
+    
     // Verificar primero si hay transacciones asociadas
-    const { orphanedCount } = await countOrphanedFinances(id);
+    const { orphanedCount } = await countOrphanedFinances(id, currentUser.uid);
     if (orphanedCount > 0) {
       // Si hay transacciones, eliminarlas primero
-      await deleteFinancesByAccountId(id);
+      await deleteFinancesByAccountId(id, currentUser.uid);
     }
 
     // Eliminar la cuenta
@@ -207,9 +281,6 @@ export const transferBetweenAccounts = async (fromAccountId: string, toAccountId
     throw error;
   }
 };
-
-// Importar funciones de financeService para no crear dependencias circulares
-import { countOrphanedFinances, deleteFinancesByAccountId } from "./financeService";
 
 // Obtener una cuenta por ID
 export const getAccountById = async (accountId: string): Promise<Account | null> => {

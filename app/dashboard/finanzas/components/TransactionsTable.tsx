@@ -101,14 +101,25 @@ export default function TransactionsTable() {
 
   // Combinar y ordenar transacciones
   const allTransactions = useMemo(() => {
+    if (!user) return [];
+
+    // SEGURIDAD: Solo procesar transacciones del usuario actual
+    const currentUserId = user.uid;
+    
+    // Filtrar explícitamente
+    const userExpenses = expenses.filter(exp => exp.userId === currentUserId);
+    const userIncomes = incomes.filter(inc => inc.userId === currentUserId);
+
+    console.log(`Procesando ${userExpenses.length} gastos y ${userIncomes.length} ingresos para usuario ${currentUserId}`);
+
     // Combinar ingresos y gastos en un solo array
     const transactions: Transaction[] = [
-      ...expenses.map((expense) => ({
+      ...userExpenses.map((expense) => ({
         ...expense,
         type: "expense" as const,
         date: new Date(expense.date),
       })),
-      ...incomes.map((income) => ({
+      ...userIncomes.map((income) => ({
         ...income,
         type: "income" as const,
         date: new Date(income.date),
@@ -117,7 +128,7 @@ export default function TransactionsTable() {
 
     // Ordenar por fecha (más reciente primero)
     return transactions.sort((a, b) => b.date.getTime() - a.date.getTime());
-  }, [expenses, incomes]);
+  }, [expenses, incomes, user]);
 
   // Lista de categorías únicas
   const uniqueCategories = useMemo(() => {
@@ -537,7 +548,7 @@ export default function TransactionsTable() {
                       <CategoryBadge category={transaction.category} type={transaction.type} showIcon={true} className="text-xs" />
                     </div>
                     <span className={`font-semibold text-base ${transaction.type === "income" ? "text-blue-600 dark:text-blue-400" : "text-red-600 dark:text-red-400"}`}>
-                      {formatCurrency(transaction.amount)}
+                      {transaction.type === "income" ? "+" : "-"}{formatCurrency(transaction.amount)}
                     </span>
                   </div>
 
@@ -680,7 +691,7 @@ export default function TransactionsTable() {
                         <DateTimeDisplay date={transaction.date} />
                       </TableCell>
                       <TableCell className={transaction.type === "income" ? "text-blue-600 dark:text-blue-400" : "text-red-600 dark:text-red-400"}>
-                        {formatCurrency(transaction.amount)}
+                        {transaction.type === "income" ? "+" : "-"}{formatCurrency(transaction.amount)}
                       </TableCell>
                       <TableCell>
                         <div className="flex space-x-2">

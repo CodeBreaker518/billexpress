@@ -24,6 +24,15 @@ export const createFinanceService = (entityType: "incomes" | "expenses") => {
   // Obtener elementos para un usuario
   const getUserItems = async (userId: string): Promise<FinanceItem[]> => {
     try {
+      // SEGURIDAD: Verificar que hay un userId válido
+      if (!userId) {
+        console.error(`No se proporcionó un userId válido en getUserItems de ${entityType}`);
+        return [];
+      }
+
+      console.log(`Consultando ${entityType} para usuario: ${userId}`);
+      
+      // Filtrar SIEMPRE por userId en la query de Firestore
       const q = query(collection_ref, where("userId", "==", userId));
       const querySnapshot = await getDocs(q);
 
@@ -40,7 +49,16 @@ export const createFinanceService = (entityType: "incomes" | "expenses") => {
         } as FinanceItem;
       });
 
-      return items;
+      // SEGURIDAD: Validación adicional - Verificar que todos los elementos pertenecen al usuario
+      const validItems = items.filter(item => item.userId === userId);
+      
+      if (validItems.length !== items.length) {
+        console.error(`ALERTA DE SEGURIDAD: Se encontraron ${items.length - validItems.length} registros que no pertenecen al usuario ${userId}`);
+        // Aquí podrías implementar algún mecanismo de auditoría o notificación
+      }
+
+      console.log(`Recuperados ${validItems.length} ${entityType} para el usuario ${userId}`);
+      return validItems;
     } catch (error) {
       console.error(`Error fetching ${entityType}:`, error);
       return [];
@@ -50,6 +68,28 @@ export const createFinanceService = (entityType: "incomes" | "expenses") => {
   // Añadir un nuevo elemento
   const addItem = async (item: Omit<FinanceItem, "id">): Promise<FinanceItem> => {
     try {
+      // SEGURIDAD: Verificar que haya un userId
+      if (!item.userId) {
+        throw new Error(`No se puede crear ${entityType} sin un ID de usuario`);
+      }
+
+      // SEGURIDAD: Verificar que el accountId pertenezca al usuario actual
+      if (item.accountId) {
+        const accountRef = doc(db, "accounts", item.accountId);
+        const accountSnap = await getDoc(accountRef);
+        
+        if (!accountSnap.exists()) {
+          throw new Error(`La cuenta ${item.accountId} no existe`);
+        }
+        
+        const accountData = accountSnap.data();
+        if (accountData.userId !== item.userId) {
+          console.error(`Intento de usar cuenta de otro usuario detectado. UserId: ${item.userId}, Account: ${item.accountId}, AccountUserId: ${accountData.userId}`);
+          // Eliminar el accountId para evitar la vinculación con cuentas de otros usuarios
+          item.accountId = undefined;
+        }
+      }
+
       // Validar la fecha y asegurar que sea un objeto Date válido
       let safeDate;
       try {
@@ -94,6 +134,25 @@ export const createFinanceService = (entityType: "incomes" | "expenses") => {
   // Actualizar un elemento existente
   const updateItem = async (item: FinanceItem): Promise<void> => {
     try {
+      // SEGURIDAD: Verificar que hay un userId
+      if (!item.userId) {
+        throw new Error(`No se puede actualizar ${entityType} sin un ID de usuario`);
+      }
+
+      // SEGURIDAD: Verificar que el usuario es propietario del elemento
+      const itemRef = doc(db, entityType, item.id);
+      const docSnap = await getDoc(itemRef);
+      
+      if (!docSnap.exists()) {
+        throw new Error(`El ${entityType} con ID ${item.id} no existe`);
+      }
+      
+      const existingData = docSnap.data();
+      if (existingData.userId !== item.userId) {
+        console.error(`ALERTA DE SEGURIDAD: Intento de actualizar ${entityType} de otro usuario. ID: ${item.id}, Usuario solicitante: ${item.userId}, Usuario propietario: ${existingData.userId}`);
+        throw new Error(`No autorizado: Este ${entityType} pertenece a otro usuario`);
+      }
+
       // Validar la fecha y asegurar que sea un objeto Date válido
       let safeDate;
       try {
@@ -133,8 +192,9 @@ export const createFinanceService = (entityType: "incomes" | "expenses") => {
         updateData.accountId = item.accountId;
       }
 
-      const itemRef = doc(db, entityType, item.id);
+      // Realizar la actualización
       await updateDoc(itemRef, updateData);
+      console.log(`${entityType} actualizado con éxito. ID: ${item.id}, Usuario: ${item.userId}`);
     } catch (error) {
       console.error(`Error in update${entityType.slice(0, -1)}:`, error);
       throw error;
@@ -142,10 +202,31 @@ export const createFinanceService = (entityType: "incomes" | "expenses") => {
   };
 
   // Eliminar un elemento
-  const deleteItem = async (id: string): Promise<void> => {
+  const deleteItem = async (id: string, userId?: string): Promise<void> => {
     try {
-      const itemRef = doc(db, entityType, id);
-      await deleteDoc(itemRef);
+      // SEGURIDAD: Si se proporciona un userId, verificar la propiedad
+      if (userId) {
+        const itemRef = doc(db, entityType, id);
+        const docSnap = await getDoc(itemRef);
+        
+        if (!docSnap.exists()) {
+          throw new Error(`El ${entityType} con ID ${id} no existe`);
+        }
+        
+        const existingData = docSnap.data();
+        if (existingData.userId !== userId) {
+          console.error(`ALERTA DE SEGURIDAD: Intento de eliminar ${entityType} de otro usuario. ID: ${id}, Usuario solicitante: ${userId}, Usuario propietario: ${existingData.userId}`);
+          throw new Error(`No autorizado: Este ${entityType} pertenece a otro usuario`);
+        }
+
+        console.log(`Eliminando ${entityType} con ID ${id} del usuario ${userId}`);
+        await deleteDoc(itemRef);
+      } else {
+        // Uso interno sin verificación de usuario (¡utilizar con precaución!)
+        console.warn(`Eliminando ${entityType} con ID ${id} SIN verificación de usuario`);
+        const itemRef = doc(db, entityType, id);
+        await deleteDoc(itemRef);
+      }
     } catch (error) {
       console.error(`Error deleting ${entityType.slice(0, -1)}:`, error);
       throw error;
@@ -166,19 +247,29 @@ export const expenseService = createFinanceService("expenses");
 
 // Contar elementos huérfanos (sin cuenta asociada)
 export const countOrphanedFinances = async (
-  accountId: string
+  accountId: string,
+  userId?: string
 ): Promise<{
   orphanedCount: number;
   orphanedIncomesCount: number;
   orphanedExpensesCount: number;
 }> => {
   try {
+    // Si no hay userId, no podemos hacer la consulta con seguridad
+    if (!userId) {
+      console.warn("countOrphanedFinances: No se proporcionó userId, esto puede causar problemas de permisos");
+    }
+    
     // Buscar ingresos asociados a la cuenta
-    const incomesQuery = query(collection(db, "incomes"), where("accountId", "==", accountId));
+    const incomesQuery = userId 
+      ? query(collection(db, "incomes"), where("accountId", "==", accountId), where("userId", "==", userId))
+      : query(collection(db, "incomes"), where("accountId", "==", accountId));
     const incomesSnapshot = await getDocs(incomesQuery);
 
     // Buscar gastos asociados a la cuenta
-    const expensesQuery = query(collection(db, "expenses"), where("accountId", "==", accountId));
+    const expensesQuery = userId
+      ? query(collection(db, "expenses"), where("accountId", "==", accountId), where("userId", "==", userId))
+      : query(collection(db, "expenses"), where("accountId", "==", accountId));
     const expensesSnapshot = await getDocs(expensesQuery);
 
     return {
@@ -198,14 +289,24 @@ export const countOrphanedFinances = async (
 
 // Eliminar elementos financieros asociados a una cuenta
 export const deleteFinancesByAccountId = async (
-  accountId: string
+  accountId: string,
+  userId: string
 ): Promise<{
   deletedIncomesCount: number;
   deletedExpensesCount: number;
 }> => {
   try {
-    // Obtener ingresos asociados a la cuenta
-    const incomesQuery = query(collection(db, "incomes"), where("accountId", "==", accountId));
+    if (!userId) {
+      console.error("No se proporcionó userId para eliminar finanzas de una cuenta");
+      throw new Error("Se requiere userId para eliminar finanzas");
+    }
+
+    // Obtener ingresos asociados a la cuenta Y al usuario
+    const incomesQuery = query(
+      collection(db, "incomes"), 
+      where("accountId", "==", accountId),
+      where("userId", "==", userId)
+    );
     const incomesSnapshot = await getDocs(incomesQuery);
 
     // Eliminar ingresos
@@ -215,8 +316,12 @@ export const deleteFinancesByAccountId = async (
       deletedIncomesCount++;
     }
 
-    // Obtener gastos asociados a la cuenta
-    const expensesQuery = query(collection(db, "expenses"), where("accountId", "==", accountId));
+    // Obtener gastos asociados a la cuenta Y al usuario
+    const expensesQuery = query(
+      collection(db, "expenses"), 
+      where("accountId", "==", accountId),
+      where("userId", "==", userId)
+    );
     const expensesSnapshot = await getDocs(expensesQuery);
 
     // Eliminar gastos
@@ -225,6 +330,10 @@ export const deleteFinancesByAccountId = async (
       await deleteDoc(doc.ref);
       deletedExpensesCount++;
     }
+
+    // No intentamos actualizar el estado local directamente
+    // En su lugar, dejaremos que el componente que llama a esta función
+    // se encargue de actualizar el estado si es necesario
 
     return {
       deletedIncomesCount,
@@ -239,7 +348,7 @@ export const deleteFinancesByAccountId = async (
 // Actualizar cuenta asociada a un elemento financiero
 export const updateFinanceWithAccount = async (
   collection: "incomes" | "expenses",
-  financeItem: { amount: number; [key: string]: unknown },
+  financeItem: { amount: number; id: string; userId: string; [key: string]: unknown },
   accountId: string,
   operation: "add" | "update" | "delete",
   previousAccountId?: string
@@ -250,8 +359,46 @@ export const updateFinanceWithAccount = async (
       return;
     }
 
+    if (!accountId) {
+      console.warn("No se proporcionó un accountId válido, no se actualizará ningún saldo");
+      return;
+    }
+
     const userId = financeItem.userId as string;
-    console.log(`Operación ${operation} ${collection} para usuario ${userId}`);
+    console.log(`Operación ${operation} ${collection} para usuario ${userId} en cuenta ${accountId}`);
+
+    // SEGURIDAD: Verificar que la cuenta pertenezca al usuario
+    const accountRef = doc(db, "accounts", accountId);
+    const accountSnapshot = await getDoc(accountRef);
+
+    if (!accountSnapshot.exists()) {
+      console.error(`La cuenta ${accountId} no existe, no se actualizará el saldo`);
+      return;
+    }
+
+    const accountData = accountSnapshot.data();
+    if (accountData.userId !== userId) {
+      console.error(`Intento de actualizar cuenta de otro usuario. UserId: ${userId}, AccountUserId: ${accountData.userId}`);
+      return;
+    }
+
+    // Si hay un previousAccountId, también verificar que pertenezca al usuario
+    if (previousAccountId) {
+      const prevAccountRef = doc(db, "accounts", previousAccountId);
+      const prevAccountSnapshot = await getDoc(prevAccountRef);
+
+      if (prevAccountSnapshot.exists()) {
+        const prevAccountData = prevAccountSnapshot.data();
+        if (prevAccountData.userId !== userId) {
+          console.error(`Intento de actualizar cuenta previa de otro usuario. UserId: ${userId}, PrevAccountUserId: ${prevAccountData.userId}`);
+          // No debemos usar esta cuenta previa
+          previousAccountId = undefined;
+        }
+      } else {
+        // Si la cuenta previa no existe, no la usamos
+        previousAccountId = undefined;
+      }
+    }
 
     // Para operaciones de actualización o cuando hay cambio de cuenta,
     // simplemente recalculamos todos los saldos para mayor precisión
@@ -262,52 +409,41 @@ export const updateFinanceWithAccount = async (
     }
 
     // Para add y delete simples, actualizamos solo la cuenta específica
-    if (accountId) {
-      // Obtener la cuenta directamente de Firebase
-      const accountRef = doc(db, "accounts", accountId);
-      const accountSnapshot = await getDoc(accountRef);
+    // Obtener la cuenta directamente de Firebase
+    const account = {
+      id: accountId,
+      ...accountSnapshot.data(),
+    } as Account;
 
-      if (accountSnapshot.exists()) {
-        const account = {
-          id: accountId,
-          ...accountSnapshot.data(),
-        } as Account;
+    // Calcular el nuevo saldo
+    const multiplier = collection === "incomes" ? 1 : -1;
+    const amount = financeItem.amount as number;
+    let newBalance = account.balance;
 
-        // Calcular el nuevo saldo
-        const multiplier = collection === "incomes" ? 1 : -1;
-        const amount = financeItem.amount as number;
-        let newBalance = account.balance;
-
-        if (operation === "add") {
-          newBalance += amount * multiplier;
-        } else if (operation === "delete") {
-          newBalance -= amount * multiplier;
-        }
-
-        // Actualizar en Firebase
-        await updateDoc(accountRef, {
-          balance: newBalance,
-          updatedAt: serverTimestamp(),
-        });
-
-        // Actualizar en el estado local
-        try {
-          const { updateAccount } = useAccountStore.getState();
-          updateAccount({
-            ...account,
-            balance: newBalance,
-          });
-        } catch (storeError) {
-          console.warn("No se pudo actualizar el estado local:", storeError);
-        }
-
-        console.log(`Cuenta ${accountId} actualizada, nuevo saldo: ${newBalance}`);
-      } else {
-        console.warn(`Cuenta ${accountId} no encontrada, se omite la actualización del saldo`);
-      }
-    } else {
-      console.warn("No se proporcionó ID de cuenta válido, omitiendo actualización de saldo");
+    if (operation === "add") {
+      newBalance += amount * multiplier;
+    } else if (operation === "delete") {
+      newBalance -= amount * multiplier;
     }
+
+    // Actualizar en Firebase
+    await updateDoc(accountRef, {
+      balance: newBalance,
+      updatedAt: serverTimestamp(),
+    });
+
+    // Actualizar en el estado local
+    try {
+      const { updateAccount } = useAccountStore.getState();
+      updateAccount({
+        ...account,
+        balance: newBalance,
+      });
+    } catch (storeError) {
+      console.warn("No se pudo actualizar el estado local:", storeError);
+    }
+
+    console.log(`Cuenta ${accountId} actualizada, nuevo saldo: ${newBalance}`);
   } catch (error) {
     console.error("Error actualizando finanzas con cuenta:", error);
     // En caso de error, forzar recálculo completo para asegurar integridad

@@ -253,13 +253,22 @@ export default function AccountManager({ userId, onReloadAccounts, isLoading }: 
   // Confirmar eliminación de cuenta
   const handleConfirmDelete = useCallback(
     async (accountId: string) => {
+      // Verificar que la cuenta exista
       const account = accounts.find((acc) => acc.id === accountId);
+      if (!account) {
+        toast({
+          title: "Error",
+          description: "No se encontró la cuenta a eliminar",
+          variant: "destructive",
+        });
+        return;
+      }
 
       // Verificamos si es la única cuenta predeterminada (no se debe eliminar)
       // O si hay múltiples cuentas predeterminadas (situación de error que queremos corregir)
       const defaultAccounts = accounts.filter((acc) => acc.isDefault);
-      const isOnlyDefault = account?.isDefault && defaultAccounts.length === 1;
-      const isDuplicateDefault = account?.isDefault && defaultAccounts.length > 1;
+      const isOnlyDefault = account.isDefault && defaultAccounts.length === 1;
+      const isDuplicateDefault = account.isDefault && defaultAccounts.length > 1;
 
       if (isOnlyDefault) {
         toast({
@@ -283,7 +292,7 @@ export default function AccountManager({ userId, onReloadAccounts, isLoading }: 
         // Consultar si hay ingresos o gastos asociados a esta cuenta
         const { countOrphanedFinances } = await import("@bill/_firebase/financeService");
 
-        const { orphanedCount, orphanedIncomesCount, orphanedExpensesCount } = await countOrphanedFinances(accountId);
+        const { orphanedCount, orphanedIncomesCount, orphanedExpensesCount } = await countOrphanedFinances(accountId, userId);
 
         const hasOrphanedRecords = orphanedCount > 0;
 
@@ -314,7 +323,7 @@ export default function AccountManager({ userId, onReloadAccounts, isLoading }: 
         setDeleteConfirmOpen(true);
       }
     },
-    [accounts, toast]
+    [accounts, toast, userId]
   );
 
   // Eliminar cuenta
@@ -327,7 +336,7 @@ export default function AccountManager({ userId, onReloadAccounts, isLoading }: 
       const { db } = await import("@bill/_firebase/config");
 
       // Eliminar todas las transacciones asociadas a la cuenta
-      const { deletedIncomesCount, deletedExpensesCount } = await deleteFinancesByAccountId(accountToDelete.id);
+      const { deletedIncomesCount, deletedExpensesCount } = await deleteFinancesByAccountId(accountToDelete.id, userId);
       const totalDeleted = deletedIncomesCount + deletedExpensesCount;
 
       // Si es una cuenta predeterminada duplicada, eliminamos directamente el documento
@@ -348,6 +357,43 @@ export default function AccountManager({ userId, onReloadAccounts, isLoading }: 
       // Recargar cuentas con recálculo automático de saldos
       await reloadAccountsWithRecalculation();
 
+      // Actualizar el estado de las transacciones para que no aparezcan huérfanas en la UI
+      try {
+        // Intentar actualizar los estados de transacciones si están disponibles
+        // Este bloque es para actualizar la UI y evitar que se muestren registros eliminados
+        
+        // Actualizar estado de ingresos
+        const { useIncomeStore } = await import("@bill/_store/useIncomeStore");
+        if (useIncomeStore) {
+          // Obtener los ingresos actualizados del usuario (sin los eliminados)
+          const { incomeService } = await import("@bill/_firebase/financeService");
+          const updatedIncomes = await incomeService.getUserItems(userId);
+          
+          // Actualizar el estado completo con los datos actualizados
+          const incomeStore = useIncomeStore.getState();
+          if (incomeStore.setIncomes) {
+            incomeStore.setIncomes(updatedIncomes);
+          }
+        }
+        
+        // Actualizar estado de gastos
+        const { useExpenseStore } = await import("@bill/_store/useExpenseStore");
+        if (useExpenseStore) {
+          // Obtener los gastos actualizados del usuario (sin los eliminados)
+          const { expenseService } = await import("@bill/_firebase/financeService");
+          const updatedExpenses = await expenseService.getUserItems(userId);
+          
+          // Actualizar el estado completo con los datos actualizados
+          const expenseStore = useExpenseStore.getState();
+          if (expenseStore.setExpenses) {
+            expenseStore.setExpenses(updatedExpenses);
+          }
+        }
+      } catch (storeError) {
+        console.warn("Error al actualizar estados de transacciones:", storeError);
+        // No interrumpimos el flujo principal si hay un error en la actualización del estado
+      }
+      
       // Mensaje específico según si se eliminaron transacciones
       if (totalDeleted > 0) {
         toast({
@@ -372,7 +418,7 @@ export default function AccountManager({ userId, onReloadAccounts, isLoading }: 
       setDeleteConfirmOpen(false);
       setAccountToDelete(null);
     }
-  }, [accountToDelete, reloadAccountsWithRecalculation, toast]);
+  }, [accountToDelete, reloadAccountsWithRecalculation, toast, userId]);
 
   // Guardar cuenta (nueva o editada)
   const handleSaveAccount = useCallback(async () => {

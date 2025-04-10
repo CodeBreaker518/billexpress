@@ -123,24 +123,50 @@ export const useFinanceStore = create<FinanceState>((set, get) => ({
     const accountStore = useAccountStore.getState();
 
     try {
+      console.log(`Cargando datos financieros para usuario: ${user.uid}`);
+      
       // Cargar gastos si no están ya cargados
       if (expenseStore.expenses.length === 0 && !expenseStore.loading) {
         const userExpenses = await getUserExpenses(user.uid);
-        expenseStore.setExpenses(userExpenses);
+        // SEGURIDAD: Filtrar explícitamente por userId
+        const verifiedExpenses = userExpenses.filter(exp => exp.userId === user.uid);
+        
+        if (verifiedExpenses.length !== userExpenses.length) {
+          console.error(`¡ALERTA DE SEGURIDAD! Se detectaron ${userExpenses.length - verifiedExpenses.length} gastos que no pertenecen al usuario actual.`);
+        }
+        
+        expenseStore.setExpenses(verifiedExpenses);
+        console.log(`Cargados ${verifiedExpenses.length} gastos para el usuario ${user.uid}`);
       }
 
       // Cargar ingresos si no están ya cargados
       if (incomeStore.incomes.length === 0 && !incomeStore.loading) {
         const userIncomes = await getUserIncomes(user.uid);
-        incomeStore.setIncomes(userIncomes);
+        // SEGURIDAD: Filtrar explícitamente por userId
+        const verifiedIncomes = userIncomes.filter(inc => inc.userId === user.uid);
+        
+        if (verifiedIncomes.length !== userIncomes.length) {
+          console.error(`¡ALERTA DE SEGURIDAD! Se detectaron ${userIncomes.length - verifiedIncomes.length} ingresos que no pertenecen al usuario actual.`);
+        }
+        
+        incomeStore.setIncomes(verifiedIncomes);
+        console.log(`Cargados ${verifiedIncomes.length} ingresos para el usuario ${user.uid}`);
       }
 
       // Cargar cuentas si no están ya cargadas
       if (accountStore.accounts.length === 0 && !accountStore.loading) {
         accountStore.setLoading(true);
         const userAccounts = await getUserAccounts(user.uid);
-        accountStore.setAccounts(userAccounts);
+        // SEGURIDAD: Filtrar explícitamente por userId
+        const verifiedAccounts = userAccounts.filter(acc => acc.userId === user.uid);
+        
+        if (verifiedAccounts.length !== userAccounts.length) {
+          console.error(`¡ALERTA DE SEGURIDAD! Se detectaron ${userAccounts.length - verifiedAccounts.length} cuentas que no pertenecen al usuario actual.`);
+        }
+        
+        accountStore.setAccounts(verifiedAccounts);
         accountStore.setLoading(false);
+        console.log(`Cargadas ${verifiedAccounts.length} cuentas para el usuario ${user.uid}`);
       }
 
       // Calcular estadísticas de categorías
@@ -293,7 +319,8 @@ export const useFinanceStore = create<FinanceState>((set, get) => ({
     const { deleteExpense: deleteLocalExpense } = useExpenseStore.getState();
 
     try {
-      await deleteExpense(_id);
+      // Pasar el userId para verificación de seguridad
+      await deleteExpense(_id, user.uid);
       deleteLocalExpense(_id);
       // Recalcular estadísticas
       get().calculateCategoryStats();
@@ -310,7 +337,8 @@ export const useFinanceStore = create<FinanceState>((set, get) => ({
     const { deleteIncome: deleteLocalIncome } = useIncomeStore.getState();
 
     try {
-      await deleteIncome(_id);
+      // Pasar el userId para verificación de seguridad
+      await deleteIncome(_id, user.uid);
       deleteLocalIncome(_id);
       // Recalcular estadísticas
       get().calculateCategoryStats();

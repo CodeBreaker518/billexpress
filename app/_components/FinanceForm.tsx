@@ -54,21 +54,22 @@ export const FinanceForm = memo(function FinanceForm({
   useEffect(() => {
     if (currentItem && currentItem.accountId) {
       setSelectedAccountId(currentItem.accountId);
-    } else if (!selectedAccountId && activeAccountId) {
+    } else if (!selectedAccountId && activeAccountId && !isEditing) {
+      // Solo usar activeAccountId como valor predeterminado si NO estamos editando
       setSelectedAccountId(activeAccountId);
     }
-  }, [currentItem, activeAccountId, selectedAccountId]);
+  }, [currentItem, activeAccountId, selectedAccountId, isEditing]);
 
   // Actualizar cuenta seleccionada cuando cambia la cuenta activa o cuando se cargan las cuentas
   useEffect(() => {
     if (!selectedAccountId) {
-      // Si hay cuentas disponibles, seleccionar la cuenta activa o la primera cuenta
-      if (accounts.length > 0) {
+      // Si no estamos editando y hay cuentas disponibles, seleccionar la cuenta activa o la primera cuenta
+      if (accounts.length > 0 && !isEditing) {
         const defaultAccount = accounts.find(acc => acc.isDefault);
         setSelectedAccountId(activeAccountId || (defaultAccount ? defaultAccount.id : accounts[0].id));
       }
     }
-  }, [accounts, activeAccountId, selectedAccountId]);
+  }, [accounts, activeAccountId, selectedAccountId, isEditing]);
 
   // Manejador para los cambios en los campos
   const handleChange = useCallback(

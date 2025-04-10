@@ -151,9 +151,29 @@ export const useAuth = () => {
   // Logout user
   const logout = async () => {
     try {
+      // Limpiar todos los stores antes de cerrar sesión
+      // Importar de forma dinámica para evitar dependencias circulares
+      const { useAccountStore } = await import("@bill/_store/useAccountStore");
+      const { useIncomeStore } = await import("@bill/_store/useIncomeStore");
+      const { useExpenseStore } = await import("@bill/_store/useExpenseStore");
+      const { useFinanceStore } = await import("@bill/_store/useFinanceStore");
+
+      // Limpiar datos almacenados en las tiendas
+      console.log("Limpiando datos de usuario antes de cerrar sesión...");
+      useAccountStore.getState().setAccounts([]);
+      useIncomeStore.getState().setIncomes([]);
+      useExpenseStore.getState().setExpenses([]);
+      
+      // Restablecer otras configuraciones
+      useFinanceStore.getState().setSearchTerm("");
+      
+      // Finalmente, cerrar sesión en Firebase
       await signOut(auth);
+      
+      console.log("Sesión cerrada y datos limpiados correctamente");
       return { success: true };
     } catch (error: any) {
+      console.error("Error al cerrar sesión:", error);
       return {
         success: false,
         error: getUserFriendlyErrorMessage(error as AuthError),
