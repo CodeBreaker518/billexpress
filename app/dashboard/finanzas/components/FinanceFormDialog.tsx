@@ -6,7 +6,28 @@ import { DialogDescription } from "@bill/_components/ui/dialog";
 import FinanceForm from "@bill/_components/FinanceForm";
 
 export default function FinanceFormDialog() {
-  const { isFormOpen, isEditing, formType, currentItem, handleCancel, handleSave, handleFormChange, expenseCategories, incomeCategories } = useFinanceStore();
+  const { 
+    isFormOpen, 
+    isEditing, 
+    formType, 
+    currentItem, 
+    handleCancel, 
+    handleSave: storeHandleSave, 
+    handleFormChange, 
+    expenseCategories, 
+    incomeCategories 
+  } = useFinanceStore();
+
+  // Función wrapper para asegurar que el manejo del guardado es correcto
+  const handleSave = async (item: any) => {
+    // Actualizar el ítem actual antes de guardarlo
+    Object.keys(item).forEach(key => {
+      handleFormChange(key, item[key]);
+    });
+    
+    // Llamar al método de guardado del store
+    return storeHandleSave();
+  };
 
   return (
     <DrawerDialog

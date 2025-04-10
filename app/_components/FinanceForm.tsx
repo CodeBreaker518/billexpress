@@ -33,17 +33,16 @@ export interface FinanceFormProps {
   onChange?: (field: string, value: unknown) => void;
 }
 
-export const FinanceForm = memo(function FinanceForm({ isEditing, currentItem, categories = [], type, onCancel, onSave, onChange }: FinanceFormProps) {
-  // Estado para manejar el formulario
-  const [formData, setFormData] = useState<Partial<FinanceItem & { time?: string }>>({
-    id: "",
-    description: "",
-    amount: 0,
-    category: categories.length > 0 ? categories[0] : "",
-    date: new Date(),
-    time: format(new Date(), "HH:mm"),
-  });
-
+export const FinanceForm = memo(function FinanceForm({ 
+  isEditing, 
+  currentItem,
+  categories = [], 
+  type, 
+  onCancel, 
+  onSave, 
+  onChange 
+}: FinanceFormProps) {
+  // Solo mantenemos estados para funcionalidad interna del formulario
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -51,25 +50,7 @@ export const FinanceForm = memo(function FinanceForm({ isEditing, currentItem, c
   const { accounts, activeAccountId, loading: accountsLoading } = useAccountStore();
   const [selectedAccountId, setSelectedAccountId] = useState<string | null>(null);
 
-  // Actualizar el formulario cuando cambia el item actual
-  useEffect(() => {
-    if (isEditing && currentItem) {
-      setFormData({
-        ...currentItem,
-        time: currentItem.date ? format(new Date(currentItem.date), "HH:mm") : format(new Date(), "HH:mm"),
-      });
-
-      // Si el item tiene una cuenta asignada, usarla
-      if (currentItem.accountId) {
-        setSelectedAccountId(currentItem.accountId);
-      }
-    } else {
-      // Reset form cuando no hay item
-      resetForm();
-    }
-  }, [isEditing, currentItem, categories]);
-
-  // Si el item tiene una cuenta asignada, usarla
+  // Actualizamos selectedAccountId cuando cambia el currentItem
   useEffect(() => {
     if (currentItem && currentItem.accountId) {
       setSelectedAccountId(currentItem.accountId);
@@ -89,28 +70,10 @@ export const FinanceForm = memo(function FinanceForm({ isEditing, currentItem, c
     }
   }, [accounts, activeAccountId, selectedAccountId]);
 
-  // Reiniciar el formulario a valores predeterminados
-  const resetForm = useCallback(() => {
-    setFormData({
-      id: "",
-      description: "",
-      amount: 0,
-      category: categories.length > 0 ? categories[0] : "",
-      date: new Date(),
-      time: format(new Date(), "HH:mm"),
-    });
-    setError(null);
-  }, [categories]);
-
-  // Manejador de cambios en el formulario
+  // Manejador para los cambios en los campos
   const handleChange = useCallback(
     (field: string, value: unknown) => {
-      setFormData((prev) => ({
-        ...prev,
-        [field]: value,
-      }));
-
-      // También notificar al componente padre si se proporcionó onChange
+      // Notificar al componente padre para actualizar el estado global
       if (onChange) {
         onChange(field, value);
       }
@@ -123,28 +86,32 @@ export const FinanceForm = memo(function FinanceForm({ isEditing, currentItem, c
 
   // Validar el formulario antes de enviar
   const validateForm = useCallback(() => {
-    if (!formData.description?.trim()) {
+    if (!currentItem) return false;
+    
+    if (!currentItem.description?.trim()) {
       setError("La descripción es obligatoria");
       return false;
     }
 
-    if (!formData.amount || formData.amount <= 0) {
+    if (!currentItem.amount || currentItem.amount <= 0) {
       setError(`El ${type === "income" ? "ingreso" : "gasto"} debe ser mayor que cero`);
       return false;
     }
 
-    if (!formData.category) {
+    if (!currentItem.category) {
       setError("Debe seleccionar una categoría");
       return false;
     }
 
     return true;
-  }, [formData, type]);
+  }, [currentItem, type]);
 
   // Manejador de envío del formulario
   const handleSubmit = useCallback(
     async (e: React.FormEvent) => {
       e.preventDefault();
+
+      if (!currentItem) return;
 
       // Validar el formulario
       if (!validateForm()) return;
@@ -153,9 +120,9 @@ export const FinanceForm = memo(function FinanceForm({ isEditing, currentItem, c
         setIsSubmitting(true);
 
         // Combinar fecha y hora
-        const dateObj = new Date(formData.date || new Date());
-        if (formData.time) {
-          const [hours, minutes] = formData.time.split(":").map(Number);
+        const dateObj = new Date(currentItem.date || new Date());
+        if (currentItem.time) {
+          const [hours, minutes] = currentItem.time.split(":").map(Number);
           dateObj.setHours(hours, minutes);
         }
 
@@ -169,14 +136,14 @@ export const FinanceForm = memo(function FinanceForm({ isEditing, currentItem, c
           return;
         }
 
-        // Crear objeto a guardar
+        // Crear objeto a guardar con conversiones explícitas para evitar problemas de tipo
         const itemToSave: Partial<FinanceItem> = {
-          id: formData.id || "",
-          description: formData.description || "",
-          amount: Number(formData.amount) || 0,
-          category: formData.category || (categories.length > 0 ? categories[0] : ""),
+          id: currentItem.id || "",
+          description: String(currentItem.description || ""),
+          amount: Number(currentItem.amount) || 0,
+          category: String(currentItem.category || (categories.length > 0 ? categories[0] : "")),
           date: dateObj,
-          accountId: accountToUse,
+          accountId: String(accountToUse),
         };
 
         await onSave(itemToSave);
@@ -188,12 +155,12 @@ export const FinanceForm = memo(function FinanceForm({ isEditing, currentItem, c
         setIsSubmitting(false);
       }
     },
-    [formData, validateForm, categories, onSave, onCancel, selectedAccountId, activeAccountId]
+    [currentItem, validateForm, categories, onSave, onCancel, selectedAccountId, activeAccountId]
   );
 
-  // Gestión de cambio de campos específicos
+  // Gestión de cambio de campos específicos - Ahora solo notifican al padre
   const handleDescriptionChange = useCallback(
-    (e: React.ChangeEvent<HTMLInputElement>) => {
+    (e: React.ChangeEvent<HTMLInputElement> | React.ChangeEvent<HTMLTextAreaElement>) => {
       handleChange("description", e.target.value);
     },
     [handleChange]
@@ -228,7 +195,10 @@ export const FinanceForm = memo(function FinanceForm({ isEditing, currentItem, c
     [handleChange]
   );
 
-  // Render del formulario
+  // Si no hay currentItem, no renderizar nada
+  if (!currentItem) return null;
+
+  // Renderizar el formulario usando directamente currentItem como fuente de verdad
   return (
     <form onSubmit={handleSubmit} className="space-y-6">
       {error && <div className="bg-red-100 border border-red-400 text-red-700 px-4 py-2 rounded">{error}</div>}
@@ -237,8 +207,8 @@ export const FinanceForm = memo(function FinanceForm({ isEditing, currentItem, c
         <Label htmlFor="description">Descripción</Label>
         <Textarea
           id="description"
-          value={formData.description || ""}
-          onChange={(e: ChangeEvent<HTMLTextAreaElement>) => handleChange("description", e.target.value)}
+          value={currentItem.description || ""}
+          onChange={handleDescriptionChange}
           placeholder={`Ej. ${type === "income" ? "Pago de salario" : "Compra de supermercado"}`}
           required
         />
@@ -249,7 +219,7 @@ export const FinanceForm = memo(function FinanceForm({ isEditing, currentItem, c
         <Input
           id="amount"
           type="number"
-          value={formData.amount || ""}
+          value={currentItem.amount !== undefined ? currentItem.amount : ""}
           onChange={handleAmountChange}
           min="0.01"
           step="0.01"
@@ -262,7 +232,7 @@ export const FinanceForm = memo(function FinanceForm({ isEditing, currentItem, c
         <Label htmlFor="category">Categoría</Label>
         <CategorySelect 
           type={type}
-          value={formData.category || ""}
+          value={currentItem.category || ""}
           onValueChange={handleCategoryChange}
           id="category"
           required
@@ -272,12 +242,24 @@ export const FinanceForm = memo(function FinanceForm({ isEditing, currentItem, c
       <div className="grid grid-cols-2 gap-4">
         <div className="space-y-2">
           <Label htmlFor="date">Fecha</Label>
-          <Input id="date" type="date" value={formData.date ? format(new Date(formData.date), "yyyy-MM-dd") : ""} onChange={handleDateChange} required />
+          <Input 
+            id="date" 
+            type="date" 
+            value={currentItem.date ? format(new Date(currentItem.date), "yyyy-MM-dd") : ""} 
+            onChange={handleDateChange} 
+            required 
+          />
         </div>
 
         <div className="space-y-2">
           <Label htmlFor="time">Hora</Label>
-          <Input id="time" type="time" value={formData.time || ""} onChange={handleTimeChange} required />
+          <Input 
+            id="time" 
+            type="time" 
+            value={currentItem.time || ""} 
+            onChange={handleTimeChange} 
+            required 
+          />
         </div>
       </div>
 

@@ -8,6 +8,7 @@ import AccountsSection from "./components/AccountsSection";
 import FinanceTabs from "./components/FinanceTabs";
 import FinanceFormDialog from "./components/FinanceFormDialog";
 import { FinanceSkeletonLoader } from "@bill/_components/ui/skeletons";
+import QuickActions from "../components/QuickActions";
 
 export default function FinanzasPage() {
   const { loadFinanceData, isLoading } = useFinanceStore();
@@ -29,6 +30,9 @@ export default function FinanzasPage() {
   return (
     <div className="space-y-6 p-0 sm:p-4">
       <h1 className="text-2xl font-bold mb-6">Finanzas</h1>
+
+      {/* Acciones rápidas */}
+      <QuickActions />
 
       {/* Resumen financiero */}
       <FinancialSummary />
