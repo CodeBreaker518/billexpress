@@ -137,7 +137,7 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
       <div className="flex h-screen bg-background">
         {/* Sidebar para escritorio */}
         <aside className="hidden lg:flex lg:w-64 flex-col border-r bg-card">
-          <div className="flex h-16 items-center border-b px-4">
+          <div className="flex h-16 justify-center items-center border-b px-4">
             <Link href="/dashboard" className="flex items-center gap-2 font-semibold">
               <BillExpressLogo width={160} height={45} usePrimaryColor={true} />
             </Link>
@@ -173,7 +173,7 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
         </aside>
 
         <div className="flex flex-col flex-1 overflow-hidden">
-          <header className="sticky top-0 z-10 flex h-14 items-center gap-4 border-b bg-background px-4 lg:px-6">
+          <header className="sticky top-0 z-10 flex h-14 items-center gap-4 border-b bg-background px-4 lg:px-6 flex-shrink-0">
             {/* Menú hamburguesa para móvil en el header */}
             <Sheet open={sheetOpen} onOpenChange={setSheetOpen}>
               <SheetTrigger asChild>
@@ -230,11 +230,12 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
             <div className="ml-auto flex items-center gap-2">
               {/* Theme toggle */}
               <ThemeToggle />
-
               {/* Dropdown de perfil de usuario */}
               <DropdownMenu>
                 <DropdownMenuTrigger asChild>
+                 
                   <Button variant="ghost" className="relative h-10 w-10 rounded-full p-0">
+                    
                     <Avatar className="h-10 w-10">
                       {user?.photoURL ? (
                         <AvatarImage src={user.photoURL} alt={user.displayName || "Avatar"} />
@@ -270,8 +271,10 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
             </div>
           </header>
 
-          <main className="flex-1 overflow-auto">
-            <div className="container p-4 py-6">{children}</div>
+          {/* Área de contenido principal con scroll */}
+          <main className="overflow-y-auto p-4 sm:p-6 lg:p-8">
+            {/* El contenido de la página se renderiza aquí */}
+            {children}
           </main>
         </div>
       </div>

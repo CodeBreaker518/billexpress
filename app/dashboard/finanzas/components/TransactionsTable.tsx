@@ -532,28 +532,21 @@ export default function TransactionsTable() {
         ) : (
           <>
             {/* Vista móvil: Tarjetas */}
-            <div className="space-y-4 sm:hidden">
+            <div className="space-y-3 sm:hidden">
               {currentItems.map((transaction) => (
                 <Card 
                   key={transaction.id} 
-                  className={`p-4 ${isAccountDeleted(transaction) ? "border-amber-200 dark:border-amber-800" : ""}`}
+                  className={`p-4 ${isAccountDeleted(transaction) ? "bg-amber-50/30 dark:bg-amber-950/20" : ""}`}
                 >
-                  <div className="flex items-center justify-between mb-3">
-                    <div className="flex items-center gap-2">
-                      {transaction.type === "income" ? (
-                        <ArrowUp className="h-5 w-5 text-blue-600 dark:text-blue-400" />
-                      ) : (
-                        <ArrowDown className="h-5 w-5 text-red-600 dark:text-red-400" />
-                      )}
-                      <CategoryBadge category={transaction.category} type={transaction.type} showIcon={true} className="text-xs" />
-                    </div>
+                  <div className="flex justify-between items-start mb-2">
+                    <CategoryBadge category={transaction.category} type={transaction.type} showIcon={true} />
                     <span className={`font-semibold text-base ${transaction.type === "income" ? "text-blue-600 dark:text-blue-400" : "text-red-600 dark:text-red-400"}`}>
                       {transaction.type === "income" ? "+" : "-"}{formatCurrency(transaction.amount)}
                     </span>
                   </div>
 
                   <div className="mb-3">
-                    <h3 className="font-medium text-base flex items-center">
+                    <h3 className="font-medium text-base flex items-center whitespace-normal">
                       {transaction.description}
                       {isAccountDeleted(transaction) && (
                         <TooltipProvider>
@@ -648,7 +641,7 @@ export default function TransactionsTable() {
                           <ArrowDown className="h-4 w-4 text-red-600 dark:text-red-400" />
                         )}
                       </TableCell>
-                      <TableCell className="max-w-xs truncate">
+                      <TableCell className="whitespace-normal">
                         <div className="flex items-center">
                           {transaction.description}
                           {isAccountDeleted(transaction) && (

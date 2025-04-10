@@ -9,8 +9,7 @@ import FinanceTabs from "./components/FinanceTabs";
 import FinanceFormDialog from "./components/FinanceFormDialog";
 import { FinanceSkeletonLoader } from "@bill/_components/ui/skeletons";
 import QuickActions from "../components/QuickActions";
-import { es } from "date-fns/locale";
-import { format } from "date-fns";
+
 export default function FinanzasPage() {
   const { loadFinanceData, isLoading } = useFinanceStore();
 
@@ -21,20 +20,20 @@ export default function FinanzasPage() {
 
   if (isLoading) {
     return (
-      <div className="space-y-6 p-0 sm:p-4">
-        <h1 className="text-2xl font-bold mb-6">Finanzas</h1>
+      <div className="space-y-6">
+        <h1 className="text-2xl font-bold mb-6">Cargando Finanzas...</h1>
         <FinanceSkeletonLoader />
       </div>
     );
   }
 
   return (
-    <div className="space-y-6 p-0 sm:p-4">
+    <div className="space-y-6">
       {/* Cabecera de la página */}
       <div className="mb-6">
-        <h1 className="text-2xl font-semibold tracking-tight">Finanzas</h1>
+        <h1 className="text-2xl font-semibold tracking-tight">Tu Panorama Financiero</h1>
         <p className="text-sm text-muted-foreground mt-1">
-          {format(new Date(), "EEEE, d MMM yyyy", { locale: es })} - Resumen de tus finanzas
+          Gestiona tus cuentas, ingresos y gastos detalladamente.
         </p>
       </div>
       
