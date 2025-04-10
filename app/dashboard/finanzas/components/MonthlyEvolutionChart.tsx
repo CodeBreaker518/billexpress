@@ -89,7 +89,7 @@ export default function MonthlyEvolutionChart() {
   return (
     <Card className="shadow-sm">
       <CardHeader className="px-4 sm:px-6">
-        <CardTitle className="text-base sm:text-lg">Evolución Financiera</CardTitle>
+        <CardTitle className="text-base sm:text-lg">Evolución Financiera <span className="text-xs text-muted-foreground">(Últimos 6 meses)</span></CardTitle>
       </CardHeader>
       <CardContent className="px-2 sm:px-6">
         <div className="h-56 sm:h-72">

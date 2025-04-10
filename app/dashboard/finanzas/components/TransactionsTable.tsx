@@ -381,19 +381,6 @@ export default function TransactionsTable() {
               </Select>
             </div>
             
-            {/* Botón para resetear filtros (solo desktop) */}
-            <div className="col-span-2 sm:col-span-1 sm:block hidden">
-              <div className="text-xs text-muted-foreground mb-1 invisible">Limpiar</div>
-              <Button 
-                variant="outline" 
-                onClick={resetFilters} 
-                className="h-10 w-full flex items-center justify-center gap-1"
-                title="Limpiar filtros"
-              >
-                <FilterX className="h-4 w-4 mr-1" />
-                <span>Limpiar</span>
-              </Button>
-            </div>
           </div>
         </div>
 
@@ -414,13 +401,13 @@ export default function TransactionsTable() {
                   <div className="flex items-center justify-between mb-3">
                     <div className="flex items-center gap-2">
                       {transaction.type === "income" ? (
-                        <ArrowUp className="h-5 w-5 text-green-600 dark:text-green-400" />
+                        <ArrowUp className="h-5 w-5 text-blue-600 dark:text-blue-400" />
                       ) : (
                         <ArrowDown className="h-5 w-5 text-red-600 dark:text-red-400" />
                       )}
                       <CategoryBadge category={transaction.category} type={transaction.type} showIcon={true} className="text-xs" />
                     </div>
-                    <span className={`font-semibold text-base ${transaction.type === "income" ? "text-green-600 dark:text-green-400" : "text-red-600 dark:text-red-400"}`}>
+                    <span className={`font-semibold text-base ${transaction.type === "income" ? "text-blue-600 dark:text-blue-400" : "text-red-600 dark:text-red-400"}`}>
                       {formatCurrency(transaction.amount)}
                     </span>
                   </div>
@@ -513,7 +500,7 @@ export default function TransactionsTable() {
                     <TableRow key={transaction.id} className={isAccountDeleted(transaction) ? "bg-amber-50/30 dark:bg-amber-950/20" : undefined}>
                       <TableCell>
                         {transaction.type === "income" ? (
-                          <ArrowUp className="h-4 w-4 text-green-600 dark:text-green-400" />
+                          <ArrowUp className="h-4 w-4 text-blue-600 dark:text-blue-400" />
                         ) : (
                           <ArrowDown className="h-4 w-4 text-red-600 dark:text-red-400" />
                         )}
@@ -560,7 +547,7 @@ export default function TransactionsTable() {
                       <TableCell>
                         <DateTimeDisplay date={transaction.date} />
                       </TableCell>
-                      <TableCell className={transaction.type === "income" ? "text-green-600 dark:text-green-400" : "text-red-600 dark:text-red-400"}>
+                      <TableCell className={transaction.type === "income" ? "text-blue-600 dark:text-blue-400" : "text-red-600 dark:text-red-400"}>
                         {formatCurrency(transaction.amount)}
                       </TableCell>
                       <TableCell>
