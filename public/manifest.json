@@ -8,13 +8,13 @@
   "theme_color": "#3b82f6",
   "icons": [
     {
-      "src": "/icons/icon-192x192.png",
+      "src": "/logo.png",
       "sizes": "192x192",
       "type": "image/png",
       "purpose": "any maskable"
     },
     {
-      "src": "/icons/icon-512x512.png",
+      "src": "/logo.png",
       "sizes": "512x512",
       "type": "image/png",
       "purpose": "any maskable"
@@ -22,16 +22,11 @@
   ],
   "shortcuts": [
     {
-      "name": "Ingresos",
-      "short_name": "Ingresos",
-      "description": "Administrar ingresos",
-      "url": "/dashboard/ingresos"
-    },
-    {
-      "name": "Gastos",
-      "short_name": "Gastos",
-      "description": "Administrar gastos",
-      "url": "/dashboard/gastos"
+      "name": "Finanzas",
+      "short_name": "Finanzas",
+      "description": "Administrar finanzas",
+      "url": "/dashboard"
     }
+    
   ]
 }

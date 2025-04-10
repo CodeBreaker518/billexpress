@@ -29,7 +29,7 @@ export const metadata: Metadata = {
   },
   icons: {
     icon: "/favicon.ico",
-    apple: [{ url: "/icons/apple-icon-180.png", sizes: "180x180", type: "image/png" }],
+    apple: [{ url: "/logo.png", sizes: "192x192", type: "image/png" }],
   },
 };
 
@@ -47,7 +47,8 @@ export default function RootLayout({
         <meta name="apple-mobile-web-app-title" content="BillExpress" />
         <meta name="format-detection" content="telephone=no" />
         <meta name="mobile-web-app-capable" content="yes" />
-        <link rel="apple-touch-icon" href="/icons/apple-icon-180.png" />
+        <link rel="apple-touch-icon" href="/logo.png" />
+        <link rel="icon" href="/favicon.ico" />
       </head>
       <body className={`${poppinsFont.className} antialiased bg-gray-50 dark:bg-gray-900 text-gray-900 dark:text-gray-100`}>
         <ThemeProvider>
