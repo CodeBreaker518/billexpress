@@ -57,9 +57,9 @@ BillExpress is a modern web application for personal finance management, allowin
     ```
 
 4.  Start the development server:
-    ```bash
-    bun dev
-    ```
+```bash
+bun dev
+```
 
 5.  Open [http://localhost:3000](http://localhost:3000) in your browser.
 

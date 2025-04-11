@@ -15,7 +15,7 @@ function NotFoundContent() {
         La página que estás buscando no existe o ha sido movida.
       </p>
       <Button asChild>
-        <Link href="/" className="flex items-center">
+        <Link href="/dashboard" className="flex items-center">
           <ArrowLeft className="mr-2 h-4 w-4" />
           Volver al inicio
         </Link>

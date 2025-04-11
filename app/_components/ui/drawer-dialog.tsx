@@ -68,6 +68,7 @@ export function DrawerDialog({
             <DialogTitle>{title}</DialogTitle>
             {description}
           </DialogHeader>
+          {/* En escritorio, el contenido puede ser más alto */}
           {children}
         </DialogContent>
       </Dialog>
@@ -77,14 +78,19 @@ export function DrawerDialog({
   // En móvil, mostrar un drawer desde abajo
   return (
     <Drawer open={open} onOpenChange={onOpenChange}>
-      <DrawerContent className={className}>
-        <DrawerHeader>
+      {/* Aplicar flex y overflow al contenedor principal del contenido del Drawer */}
+      <DrawerContent className={cn("flex flex-col h-[90vh]", className)}> 
+        <DrawerHeader className="flex-shrink-0"> {/* Evitar que el header se encoja */}
           <DrawerTitle>{title}</DrawerTitle>
           {description}
         </DrawerHeader>
-        <div className="px-4 overflow-y-auto">{children}</div>
+        {/* Contenedor del contenido scrolleable */}
+        <div className="flex-1 overflow-y-auto px-4"> 
+          {children}
+        </div>
+        {/* Footer fijo (si existe) */}
         {(showCloseButton || footerContent) && (
-          <DrawerFooter className="flex flex-row justify-between items-center">
+          <DrawerFooter className="flex flex-row justify-between items-center flex-shrink-0 border-t mt-auto"> {/* Evitar que el footer se encoja */}
             {footerContent}
             {showCloseButton && (
               <DrawerClose asChild>
