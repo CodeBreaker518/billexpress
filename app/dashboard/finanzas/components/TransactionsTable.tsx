@@ -179,11 +179,7 @@ export default function TransactionsTable() {
     // Asegurarse de que la página está dentro de límites válidos
     const validPage = Math.max(1, Math.min(page, totalPages));
     setCurrentPage(validPage);
-    // Hacer scroll al inicio de la tabla
-    const element = document.getElementById("historial-transacciones");
-    if (element) {
-      element.scrollIntoView({ behavior: "smooth", block: "start" });
-    }
+    // Ya no hacemos scroll automático
   };
   
   // Ir a la siguiente página
@@ -253,81 +249,118 @@ export default function TransactionsTable() {
     );
   };
 
-  // Componente de paginación
-  const Pagination = () => (
-    <div className="flex flex-col sm:flex-row items-center justify-between mt-4 gap-4">
-      <div className="flex items-center gap-2 text-sm">
-        <span className="text-muted-foreground">Mostrar</span>
-        <Select
-          value={itemsPerPage.toString()}
-          onValueChange={handleItemsPerPageChange}
-        >
-          <SelectTrigger className="h-8 w-[70px]">
-            <SelectValue placeholder={itemsPerPage.toString()} />
-          </SelectTrigger>
-          <SelectContent>
-            <SelectItem value="5">5</SelectItem>
-            <SelectItem value="10">10</SelectItem>
-            <SelectItem value="20">20</SelectItem>
-            <SelectItem value="50">50</SelectItem>
-            <SelectItem value="100">100</SelectItem>
-          </SelectContent>
-        </Select>
-        <span className="text-muted-foreground whitespace-nowrap">por página</span>
-      </div>
+  // Nuevo componente de paginación minimalista
+  const Pagination = () => {
+    // Generar rango de páginas a mostrar
+    const generatePageRange = () => {
+      const pageRange = [];
+      const maxVisible = 5;
+      const halfVisible = Math.floor(maxVisible / 2);
       
-      <div className="flex items-center justify-center gap-1">
-        <Button
-          variant="outline"
-          size="icon"
-          className="h-8 w-8"
-          onClick={firstPage}
-          disabled={currentPage === 1}
-        >
-          <ChevronsLeft className="h-4 w-4" />
-          <span className="sr-only">Primera página</span>
-        </Button>
-        <Button
-          variant="outline"
-          size="icon"
-          className="h-8 w-8"
-          onClick={prevPage}
-          disabled={currentPage === 1}
-        >
-          <ChevronLeft className="h-4 w-4" />
-          <span className="sr-only">Página anterior</span>
-        </Button>
+      let startPage = Math.max(1, currentPage - halfVisible);
+      const endPage = Math.min(totalPages, startPage + maxVisible - 1);
+      
+      // Ajustar el inicio si estamos cerca del final
+      if (endPage - startPage + 1 < maxVisible) {
+        startPage = Math.max(1, endPage - maxVisible + 1);
+      }
+      
+      // Generar los números de página
+      for (let i = startPage; i <= endPage; i++) {
+        pageRange.push(i);
+      }
+      
+      return pageRange;
+    };
+    
+    const pageNumbers = generatePageRange();
+    
+    return (
+      <div className="flex flex-col items-center space-y-3 pt-4 pb-2">
+        {/* Información de página y total */}
+        <div className="text-sm text-muted-foreground">
+          Mostrando {filteredTransactions.length > 0 ? startIndex + 1 : 0} - {Math.min(endIndex, filteredTransactions.length)} de {filteredTransactions.length} resultados
+        </div>
         
-        <span className="text-sm mx-2">
-          Página <strong>{currentPage}</strong> de <strong>{totalPages || 1}</strong>
-        </span>
-        
-        <Button
-          variant="outline"
-          size="icon"
-          className="h-8 w-8"
-          onClick={nextPage}
-          disabled={currentPage === totalPages || totalPages === 0}
-        >
-          <ChevronRight className="h-4 w-4" />
-          <span className="sr-only">Página siguiente</span>
-        </Button>
-        <Button
-          variant="outline"
-          size="icon"
-          className="h-8 w-8"
-          onClick={lastPage}
-          disabled={currentPage === totalPages || totalPages === 0}
-        >
-          <ChevronsRight className="h-4 w-4" />
-          <span className="sr-only">Última página</span>
-        </Button>
+        {/* Controles de paginación */}
+        <div className="w-full flex justify-between items-center space-x-1">
+          {/* Control de elementos por página */}
+          <div className="flex items-center mr-4">
+            <span className="text-sm mr-2">Por página:</span>
+            <Select
+              value={itemsPerPage.toString()}
+              onValueChange={handleItemsPerPageChange}
+            >
+              <SelectTrigger className="h-8 w-[65px]">
+                <SelectValue placeholder={itemsPerPage.toString()} />
+              </SelectTrigger>
+              <SelectContent side="top" align="start">
+                <SelectItem value="5">5</SelectItem>
+                <SelectItem value="10">10</SelectItem>
+                <SelectItem value="20">20</SelectItem>
+                <SelectItem value="50">50</SelectItem>
+              </SelectContent>
+            </Select>
+          </div>
+          <div className="flex space-x-1 items-center">
+          {/* Navegación de páginas */}
+          <button
+            onClick={firstPage}
+            disabled={currentPage === 1}
+            className="flex h-8 w-8 items-center justify-center rounded border border-input text-sm transition-colors hover:bg-accent disabled:opacity-50"
+            aria-label="Primera página"
+          >
+            <ChevronsLeft className="h-4 w-4" />
+          </button>
+          
+          <button
+            onClick={prevPage}
+            disabled={currentPage === 1}
+            className="flex h-8 w-8 items-center justify-center rounded border border-input text-sm transition-colors hover:bg-accent disabled:opacity-50"
+            aria-label="Página anterior"
+          >
+            <ChevronLeft className="h-4 w-4" />
+          </button>
+          
+          {pageNumbers.map(page => (
+            <button
+              key={page}
+              onClick={() => goToPage(page)}
+              className={`flex h-8 min-w-[2rem] items-center justify-center rounded px-2 text-sm transition-colors ${
+                currentPage === page 
+                ? "bg-primary text-primary-foreground" 
+                : "border border-input hover:bg-accent"
+              }`}
+            >
+              {page}
+            </button>
+          ))}
+          
+          <button
+            onClick={nextPage}
+            disabled={currentPage >= totalPages}
+            className="flex h-8 w-8 items-center justify-center rounded border border-input text-sm transition-colors hover:bg-accent disabled:opacity-50"
+            aria-label="Página siguiente"
+          >
+            <ChevronRight className="h-4 w-4" />
+          </button>
+          
+          <button
+            onClick={lastPage}
+            disabled={currentPage >= totalPages}
+            className="flex h-8 w-8 items-center justify-center rounded border border-input text-sm transition-colors hover:bg-accent disabled:opacity-50"
+            aria-label="Última página"
+          >
+            <ChevronsRight className="h-4 w-4" />
+          </button>
+          </div>
+        </div>
       </div>
-    </div>
-  );
+    );
+  };
 
   return (
-    <Card id="historial-transacciones">
+    <Card id="historial-transacciones" className="overflow-hidden">
       <CardHeader className="px-4 sm:px-6">
         <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
           <CardTitle className="text-lg font-semibold">Historial de Transacciones</CardTitle>
@@ -380,7 +413,7 @@ export default function TransactionsTable() {
         </div>
       </div>
       
-      <CardContent className="px-4 sm:px-6">
+      <CardContent className="px-4 sm:px-6 overflow-visible">
         {/* Filtros */}
         <div className="flex flex-col sm:items-end sm:flex-row gap-4 mb-6">
           {/* Búsqueda */}
@@ -416,7 +449,7 @@ export default function TransactionsTable() {
                     <SelectValue placeholder="Filtrar por tipo" />
                   )}
                 </SelectTrigger>
-                <SelectContent>
+                <SelectContent position="popper" sideOffset={5}>
                   <SelectItem value="all">Todos los tipos</SelectItem>
                   <SelectItem value="income" className="flex items-center">
                     <div className="flex items-center gap-2">
@@ -451,8 +484,9 @@ export default function TransactionsTable() {
                     </div>
                   ) : (
                     <SelectValue placeholder="Filtrar categoría" />
-                  )}               </SelectTrigger>
-                <SelectContent>
+                  )}
+                </SelectTrigger>
+                <SelectContent position="popper" sideOffset={5}>
                   <SelectItem value="all">Todas las categorías</SelectItem>
                   {uniqueCategories.map(cat => {
                     // Determinar tipo de categoría (ingreso o gasto)
@@ -501,7 +535,7 @@ export default function TransactionsTable() {
                     <SelectValue placeholder="Filtrar cuenta" />
                   )}
                 </SelectTrigger>
-                <SelectContent>
+                <SelectContent position="popper" sideOffset={5}>
                   <SelectItem value="all">Todas las cuentas</SelectItem>
                   <SelectItem value="none">
                     <div className="flex items-center gap-2">
@@ -532,7 +566,7 @@ export default function TransactionsTable() {
         ) : (
           <>
             {/* Vista móvil: Tarjetas */}
-            <div className="space-y-3 sm:hidden">
+            <div className="space-y-3 sm:hidden overflow-visible">
               {currentItems.map((transaction) => (
                 <Card 
                   key={transaction.id} 
