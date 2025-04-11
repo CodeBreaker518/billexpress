@@ -1,23 +1,23 @@
-"use client";
+'use client';
 
-import { create } from "zustand";
-import { format } from "date-fns";
-import { useAuthStore } from "./useAuthStore";
-import { useExpenseStore } from "./useExpenseStore";
-import { useIncomeStore } from "./useIncomeStore";
-import { useAccountStore } from "./useAccountStore";
-import { getUserExpenses, addExpense, updateExpense, deleteExpense } from "@bill/_firebase/expenseService";
-import { getUserIncomes, addIncome, updateIncome, deleteIncome } from "@bill/_firebase/incomeService";
-import { getUserAccounts } from "@bill/_firebase/accountService";
-import { INCOME_CATEGORIES, EXPENSE_CATEGORIES } from "@bill/_lib/utils/categoryConfig";
+import { create } from 'zustand';
+import { format } from 'date-fns';
+import { useAuthStore } from './useAuthStore';
+import { useExpenseStore } from './useExpenseStore';
+import { useIncomeStore } from './useIncomeStore';
+import { useAccountStore } from './useAccountStore';
+import { getUserExpenses, addExpense, updateExpense, deleteExpense } from '@bill/_firebase/expenseService';
+import { getUserIncomes, addIncome, updateIncome, deleteIncome } from '@bill/_firebase/incomeService';
+import { getUserAccounts } from '@bill/_firebase/accountService';
+import { INCOME_CATEGORIES, EXPENSE_CATEGORIES } from '@bill/_lib/utils/categoryConfig';
 
 // Usando las interfaces de los stores existentes
-import { Income as IncomeStore } from "./useIncomeStore";
-import { Expense as ExpenseStore } from "./useExpenseStore";
+import { Income as IncomeStore } from './useIncomeStore';
+import { Expense as ExpenseStore } from './useExpenseStore';
 
 // Define categorías
-const expenseCategories = ["Comida", "Transporte", "Entretenimiento", "Servicios", "Compras", "Salud", "Educación", "Vivienda", "Otros"];
-const incomeCategories = ["Salario", "Freelance", "Inversiones", "Ventas", "Regalos", "Reembolsos", "Otros"];
+const expenseCategories = ['Comida', 'Transporte', 'Entretenimiento', 'Servicios', 'Compras', 'Salud', 'Educación', 'Vivienda', 'Otros'];
+const incomeCategories = ['Salario', 'Freelance', 'Inversiones', 'Ventas', 'Regalos', 'Reembolsos', 'Otros'];
 
 // Tipo para el ítem en edición
 interface EditingItem {
@@ -48,7 +48,7 @@ interface FinanceState {
   incomeCategoryColors: string[];
   isFormOpen: boolean;
   isEditing: boolean;
-  formType: "income" | "expense";
+  formType: 'income' | 'expense';
   currentItem: EditingItem;
   isLoading: boolean;
 
@@ -56,7 +56,7 @@ interface FinanceState {
   setSearchTerm: (term: string) => void;
   handleNewExpense: () => void;
   handleNewIncome: () => void;
-  handleEdit: (_item: IncomeStore | ExpenseStore, _type: "income" | "expense") => void;
+  handleEdit: (_item: IncomeStore | ExpenseStore, _type: 'income' | 'expense') => void;
   handleDeleteExpense: (_id: string) => Promise<void>;
   handleDeleteIncome: (_id: string) => Promise<void>;
   handleCancel: () => void;
@@ -74,22 +74,22 @@ interface FinanceState {
 
 export const useFinanceStore = create<FinanceState>((set, get) => ({
   // Estados iniciales
-  searchTerm: "",
+  searchTerm: '',
   expensesByCategory: [],
   incomesByCategory: [],
   expenseCategoryColors: [],
   incomeCategoryColors: [],
   isFormOpen: false,
   isEditing: false,
-  formType: "income",
+  formType: 'income',
   isLoading: true,
   currentItem: {
-    id: "",
-    description: "",
+    id: '',
+    description: '',
     amount: 0,
-    category: "",
+    category: '',
     date: new Date(),
-    time: format(new Date(), "HH:mm"),
+    time: format(new Date(), 'HH:mm'),
   },
 
   // Categorías
@@ -98,9 +98,9 @@ export const useFinanceStore = create<FinanceState>((set, get) => ({
 
   // Formatear moneda
   formatCurrency: (amount: number) => {
-    return new Intl.NumberFormat("es-MX", {
-      style: "currency",
-      currency: "MXN",
+    return new Intl.NumberFormat('es-MX', {
+      style: 'currency',
+      currency: 'MXN',
     }).format(amount);
   },
 
@@ -124,17 +124,17 @@ export const useFinanceStore = create<FinanceState>((set, get) => ({
 
     try {
       console.log(`Cargando datos financieros para usuario: ${user.uid}`);
-      
+
       // Cargar gastos si no están ya cargados
       if (expenseStore.expenses.length === 0 && !expenseStore.loading) {
         const userExpenses = await getUserExpenses(user.uid);
         // SEGURIDAD: Filtrar explícitamente por userId
-        const verifiedExpenses = userExpenses.filter(exp => exp.userId === user.uid);
-        
+        const verifiedExpenses = userExpenses.filter((exp) => exp.userId === user.uid);
+
         if (verifiedExpenses.length !== userExpenses.length) {
           console.error(`¡ALERTA DE SEGURIDAD! Se detectaron ${userExpenses.length - verifiedExpenses.length} gastos que no pertenecen al usuario actual.`);
         }
-        
+
         expenseStore.setExpenses(verifiedExpenses);
         console.log(`Cargados ${verifiedExpenses.length} gastos para el usuario ${user.uid}`);
       }
@@ -143,12 +143,12 @@ export const useFinanceStore = create<FinanceState>((set, get) => ({
       if (incomeStore.incomes.length === 0 && !incomeStore.loading) {
         const userIncomes = await getUserIncomes(user.uid);
         // SEGURIDAD: Filtrar explícitamente por userId
-        const verifiedIncomes = userIncomes.filter(inc => inc.userId === user.uid);
-        
+        const verifiedIncomes = userIncomes.filter((inc) => inc.userId === user.uid);
+
         if (verifiedIncomes.length !== userIncomes.length) {
           console.error(`¡ALERTA DE SEGURIDAD! Se detectaron ${userIncomes.length - verifiedIncomes.length} ingresos que no pertenecen al usuario actual.`);
         }
-        
+
         incomeStore.setIncomes(verifiedIncomes);
         console.log(`Cargados ${verifiedIncomes.length} ingresos para el usuario ${user.uid}`);
       }
@@ -158,12 +158,12 @@ export const useFinanceStore = create<FinanceState>((set, get) => ({
         accountStore.setLoading(true);
         const userAccounts = await getUserAccounts(user.uid);
         // SEGURIDAD: Filtrar explícitamente por userId
-        const verifiedAccounts = userAccounts.filter(acc => acc.userId === user.uid);
-        
+        const verifiedAccounts = userAccounts.filter((acc) => acc.userId === user.uid);
+
         if (verifiedAccounts.length !== userAccounts.length) {
           console.error(`¡ALERTA DE SEGURIDAD! Se detectaron ${userAccounts.length - verifiedAccounts.length} cuentas que no pertenecen al usuario actual.`);
         }
-        
+
         accountStore.setAccounts(verifiedAccounts);
         accountStore.setLoading(false);
         console.log(`Cargadas ${verifiedAccounts.length} cuentas para el usuario ${user.uid}`);
@@ -172,7 +172,7 @@ export const useFinanceStore = create<FinanceState>((set, get) => ({
       // Calcular estadísticas de categorías
       get().calculateCategoryStats();
     } catch (error) {
-      console.error("Error al cargar datos financieros:", error);
+      console.error('Error al cargar datos financieros:', error);
     } finally {
       set({ isLoading: false });
     }
@@ -204,7 +204,7 @@ export const useFinanceStore = create<FinanceState>((set, get) => ({
 
       // Asignar colores a categorías de gastos
       const expenseCategoryColors = expenseStats.map((item) => {
-        const config = EXPENSE_CATEGORIES[item.category as keyof typeof EXPENSE_CATEGORIES] || EXPENSE_CATEGORIES["Otros"];
+        const config = EXPENSE_CATEGORIES[item.category as keyof typeof EXPENSE_CATEGORIES] || EXPENSE_CATEGORIES['Otros'];
         return config.color;
       });
 
@@ -240,7 +240,7 @@ export const useFinanceStore = create<FinanceState>((set, get) => ({
 
       // Asignar colores a categorías de ingresos
       const incomeCategoryColors = incomeStats.map((item) => {
-        const config = INCOME_CATEGORIES[item.category as keyof typeof INCOME_CATEGORIES] || INCOME_CATEGORIES["Otros"];
+        const config = INCOME_CATEGORIES[item.category as keyof typeof INCOME_CATEGORIES] || INCOME_CATEGORIES['Otros'];
         return config.color;
       });
 
@@ -259,16 +259,18 @@ export const useFinanceStore = create<FinanceState>((set, get) => ({
   // Abrir formulario para nuevo gasto
   handleNewExpense: () => {
     const now = new Date();
+    // Usa la primera categoría de la lista como predeterminada, o 'Otros' como fallback
+    const defaultCategory = expenseCategories[0] || 'Otros';
     set({
       currentItem: {
-        id: "",
-        description: "",
+        id: '',
+        description: '',
         amount: 0,
-        category: "Otros",
+        category: defaultCategory, // <-- Usar la primera categoría de la lista
         date: now,
-        time: format(now, "HH:mm"),
+        time: format(now, 'HH:mm'),
       },
-      formType: "expense",
+      formType: 'expense',
       isEditing: false,
       isFormOpen: true,
     });
@@ -279,21 +281,21 @@ export const useFinanceStore = create<FinanceState>((set, get) => ({
     const now = new Date();
     set({
       currentItem: {
-        id: "",
-        description: "",
+        id: '',
+        description: '',
         amount: 0,
-        category: "Salario",
+        category: 'Salario',
         date: now,
-        time: format(now, "HH:mm"),
+        time: format(now, 'HH:mm'),
       },
-      formType: "income",
+      formType: 'income',
       isEditing: false,
       isFormOpen: true,
     });
   },
 
   // Editar un item (gasto o ingreso)
-  handleEdit: (_item: IncomeStore | ExpenseStore, _type: "income" | "expense") => {
+  handleEdit: (_item: IncomeStore | ExpenseStore, _type: 'income' | 'expense') => {
     const itemDate = new Date(_item.date);
     set({
       currentItem: {
@@ -302,8 +304,8 @@ export const useFinanceStore = create<FinanceState>((set, get) => ({
         amount: _item.amount,
         category: _item.category,
         date: itemDate,
-        time: format(itemDate, "HH:mm"),
-        accountId: "accountId" in _item && typeof _item.accountId === "string" ? _item.accountId : undefined,
+        time: format(itemDate, 'HH:mm'),
+        accountId: 'accountId' in _item && typeof _item.accountId === 'string' ? _item.accountId : undefined,
       },
       formType: _type,
       isEditing: true,
@@ -325,7 +327,7 @@ export const useFinanceStore = create<FinanceState>((set, get) => ({
       // Recalcular estadísticas
       get().calculateCategoryStats();
     } catch (error) {
-      console.error("Error al eliminar gasto:", error);
+      console.error('Error al eliminar gasto:', error);
     }
   },
 
@@ -343,7 +345,7 @@ export const useFinanceStore = create<FinanceState>((set, get) => ({
       // Recalcular estadísticas
       get().calculateCategoryStats();
     } catch (error) {
-      console.error("Error al eliminar ingreso:", error);
+      console.error('Error al eliminar ingreso:', error);
     }
   },
 
@@ -362,13 +364,13 @@ export const useFinanceStore = create<FinanceState>((set, get) => ({
     const expenseStore = useExpenseStore.getState();
 
     // Crear la fecha completa combinando fecha y hora
-    const dateStr = format(currentItem.date, "yyyy-MM-dd");
-    const timeStr = currentItem.time || "00:00";
+    const dateStr = format(currentItem.date, 'yyyy-MM-dd');
+    const timeStr = currentItem.time || '00:00';
     const dateTimeStr = `${dateStr}T${timeStr}:00`;
     const completeDate = new Date(dateTimeStr);
 
     try {
-      if (formType === "income") {
+      if (formType === 'income') {
         if (isEditing) {
           // Actualizar ingreso existente
           const updatedIncome: IncomeStore = {
