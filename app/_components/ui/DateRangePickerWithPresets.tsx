@@ -69,7 +69,10 @@ export function DateRangePickerWithPresets({
         <Button variant="ghost" size="sm" className="justify-start text-xs h-8" onClick={() => setPresetRange(presets.mesAnterior)}>Mes Anterior</Button>
         <Button variant="ghost" size="sm" className="justify-start text-xs h-8" onClick={() => setPresetRange(presets.esteAno)}>Este Año</Button>
       </div>
-      <div className={cn("p-1", !isDesktop && "overflow-y-auto flex-1")}>
+      <div className={cn(
+          "p-1", 
+          !isDesktop && "flex flex-1 items-start justify-center"
+        )}>
         <Calendar
           initialFocus
           mode="range"
