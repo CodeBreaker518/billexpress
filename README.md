@@ -1,6 +1,6 @@
 # BillExpress
 
-![BillExpress Logo](public/BillExpress.svg)
+![BillExpress Logo](public/screenshots/Dashboard.png)
 
 BillExpress is a modern web application for personal finance management, allowing you to track your income, expenses, and bank accounts all in one place.
 
@@ -36,7 +36,7 @@ BillExpress is a modern web application for personal finance management, allowin
 
 1.  Clone the repository:
     ```bash
-    git clone https://github.com/tu-usuario/billexpress.git
+    git clone https://github.com/CodeBreaker518/billexpress.git
     cd billexpress
     ```
 
@@ -151,5 +151,3 @@ Contributions are welcome. Please open an issue first to discuss what you would 
 If you have any questions or suggestions, feel free to contact me:
 
 -   Email: <diegoperezperez518@gmail.com>
--   Twitter: [@your-twitter-handle](https://twitter.com/your-twitter-handle)
--   GitHub: [your-github-username](https://github.com/your-github-username)
