@@ -4,6 +4,7 @@ import Link from "next/link";
 import { ArrowLeft } from "lucide-react";
 import { Button } from "@bill/_components/ui/button";
 import { Suspense } from "react";
+import BrandLoader from "@bill/_components/ui/BrandLoader";
 
 // Componente principal, no usa hooks de cliente
 function NotFoundContent() {
@@ -27,7 +28,7 @@ function NotFoundContent() {
 // Componente envuelto en Suspense para asegurar compatibilidad
 export default function NotFound() {
   return (
-    <Suspense fallback={<div>Cargando...</div>}>
+    <Suspense fallback={<BrandLoader />}>
       <NotFoundContent />
     </Suspense>
   );

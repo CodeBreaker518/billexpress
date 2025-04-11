@@ -3,6 +3,7 @@
 import { useEffect, Suspense } from 'react';
 import { useRouter, usePathname, useSearchParams } from 'next/navigation';
 import { useAuthStore } from '@bill/_store/useAuthStore';
+import BrandLoader from './ui/BrandLoader';
 
 // Componente interno que utiliza useSearchParams
 function AuthRedirectInner({ children }: { children: React.ReactNode }) {
@@ -47,7 +48,7 @@ function AuthRedirectInner({ children }: { children: React.ReactNode }) {
 // Componente principal que envuelve el componente interno en un Suspense
 export default function AuthRedirect({ children }: { children: React.ReactNode }) {
   return (
-    <Suspense fallback={<div>Cargando...</div>}>
+    <Suspense fallback={<BrandLoader />}>
       <AuthRedirectInner>{children}</AuthRedirectInner>
     </Suspense>
   );

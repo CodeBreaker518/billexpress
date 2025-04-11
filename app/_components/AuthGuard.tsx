@@ -3,6 +3,7 @@
 import { useEffect, Suspense } from 'react';
 import { useRouter, usePathname, useSearchParams } from 'next/navigation';
 import { useAuthStore } from '@bill/_store/useAuthStore';
+import BrandLoader from './ui/BrandLoader';
 
 interface AuthGuardProps {
   children: React.ReactNode;
@@ -52,11 +53,7 @@ function AuthGuardContent({ children, requireVerified = false }: AuthGuardProps)
 
   // Mostrar un indicador de carga mientras se inicializa
   if (loading || (!user && !isNewRegistration)) {
-    return (
-      <div className="flex items-center justify-center min-h-screen">
-        <div className="animate-spin rounded-full h-12 w-12 border-t-2 border-b-2 border-primary"></div>
-      </div>
-    );
+    return <BrandLoader />;
   }
 
   // No renderizar nada si el usuario no está autenticado o si el email no está verificado
@@ -70,11 +67,7 @@ function AuthGuardContent({ children, requireVerified = false }: AuthGuardProps)
 
 export default function AuthGuard({ children, requireVerified = false }: AuthGuardProps) {
   return (
-    <Suspense fallback={
-      <div className="flex items-center justify-center min-h-screen">
-        <div className="animate-spin rounded-full h-12 w-12 border-t-2 border-b-2 border-primary"></div>
-      </div>
-    }>
+    <Suspense fallback={<BrandLoader />}>
       <AuthGuardContent requireVerified={requireVerified}>
         {children}
       </AuthGuardContent>

@@ -9,6 +9,7 @@ import { Button } from "@bill/_components/ui/button";
 import { Text } from "@bill/_components/ui/typography";
 import { auth } from "@bill/_firebase/config";
 import { onAuthStateChanged } from "firebase/auth";
+import BrandLoader from "@bill/_components/ui/BrandLoader";
 
 function VerifyPageContent() {
   const { user, setUser } = useAuthStore();
@@ -64,19 +65,7 @@ function VerifyPageContent() {
 
 export default function VerifyPage() {
   return (
-    <Suspense fallback={
-      <div className="container max-w-md mx-auto py-12 flex flex-col items-center justify-center min-h-screen px-4">
-        <Card className="w-full">
-          <CardHeader className="space-y-1">
-            <CardTitle className="text-2xl font-bold text-center">Verificación de Email</CardTitle>
-            <Text className="text-center">Cargando...</Text>
-          </CardHeader>
-          <CardContent className="flex justify-center py-4">
-            <Loader2 className="h-8 w-8 animate-spin" />
-          </CardContent>
-        </Card>
-      </div>
-    }>
+    <Suspense fallback={<BrandLoader />}>
       <VerifyPageContent />
     </Suspense>
   );
