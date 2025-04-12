@@ -1,17 +1,16 @@
-"use client";
+'use client';
 
-import { useEffect } from "react";
-import { useFinanceStore } from "@bill/_store/useFinanceStore";
-import FinancialSummary from "./components/FinancialSummary";
-import MonthlyEvolutionChart from "./components/MonthlyEvolutionChart";
-import AccountsSection from "./components/AccountsSection";
-import FinanceTabs from "./components/FinanceTabs";
-import FinanceFormDialog from "./components/FinanceFormDialog";
-import { FinanceSkeletonLoader } from "@bill/_components/ui/skeletons";
-import QuickActions from "../components/QuickActions";
+import { useEffect } from 'react';
+import { ArrowUp, ArrowDown } from 'lucide-react';
+import { useFinanceStore } from '@bill/_store/useFinanceStore';
+import AccountsSection from './components/AccountsSection';
+import FinanceTabs from './components/FinanceTabs';
+import FinanceFormDialog from './components/FinanceFormDialog';
+import { FinanceSkeletonLoader } from '@bill/_components/ui/skeletons';
+import { Button } from '@bill/_components/ui/button';
 
 export default function FinanzasPage() {
-  const { loadFinanceData, isLoading } = useFinanceStore();
+  const { loadFinanceData, isLoading, handleNewExpense, handleNewIncome } = useFinanceStore();
 
   // Cargar datos al montar la página
   useEffect(() => {
@@ -20,37 +19,38 @@ export default function FinanzasPage() {
 
   if (isLoading) {
     return (
-      <div className="space-y-6">
-        <h1 className="text-2xl font-bold mb-6">Cargando Finanzas...</h1>
+      <div className='space-y-6'>
+        <h1 className='text-2xl font-bold mb-6'>Cargando Finanzas...</h1>
         <FinanceSkeletonLoader />
       </div>
     );
   }
 
   return (
-    <div className="space-y-6">
-      {/* Cabecera de la página */}
-      <div className="mb-6">
-        <h1 className="text-2xl font-semibold tracking-tight">Tu Panorama Financiero</h1>
-        <p className="text-sm text-muted-foreground mt-1">
-          Gestiona tus cuentas, ingresos y gastos detalladamente.
-        </p>
+    <div className='space-y-6'>
+      {/* Cabecera con título y acciones principales */}
+      <div className='flex items-center justify-between mb-4'>
+        <div>
+          <h1 className='text-2xl font-semibold tracking-tight'>Finanzas</h1>
+          <p className='text-sm text-muted-foreground mt-1'>Registra y revisa tus ingresos y gastos.</p>
+        </div>
+        <div className='flex items-center space-x-2'>
+          <Button onClick={handleNewExpense} className='text-xs sm:text-sm bg-red-600 hover:bg-red-700 text-white flex items-center justify-center gap-1 sm:gap-2'>
+            <ArrowDown className='h-3.5 w-3.5 sm:h-4 sm:w-4' />
+            <span className='whitespace-nowrap'>Registrar Gasto</span>
+          </Button>
+          <Button onClick={handleNewIncome} className='text-xs sm:text-sm bg-blue-600 hover:bg-blue-700 text-white flex items-center justify-center gap-1 sm:gap-2'>
+            <ArrowUp className='h-3.5 w-3.5 sm:h-4 sm:w-4' />
+            <span className='whitespace-nowrap'>Registrar Ingreso</span>
+          </Button>
+        </div>
       </div>
-      
-      {/* Acciones rápidas */}
-      <QuickActions />
-
-      {/* Resumen financiero */}
-      <FinancialSummary />
 
       {/* Sección de cuentas */}
       <AccountsSection />
 
       {/* Pestañas de ingresos y gastos */}
       <FinanceTabs />
-
-      {/* Gráfico de evolución mensual */}
-      <MonthlyEvolutionChart />
 
       {/* Diálogo de formulario (modal) */}
       <FinanceFormDialog />

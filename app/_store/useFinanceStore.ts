@@ -9,15 +9,11 @@ import { useAccountStore } from './useAccountStore';
 import { getUserExpenses, addExpense, updateExpense, deleteExpense } from '@bill/_firebase/expenseService';
 import { getUserIncomes, addIncome, updateIncome, deleteIncome } from '@bill/_firebase/incomeService';
 import { getUserAccounts } from '@bill/_firebase/accountService';
-import { INCOME_CATEGORIES, EXPENSE_CATEGORIES } from '@bill/_lib/utils/categoryConfig';
+import { INCOME_CATEGORIES, EXPENSE_CATEGORIES, incomeCategories as defaultIncomeCategories, expenseCategories as defaultExpenseCategories } from '@bill/_lib/utils/categoryConfig';
 
 // Usando las interfaces de los stores existentes
 import { Income as IncomeStore } from './useIncomeStore';
 import { Expense as ExpenseStore } from './useExpenseStore';
-
-// Define categorías
-const expenseCategories = ['Comida', 'Transporte', 'Entretenimiento', 'Servicios', 'Compras', 'Salud', 'Educación', 'Vivienda', 'Otros'];
-const incomeCategories = ['Salario', 'Freelance', 'Inversiones', 'Ventas', 'Regalos', 'Reembolsos', 'Otros'];
 
 // Tipo para el ítem en edición
 interface EditingItem {
@@ -93,8 +89,8 @@ export const useFinanceStore = create<FinanceState>((set, get) => ({
   },
 
   // Categorías
-  expenseCategories,
-  incomeCategories,
+  expenseCategories: defaultExpenseCategories,
+  incomeCategories: defaultIncomeCategories,
 
   // Formatear moneda
   formatCurrency: (amount: number) => {
@@ -182,12 +178,15 @@ export const useFinanceStore = create<FinanceState>((set, get) => ({
   calculateCategoryStats: () => {
     const { expenses } = useExpenseStore.getState();
     const { incomes } = useIncomeStore.getState();
+    // Obtener las listas actualizadas desde el estado del store
+    const currentExpenseCategories = get().expenseCategories;
+    const currentIncomeCategories = get().incomeCategories;
 
     // Calcular gastos por categoría
     if (expenses.length > 0) {
       const expensesTotal = expenses.reduce((sum, expense) => sum + expense.amount, 0);
 
-      const expenseStats = expenseCategories
+      const expenseStats = currentExpenseCategories
         .map((category) => {
           const categoryExpenses = expenses.filter((e) => e.category === category);
           const total = categoryExpenses.reduce((sum, e) => sum + e.amount, 0);
@@ -223,7 +222,7 @@ export const useFinanceStore = create<FinanceState>((set, get) => ({
     if (incomes.length > 0) {
       const incomesTotal = incomes.reduce((sum, income) => sum + income.amount, 0);
 
-      const incomeStats = incomeCategories
+      const incomeStats = currentIncomeCategories
         .map((category) => {
           const categoryIncomes = incomes.filter((i) => i.category === category);
           const total = categoryIncomes.reduce((sum, i) => sum + i.amount, 0);
@@ -259,14 +258,14 @@ export const useFinanceStore = create<FinanceState>((set, get) => ({
   // Abrir formulario para nuevo gasto
   handleNewExpense: () => {
     const now = new Date();
-    // Usa la primera categoría de la lista como predeterminada, o 'Otros' como fallback
-    const defaultCategory = expenseCategories[0] || 'Otros';
+    // Asegurarse de usar la lista actualizada aquí también
+    const defaultCategory = defaultExpenseCategories[0] || 'Otros';
     set({
       currentItem: {
         id: '',
         description: '',
         amount: 0,
-        category: defaultCategory, // <-- Usar la primera categoría de la lista
+        category: defaultCategory,
         date: now,
         time: format(now, 'HH:mm'),
       },
@@ -279,12 +278,14 @@ export const useFinanceStore = create<FinanceState>((set, get) => ({
   // Abrir formulario para nuevo ingreso
   handleNewIncome: () => {
     const now = new Date();
+    // Asegurarse de usar la lista actualizada aquí también
+    const defaultCategory = defaultIncomeCategories[0] || 'Otros';
     set({
       currentItem: {
         id: '',
         description: '',
         amount: 0,
-        category: 'Salario',
+        category: defaultCategory, // <-- Usar la lista actualizada
         date: now,
         time: format(now, 'HH:mm'),
       },
