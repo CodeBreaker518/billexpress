@@ -2,6 +2,7 @@
 
 import Link from "next/link";
 import { motion } from "framer-motion";
+import { FlipWords } from "@bill/_components/landing/FlipWords";
 
 export default function HeroSection() {
   // Variantes para animaciones
@@ -37,7 +38,9 @@ export default function HeroSection() {
         <motion.div className="relative flex flex-col items-center" variants={itemVariants}>
           <div className="absolute -top-10 left-1/2 transform -translate-x-1/2 w-40 h-1.5 bg-gradient-to-r from-transparent via-blue-500 to-transparent opacity-50"></div>
           <motion.h1 className="text-4xl md:text-5xl lg:text-7xl font-extrabold mb-8 relative" variants={itemVariants}>
-            <span className="bg-clip-text text-transparent bg-gradient-to-r from-blue-600 to-indigo-600 dark:from-blue-400 dark:to-indigo-400">Control de gastos</span>
+            <span className="bg-clip-text text-transparent bg-gradient-to-r from-blue-600 to-indigo-600 dark:from-blue-400 dark:to-indigo-400">Control de 
+              <FlipWords className="text-blue-600 dark:text-blue-400" words={["gastos", "ingresos", "finanzas"]} />
+            </span>
             <br />
             <span className="relative">
               simplificado
