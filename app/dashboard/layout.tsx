@@ -3,12 +3,14 @@
 import { useState, useEffect } from 'react';
 import Link from 'next/link';
 import { usePathname, useRouter } from 'next/navigation';
-import { LayoutDashboard, BarChart2, LogOut, Menu, User, DollarSign } from 'lucide-react';
+import { LayoutDashboard, BarChart2, LogOut, Menu, User, DollarSign, Calendar } from 'lucide-react';
 import { useAuth } from '@bill/_hooks/useAuth';
 import { useAuthStore } from '@bill/_store/useAuthStore';
 import AuthGuard from '@bill/_components/AuthGuard';
 import ThemeToggle from '@bill/_components/ThemeToggle';
 import BillExpressLogo from '@bill/_components/BillExpressLogo';
+import { useTheme } from 'next-themes';
+import { useToast } from '@bill/_components/ui/use-toast';
 
 // Importación de componentes de shadcn-ui
 import { Button } from '@bill/_components/ui/button';
@@ -22,6 +24,7 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
   const router = useRouter();
   const { logout } = useAuth();
   const { user } = useAuthStore();
+  const { toast } = useToast();
   const [sheetOpen, setSheetOpen] = useState(false);
   const [cleanedUpAccounts, setCleanedUpAccounts] = useState(false);
   const [defaultAccountChecked, setDefaultAccountChecked] = useState(false);
@@ -103,9 +106,24 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
   }, [user, defaultAccountChecked]);
 
   const handleLogout = async () => {
-    const result = await logout();
-    if (result.success) {
-      router.push('/auth/login');
+    try {
+      const result = await logout();
+      if (result.success) {
+        router.push("/auth/login");
+      } else {
+        toast({
+          title: "Error al cerrar sesión",
+          description: result.error || "Ha ocurrido un error al cerrar sesión. Inténtalo de nuevo.",
+          variant: "destructive"
+        });
+      }
+    } catch (error) {
+      console.error("Error al cerrar sesión:", error);
+      toast({
+        title: "Error al cerrar sesión",
+        description: "Ha ocurrido un error inesperado. Inténtalo de nuevo.",
+        variant: "destructive"
+      });
     }
   };
 
@@ -125,6 +143,11 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
       icon: BarChart2,
       href: '/dashboard/analiticas',
       disabled: false,
+    },
+    {
+      title: 'Calendario',
+      icon: Calendar,
+      href: '/dashboard/calendario',
     },
     {
       title: 'Mi Perfil',

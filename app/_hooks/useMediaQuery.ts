@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useState } from 'react';
+import { useState, useEffect } from 'react';
 
 export function useMediaQuery(query: string): boolean {
   // Estado para almacenar si la media query coincide
@@ -10,20 +10,20 @@ export function useMediaQuery(query: string): boolean {
     // Crear media query
     const media = window.matchMedia(query);
     
-    // Verificar coincidencia inicial
-    if (media.matches !== matches) {
+    // Función para actualizar el estado
+    const updateMatches = () => {
       setMatches(media.matches);
-    }
+    };
     
-    // Callback para actualizar el estado cuando cambia la media query
-    const listener = () => setMatches(media.matches);
+    // Configurar el listener y ejecutar la comprobación inicial
+    updateMatches();
+    media.addEventListener('change', updateMatches);
     
-    // Agregar el evento listener
-    media.addEventListener('change', listener);
-    
-    // Limpiar el listener cuando el componente se desmonta
-    return () => media.removeEventListener('change', listener);
-  }, [query, matches]);
+    // Limpiar al desmontar
+    return () => {
+      media.removeEventListener('change', updateMatches);
+    };
+  }, [query]);
   
   return matches;
 }

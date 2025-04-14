@@ -1,0 +1,47 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+    // Función para verificar si el usuario está autenticado
+    function isAuthenticated() {
+      return request.auth != null;
+    }
+    
+    // Función para verificar si el usuario es propietario del documento
+    function isOwner(userId) {
+      return isAuthenticated() && request.auth.uid == userId;
+    }
+
+    // Reglas para la colección de gastos
+    match /expenses/{expenseId} {
+      allow read: if isAuthenticated() && resource != null && isOwner(resource.data.userId);
+      allow create: if isAuthenticated() && isOwner(request.resource.data.userId);
+      allow update, delete: if isAuthenticated() && resource != null && isOwner(resource.data.userId);
+    }
+    
+    // Reglas para la colección de ingresos
+    match /incomes/{incomeId} {
+      allow read: if isAuthenticated() && resource != null && isOwner(resource.data.userId);
+      allow create: if isAuthenticated() && isOwner(request.resource.data.userId);
+      allow update, delete: if isAuthenticated() && resource != null && isOwner(resource.data.userId);
+    }
+    
+    // Reglas para la colección de cuentas
+    match /accounts/{accountId} {
+      allow read: if isAuthenticated() && resource != null && isOwner(resource.data.userId);
+      allow create: if isAuthenticated() && isOwner(request.resource.data.userId);
+      allow update, delete: if isAuthenticated() && resource != null && isOwner(resource.data.userId);
+    }
+    
+    // Reglas para la colección de recordatorios
+    match /reminders/{reminderId} {
+      allow read: if isAuthenticated() && resource != null && isOwner(resource.data.userId);
+      allow create: if isAuthenticated() && isOwner(request.resource.data.userId);
+      allow update, delete: if isAuthenticated() && resource != null && isOwner(resource.data.userId);
+    }
+    
+    // Regla por defecto - denegar todo lo demás
+    match /{document=**} {
+      allow read, write: if false;
+    }
+  }
+} 

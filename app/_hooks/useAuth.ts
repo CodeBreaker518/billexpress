@@ -157,12 +157,14 @@ export const useAuth = () => {
       const { useIncomeStore } = await import("@bill/_store/useIncomeStore");
       const { useExpenseStore } = await import("@bill/_store/useExpenseStore");
       const { useFinanceStore } = await import("@bill/_store/useFinanceStore");
+      const { useReminderStore } = await import("@bill/_store/useReminderStore");
 
       // Limpiar datos almacenados en las tiendas
       console.log("Limpiando datos de usuario antes de cerrar sesión...");
       useAccountStore.getState().setAccounts([]);
       useIncomeStore.getState().setIncomes([]);
       useExpenseStore.getState().setExpenses([]);
+      useReminderStore.getState().setReminders([]);
       
       // Restablecer otras configuraciones
       useFinanceStore.getState().setSearchTerm("");
