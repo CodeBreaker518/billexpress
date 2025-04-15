@@ -18,6 +18,7 @@ import { Avatar, AvatarFallback, AvatarImage } from '@bill/_components/ui/avatar
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuLabel, DropdownMenuSeparator, DropdownMenuTrigger } from '@bill/_components/ui/dropdown-menu';
 import { Separator } from '@bill/_components/ui/separator';
 import { Sheet, SheetContent, SheetTrigger, SheetTitle } from '@bill/_components/ui/sheet';
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@bill/_components/ui/tooltip";
 
 export default function DashboardLayout({ children }: { children: React.ReactNode }) {
   const pathname = usePathname();
@@ -164,6 +165,21 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
           <div className='flex h-16 justify-center items-center border-b px-4'>
             <Link href='/dashboard' className='flex items-center gap-2 font-semibold'>
               <BillExpressLogo width={160} height={45} usePrimaryColor={true} />
+              <TooltipProvider delayDuration={300}>
+                <Tooltip>
+                  <TooltipTrigger asChild>
+                    <div
+                      className="ml-2 flex items-center px-2 py-0.5 rounded-full bg-transparent hover:bg-transparent text-green-600 text-xs font-bold shadow border border-green-300 cursor-pointer select-none transition"
+                      style={{ whiteSpace: 'nowrap' }}
+                    >
+                      beta
+                    </div>
+                  </TooltipTrigger>
+                  <TooltipContent side="bottom" align="center" className="max-w-xs text-xs">
+                    Billexpress está en <span className="font-bold">fase beta</span> y puede tener errores.
+                  </TooltipContent>
+                </Tooltip>
+              </TooltipProvider>
             </Link>
           </div>
           <nav className='flex-1 overflow-auto py-4'>
@@ -207,10 +223,16 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
                 </Button>
               </SheetTrigger>
               <SheetContent side='left' className='w-64 p-0'>
-                <div className='flex h-16 items-center border-b px-4'>
+                <div className='flex flex-col items-center justify-center h-auto border-b  py-4 px-4'>
                   <Link href='/dashboard' className='flex items-center gap-2 font-semibold' onClick={() => setSheetOpen(false)}>
                     <BillExpressLogo width={160} height={45} usePrimaryColor={true} />
                   </Link>
+                  <div
+                    className="mt-2 flex items-center px-2 py-0.5 rounded-full bg-transparent text-green-600 text-xs font-bold shadow border border-green-300 select-none"
+                    style={{ whiteSpace: 'nowrap' }}
+                  >
+                    beta
+                  </div>
                 </div>
                 <SheetTitle className='sr-only'>Menú de navegación</SheetTitle>
                 <nav className='flex-1 overflow-auto py-4'>

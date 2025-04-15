@@ -86,7 +86,7 @@ export default function IncomePanel() {
                     : []
                 }
                 loading={isLoading}
-                onEdit={(item) => handleEdit(item as Income | Expense, "income")}
+                onEdit={(item) => handleEdit(item, "income")}
                 onDelete={handleDeleteIncome}
                 type="income"
               />
