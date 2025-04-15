@@ -12,7 +12,7 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@
 import { CategoryBadge } from "@bill/_components/ui/category-badge";
 import { format } from "date-fns";
 import { es } from "date-fns/locale";
-import { AlertCircle, Calendar, ArrowUp, ArrowDown, Clock, Edit, Search, Filter, FilterX, ChevronLeft, ChevronRight, ChevronsLeft, ChevronsRight } from "lucide-react";
+import { AlertCircle, Calendar, Clock, BanknoteIcon, Receipt, ArrowLeftRight, ChevronLeft, ChevronRight, ChevronsLeft, ChevronsRight, Filter, FilterX, Search, FilterIcon, Edit } from "lucide-react";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@bill/_components/ui/tooltip";
 import AlertDeleteTableElement from "@bill/_components/AlertDeleteTableElement";
 import { useAccountStore } from "@bill/_store/useAccountStore";
@@ -398,7 +398,7 @@ export default function TransactionsTable() {
             className="text-xs py-1.5 px-3 whitespace-nowrap"
             onClick={() => setTypeFilter("income")}
           >
-            <ArrowUp className="h-3.5 w-3.5 mr-1.5 text-blue-600 dark:text-blue-400" />
+            <BanknoteIcon className="h-3.5 w-3.5 mr-1.5 text-blue-600 dark:text-blue-400" />
             Ingresos
           </Button>
           <Button 
@@ -407,7 +407,7 @@ export default function TransactionsTable() {
             className="text-xs py-1.5 px-3 whitespace-nowrap"
             onClick={() => setTypeFilter("expense")}
           >
-            <ArrowDown className="h-3.5 w-3.5 mr-1.5 text-red-500" />
+            <Receipt className="h-3.5 w-3.5 mr-1.5 text-red-500" />
             Gastos
           </Button>
         </div>
@@ -439,9 +439,9 @@ export default function TransactionsTable() {
                   {typeFilter !== "all" ? (
                     <div className="flex items-center gap-2">
                       {typeFilter === "income" ? (
-                        <ArrowUp className="h-4 w-4 text-blue-600" />
+                        <BanknoteIcon className="h-4 w-4 text-blue-600" />
                       ) : (
-                        <ArrowDown className="h-4 w-4 text-red-600" />
+                        <Receipt className="h-4 w-4 text-red-600" />
                       )}
                       <span>{typeFilter === "income" ? "Ingresos" : "Gastos"}</span>
                     </div>
@@ -453,13 +453,13 @@ export default function TransactionsTable() {
                   <SelectItem value="all">Todos los tipos</SelectItem>
                   <SelectItem value="income" className="flex items-center">
                     <div className="flex items-center gap-2">
-                      <ArrowUp className="h-4 w-4 text-blue-600" />
+                      <BanknoteIcon className="h-4 w-4 text-blue-600" />
                       <span>Solo ingresos</span>
                     </div>
                   </SelectItem>
                   <SelectItem value="expense" className="flex items-center">
                     <div className="flex items-center gap-2">
-                      <ArrowDown className="h-4 w-4 text-red-600" />
+                      <Receipt className="h-4 w-4 text-red-600" />
                       <span>Solo gastos</span>
                     </div>
                   </SelectItem>
@@ -670,9 +670,9 @@ export default function TransactionsTable() {
                     <TableRow key={transaction.id} className={isAccountDeleted(transaction) ? "bg-amber-50/30 dark:bg-amber-950/20" : undefined}>
                       <TableCell>
                         {transaction.type === "income" ? (
-                          <ArrowUp className="h-4 w-4 text-blue-600 dark:text-blue-400" />
+                          <BanknoteIcon className="h-4 w-4 text-blue-600 dark:text-blue-400" />
                         ) : (
-                          <ArrowDown className="h-4 w-4 text-red-600 dark:text-red-400" />
+                          <Receipt className="h-4 w-4 text-red-600 dark:text-red-400" />
                         )}
                       </TableCell>
                       <TableCell className="whitespace-normal">

@@ -1,10 +1,11 @@
 'use client';
 
 import { useEffect } from 'react';
-import { ArrowUp, ArrowDown } from 'lucide-react';
+import { BanknoteIcon, Receipt } from 'lucide-react';
 import { useFinanceStore } from '@bill/_store/useFinanceStore';
 import AccountsSection from './components/AccountsSection';
-import FinanceTabs from './components/FinanceTabs';
+import TransactionsTable from './components/TransactionsTable';
+import TransferHistory from '@bill/_components/finanzas/TransferHistory';
 import FinanceFormDialog from './components/FinanceFormDialog';
 import { FinanceSkeletonLoader } from '@bill/_components/ui/skeletons';
 import { Button } from '@bill/_components/ui/button';
@@ -36,11 +37,11 @@ export default function FinanzasPage() {
         </div>
         <div className='flex items-center space-x-2'>
           <Button onClick={handleNewExpense} className='text-xs sm:text-sm bg-red-600 hover:bg-red-700 text-white flex items-center justify-center gap-1 sm:gap-2'>
-            <ArrowDown className='h-3.5 w-3.5 sm:h-4 sm:w-4' />
+            <Receipt className='h-3.5 w-3.5 sm:h-4 sm:w-4' />
             <span className='whitespace-nowrap'>Registrar Gasto</span>
           </Button>
           <Button onClick={handleNewIncome} className='text-xs sm:text-sm bg-blue-600 hover:bg-blue-700 text-white flex items-center justify-center gap-1 sm:gap-2'>
-            <ArrowUp className='h-3.5 w-3.5 sm:h-4 sm:w-4' />
+            <BanknoteIcon className='h-3.5 w-3.5 sm:h-4 sm:w-4' />
             <span className='whitespace-nowrap'>Registrar Ingreso</span>
           </Button>
         </div>
@@ -49,8 +50,11 @@ export default function FinanzasPage() {
       {/* Sección de cuentas */}
       <AccountsSection />
 
-      {/* Pestañas de ingresos y gastos */}
-      <FinanceTabs />
+      {/* Tabla de ingresos y gastos */}
+      <TransactionsTable />
+
+      {/* Tabla de transferencias */}
+      <TransferHistory />
 
       {/* Diálogo de formulario (modal) */}
       <FinanceFormDialog />

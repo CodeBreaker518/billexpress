@@ -32,6 +32,13 @@ service cloud.firestore {
       allow update, delete: if isAuthenticated() && resource != null && isOwner(resource.data.userId);
     }
     
+    // Reglas para la colección de transferencias
+    match /transfers/{transferId} {
+      allow read: if isAuthenticated() && resource != null && isOwner(resource.data.userId);
+      allow create: if isAuthenticated() && isOwner(request.resource.data.userId);
+      allow update, delete: if isAuthenticated() && resource != null && isOwner(resource.data.userId);
+    }
+    
     // Reglas para la colección de recordatorios
     match /reminders/{reminderId} {
       allow read: if isAuthenticated() && resource != null && isOwner(resource.data.userId);

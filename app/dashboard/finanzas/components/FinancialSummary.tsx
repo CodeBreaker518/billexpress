@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { TrendingUp, TrendingDown, Wallet, PieChart } from "lucide-react";
+import { TrendingUp, TrendingDown, Wallet, PieChart, BanknoteIcon, Receipt } from "lucide-react";
 import { useFinanceStore } from "@bill/_store/useFinanceStore";
 import { useExpenseStore } from "@bill/_store/useExpenseStore";
 import { useIncomeStore } from "@bill/_store/useIncomeStore";
@@ -86,7 +86,7 @@ export default function FinancialSummary() {
         valueClassName="text-blue-600 dark:text-blue-400"
         subTitle="Mes actual"
         subValue={formatCurrency(monthlyIncomes)}
-        icon={<TrendingUp className="h-6 w-6 text-blue-700 dark:text-blue-400" />}
+        icon={<BanknoteIcon className="h-6 w-6 text-blue-700 dark:text-blue-400" />}
         iconContainerClassName="bg-blue-100 dark:bg-blue-900/30"
         decorationColor="blue"
       />
@@ -98,7 +98,7 @@ export default function FinancialSummary() {
         valueClassName="text-red-600 dark:text-red-400"
         subTitle="Mes actual"
         subValue={formatCurrency(monthlyExpenses)}
-        icon={<TrendingDown className="h-6 w-6 text-red-700 dark:text-red-400" />}
+        icon={<Receipt className="h-6 w-6 text-red-700 dark:text-red-400" />}
         iconContainerClassName="bg-red-100 dark:bg-red-900/30"
         decorationColor="red"
       />

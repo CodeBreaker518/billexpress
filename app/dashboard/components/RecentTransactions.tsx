@@ -1,9 +1,9 @@
 "use client";
 
-import { useMemo } from "react";
+import { useState, useEffect, useMemo } from "react";
 import { format } from "date-fns";
 import { es } from "date-fns/locale";
-import { ArrowUp, ArrowDown, Wallet, ChevronRight } from "lucide-react";
+import { Wallet, ChevronRight, BanknoteIcon, Receipt, ArrowLeftRight } from "lucide-react";
 import { Card, CardContent, CardHeader, CardTitle } from "@bill/_components/ui/card";
 import { Button } from "@bill/_components/ui/button";
 import { Text } from "@bill/_components/ui/typography";
@@ -11,42 +11,78 @@ import { List, ListItem } from "@bill/_components/ui/list";
 import { useExpenseStore } from "@bill/_store/useExpenseStore";
 import { useIncomeStore } from "@bill/_store/useIncomeStore";
 import { useFinanceStore } from "@bill/_store/useFinanceStore";
+import { useAuthStore } from "@bill/_store/useAuthStore";
 import { CategoryBadge } from "@bill/_components/ui/category-badge";
+import { getUserTransfers } from "@bill/_firebase/accountService";
 import Link from "next/link";
+import { Badge } from "@bill/_components/ui/badge";
 
 interface Transaction {
   id: string;
-  type: "income" | "expense";
+  type: "income" | "expense" | "transfer";
   description: string;
   amount: number;
-  category: string;
+  category?: string;
   date: Date;
+  fromAccountName?: string;
+  toAccountName?: string;
 }
 
 export default function RecentTransactions() {
   const { expenses } = useExpenseStore();
   const { incomes } = useIncomeStore();
+  const { user } = useAuthStore();
   const { formatCurrency } = useFinanceStore();
+  const [transfers, setTransfers] = useState<any[]>([]);
+
+  // Cargar transferencias
+  useEffect(() => {
+    const loadTransfers = async () => {
+      if (!user?.uid) return;
+      
+      try {
+        const data = await getUserTransfers(user.uid);
+        setTransfers(data);
+      } catch (error) {
+        console.error("Error al cargar transferencias:", error);
+      }
+    };
+
+    loadTransfers();
+  }, [user?.uid]);
 
   // Combinar y ordenar transacciones
   const recentTransactions = useMemo(() => {
+    if (!user) return [];
+    
+    const userExpenses = expenses.filter(exp => exp.userId === user.uid);
+    const userIncomes = incomes.filter(inc => inc.userId === user.uid);
+    const userTransfers = transfers.filter(transfer => transfer.userId === user.uid);
+
     const allTransactions: Transaction[] = [
-      ...expenses.map((expense) => ({
+      ...userExpenses.map((expense) => ({
         ...expense,
         type: "expense" as const,
         date: new Date(expense.date),
       })),
-      ...incomes.map((income) => ({
+      ...userIncomes.map((income) => ({
         ...income,
         type: "income" as const,
         date: new Date(income.date),
+      })),
+      ...userTransfers.map((transfer) => ({
+        ...transfer,
+        type: "transfer" as const,
+        description: transfer.description || `Transferencia de ${transfer.fromAccountName} a ${transfer.toAccountName}`,
+        category: "Transferencia",
+        date: new Date(transfer.date),
       })),
     ];
 
     return allTransactions
       .sort((a, b) => b.date.getTime() - a.date.getTime())
       .slice(0, 5);
-  }, [expenses, incomes]);
+  }, [expenses, incomes, transfers, user]);
 
   return (
     <Card className="shadow-soft">
@@ -65,14 +101,24 @@ export default function RecentTransactions() {
               <ListItem key={transaction.id}>
                 <div className="flex items-center space-x-2">
                   {transaction.type === "income" ? (
-                    <ArrowUp className="h-4 w-4 text-blue-600" />
+                    <BanknoteIcon className="h-4 w-4 text-blue-600" />
+                  ) : transaction.type === "expense" ? (
+                    <Receipt className="h-4 w-4 text-red-600" />
                   ) : (
-                    <ArrowDown className="h-4 w-4 text-red-600" />
+                    <ArrowLeftRight className="h-4 w-4 text-green-600" />
                   )}
                   <div>
                     <Text className="text-sm font-medium">{transaction.description}</Text>
                     <div className="flex items-center space-x-2">
-                      <CategoryBadge category={transaction.category} type={transaction.type} showIcon={true} />
+                      {transaction.type === "transfer" ? (
+                        <Badge variant="outline" className="text-xs bg-green-50 text-green-700 border-green-200 dark:bg-green-950/50 dark:border-green-800 dark:text-green-400">
+                          <span className="text-xs">{transaction.fromAccountName} → {transaction.toAccountName}</span>
+                        </Badge>
+                      ) : transaction.category ? (
+                        <CategoryBadge category={transaction.category} type={transaction.type} showIcon={true} />
+                      ) : (
+                        <Badge variant="outline">Sin categoría</Badge>
+                      )}
                       <Text className="text-xs text-muted-foreground">
                         {format(transaction.date, "d MMM yyyy, HH:mm", { locale: es })}
                       </Text>
@@ -81,10 +127,13 @@ export default function RecentTransactions() {
                 </div>
                 <Text
                   className={`text-sm ${
-                    transaction.type === "income" ? "text-blue-600 dark:text-blue-400" : "text-red-600 dark:text-red-400"
+                    transaction.type === "income" ? "text-blue-600 dark:text-blue-400" : 
+                    transaction.type === "expense" ? "text-red-600 dark:text-red-400" :
+                    "text-green-600 dark:text-green-400"
                   }`}
                 >
-                  {transaction.type === "income" ? "+" : "-"}
+                  {transaction.type === "income" ? "+" : 
+                   transaction.type === "expense" ? "-" : ""}
                   {formatCurrency(transaction.amount)}
                 </Text>
               </ListItem>

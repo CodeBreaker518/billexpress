@@ -211,6 +211,16 @@ export const deleteUserAccount = async (user: User, password?: string) => {
         batch.delete(doc.ref);
       });
       
+      // 4. Eliminar transferencias
+      console.log("Eliminando transferencias");
+      const transfersRef = collection(db, 'transfers');
+      const transfersQuery = query(transfersRef, where('userId', '==', user.uid));
+      const transfersSnapshot = await getDocs(transfersQuery);
+      
+      transfersSnapshot.forEach(doc => {
+        batch.delete(doc.ref);
+      });
+      
       // Ejecutar el batch
       console.log("Ejecutando batch para eliminar todos los datos");
       await batch.commit();

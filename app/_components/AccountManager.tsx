@@ -165,6 +165,7 @@ export default function AccountManager({ userId, onReloadAccounts, isLoading }: 
   const [fromAccountId, setFromAccountId] = useState<string>("");
   const [toAccountId, setToAccountId] = useState<string>("");
   const [transferAmount, setTransferAmount] = useState<number>(0);
+  const [transferDescription, setTransferDescription] = useState<string>("");
 
   // Colores predefinidos para cuentas
   const predefinedColors = [
@@ -357,42 +358,9 @@ export default function AccountManager({ userId, onReloadAccounts, isLoading }: 
       // Recargar cuentas con recálculo automático de saldos
       await reloadAccountsWithRecalculation();
 
-      // Actualizar el estado de las transacciones para que no aparezcan huérfanas en la UI
-      try {
-        // Intentar actualizar los estados de transacciones si están disponibles
-        // Este bloque es para actualizar la UI y evitar que se muestren registros eliminados
-        
-        // Actualizar estado de ingresos
-        const { useIncomeStore } = await import("@bill/_store/useIncomeStore");
-        if (useIncomeStore) {
-          // Obtener los ingresos actualizados del usuario (sin los eliminados)
-          const { incomeService } = await import("@bill/_firebase/financeService");
-          const updatedIncomes = await incomeService.getUserItems(userId);
-          
-          // Actualizar el estado completo con los datos actualizados
-          const incomeStore = useIncomeStore.getState();
-          if (incomeStore.setIncomes) {
-            incomeStore.setIncomes(updatedIncomes);
-          }
-        }
-        
-        // Actualizar estado de gastos
-        const { useExpenseStore } = await import("@bill/_store/useExpenseStore");
-        if (useExpenseStore) {
-          // Obtener los gastos actualizados del usuario (sin los eliminados)
-          const { expenseService } = await import("@bill/_firebase/financeService");
-          const updatedExpenses = await expenseService.getUserItems(userId);
-          
-          // Actualizar el estado completo con los datos actualizados
-          const expenseStore = useExpenseStore.getState();
-          if (expenseStore.setExpenses) {
-            expenseStore.setExpenses(updatedExpenses);
-          }
-        }
-      } catch (storeError) {
-        console.warn("Error al actualizar estados de transacciones:", storeError);
-        // No interrumpimos el flujo principal si hay un error en la actualización del estado
-      }
+      // Cerrar modal y mostrar notificación de éxito
+      setDeleteConfirmOpen(false);
+      setAccountToDelete(null);
       
       // Mensaje específico según si se eliminaron transacciones
       if (totalDeleted > 0) {
@@ -408,17 +376,34 @@ export default function AccountManager({ userId, onReloadAccounts, isLoading }: 
           variant: "success",
         });
       }
-    } catch (error) {
-      toast({
-        title: "Error",
-        description: error instanceof Error ? error.message : "No se pudo eliminar la cuenta",
-        variant: "destructive",
-      });
-    } finally {
-      setDeleteConfirmOpen(false);
-      setAccountToDelete(null);
+    } catch (error: any) {
+      console.error("Error al eliminar cuenta:", error);
+      
+      // Mostrar mensaje específico si tiene saldo
+      if (error.message && error.message.includes("cuenta con saldo")) {
+        toast({
+          title: "No se puede eliminar la cuenta",
+          description: error.message,
+          variant: "destructive",
+        });
+      } else {
+        toast({
+          title: "Error al eliminar cuenta",
+          description: error.message || "Ocurrió un error inesperado",
+          variant: "destructive",
+        });
+      }
+      
+      // Mantener modal abierto para cuentas con saldo
+      if (error.message && error.message.includes("cuenta con saldo")) {
+        // No cerrar el modal para que el usuario vea claramente el mensaje
+      } else {
+        // Cerrar modal para otros tipos de errores
+        setDeleteConfirmOpen(false);
+        setAccountToDelete(null);
+      }
     }
-  }, [accountToDelete, reloadAccountsWithRecalculation, toast, userId]);
+  }, [accountToDelete?.id, reloadAccountsWithRecalculation, setDeleteConfirmOpen, toast, userId]);
 
   // Guardar cuenta (nueva o editada)
   const handleSaveAccount = useCallback(async () => {
@@ -486,6 +471,7 @@ export default function AccountManager({ userId, onReloadAccounts, isLoading }: 
     setFromAccountId(activeAccountId || "");
     setToAccountId("");
     setTransferAmount(0);
+    setTransferDescription("");
     setIsTransferFormOpen(true);
   }, [activeAccountId]);
 
@@ -514,7 +500,7 @@ export default function AccountManager({ userId, onReloadAccounts, isLoading }: 
       });
 
       // Paso 1: Realizar la transferencia entre cuentas
-      await transferBetweenAccounts(fromAccountId, toAccountId, transferAmount, userId);
+      await transferBetweenAccounts(fromAccountId, toAccountId, transferAmount, userId, transferDescription);
 
       // Paso 2: Cerrar el modal de transferencia
       setIsTransferFormOpen(false);
@@ -548,7 +534,7 @@ export default function AccountManager({ userId, onReloadAccounts, isLoading }: 
         console.error("Error al recargar datos después de un fallo en la transferencia:", reloadError);
       }
     }
-  }, [fromAccountId, toAccountId, transferAmount, userId, reloadAccountsWithRecalculation, toast, formatCurrency, isTransferValid]);
+  }, [fromAccountId, toAccountId, transferAmount, transferDescription, userId, reloadAccountsWithRecalculation, toast, formatCurrency, isTransferValid]);
 
   // Función para reiniciar el saldo de la cuenta Efectivo
   const handleResetDefaultAccountBalance = useCallback(async () => {
@@ -1041,6 +1027,17 @@ export default function AccountManager({ userId, onReloadAccounts, isLoading }: 
               min="0.01"
               value={transferAmount || ""}
               onChange={(e) => setTransferAmount(parseFloat(e.target.value) || 0)}
+            />
+          </div>
+
+          <div className="space-y-2">
+            <Label htmlFor="description">Descripción (opcional)</Label>
+            <Input
+              id="description"
+              type="text"
+              placeholder="Descripción de la transferencia"
+              value={transferDescription}
+              onChange={(e) => setTransferDescription(e.target.value)}
             />
           </div>
         </div>

@@ -1,10 +1,11 @@
 "use client";
 
-import { collection, addDoc, updateDoc, deleteDoc, doc, query, where, getDocs, getDoc, serverTimestamp, writeBatch } from "firebase/firestore";
+import { collection, addDoc, updateDoc, deleteDoc, doc, query, where, getDocs, getDoc, serverTimestamp, writeBatch, orderBy } from "firebase/firestore";
 import { db } from "./config";
 import { useAccountStore } from "@bill/_store/useAccountStore";
 import { getAuth } from "firebase/auth";
 import { countOrphanedFinances, deleteFinancesByAccountId } from "./financeService";
+import { Timestamp } from "firebase/firestore";
 
 // Tipo para cuentas
 export interface Account {
@@ -195,6 +196,22 @@ export const deleteAccount = async (id: string): Promise<void> => {
       throw new Error("Usuario no autenticado");
     }
     
+    // Verificar si la cuenta tiene saldo
+    const account = await getAccountById(id);
+    if (!account) {
+      throw new Error("Cuenta no encontrada");
+    }
+    
+    // Verificar que la cuenta pertenezca al usuario
+    if (account.userId !== currentUser.uid) {
+      throw new Error("No tienes permiso para eliminar esta cuenta");
+    }
+    
+    // Verificar si la cuenta tiene saldo
+    if (account.balance > 0) {
+      throw new Error("No puedes eliminar una cuenta con saldo. Por favor, transfiere todo el dinero a otras cuentas primero.");
+    }
+    
     // Verificar primero si hay transacciones asociadas
     const { orphanedCount } = await countOrphanedFinances(id, currentUser.uid);
     if (orphanedCount > 0) {
@@ -216,7 +233,7 @@ export const deleteAccount = async (id: string): Promise<void> => {
 };
 
 // Transferir entre cuentas
-export const transferBetweenAccounts = async (fromAccountId: string, toAccountId: string, amount: number, userId: string): Promise<void> => {
+export const transferBetweenAccounts = async (fromAccountId: string, toAccountId: string, amount: number, userId: string, description?: string): Promise<void> => {
   try {
     if (fromAccountId === toAccountId) {
       throw new Error("No se puede transferir a la misma cuenta");
@@ -262,6 +279,23 @@ export const transferBetweenAccounts = async (fromAccountId: string, toAccountId
       balance: toAccount.balance + amount,
       updatedAt: serverTimestamp(),
     });
+
+    // Crear un registro de la transferencia en la colección "transfers"
+    const transferData = {
+      fromAccountId,
+      toAccountId,
+      fromAccountName: fromAccount.name,
+      toAccountName: toAccount.name,
+      amount,
+      userId,
+      date: Timestamp.fromDate(new Date()),
+      description: description || `Transferencia de ${fromAccount.name} a ${toAccount.name}`,
+      createdAt: serverTimestamp()
+    };
+    
+    const transfersCollectionRef = collection(db, "transfers");
+    const transferDocRef = doc(transfersCollectionRef);
+    batch.set(transferDocRef, transferData);
 
     // Ejecutar el batch
     await batch.commit();
@@ -436,4 +470,27 @@ export const updateAllAccountBalances = async (userId: string): Promise<string[]
   }
 
   return updatedAccounts;
+};
+
+// Obtener las transferencias de un usuario
+export const getUserTransfers = async (userId: string): Promise<any[]> => {
+  try {
+    if (!userId) {
+      console.error("No se proporcionó un userId válido en getUserTransfers");
+      return [];
+    }
+
+    const transfersRef = collection(db, "transfers");
+    const q = query(transfersRef, where("userId", "==", userId), orderBy("date", "desc"));
+    const querySnapshot = await getDocs(q);
+
+    return querySnapshot.docs.map(doc => ({
+      id: doc.id,
+      ...doc.data(),
+      date: doc.data().date?.toDate() || new Date() // Convertir Timestamp a Date
+    }));
+  } catch (error) {
+    console.error("Error al obtener transferencias:", error);
+    return [];
+  }
 };
