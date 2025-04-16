@@ -38,8 +38,8 @@ export default function HeroSection() {
         <motion.div className="relative flex flex-col items-center" variants={itemVariants}>
           <div className="absolute -top-10 left-1/2 transform -translate-x-1/2 w-40 h-1.5 bg-gradient-to-r from-transparent via-blue-500 to-transparent opacity-50"></div>
           <motion.h1 className="text-4xl md:text-5xl lg:text-7xl font-extrabold mb-8 relative" variants={itemVariants}>
-            <span className="bg-clip-text text-transparent bg-gradient-to-r from-blue-600 to-indigo-600 dark:from-blue-400 dark:to-indigo-400">Control de 
-              <FlipWords className="text-blue-600 dark:text-blue-400" words={["gastos", "ingresos", "finanzas"]} />
+            <span className="bg-clip-text text-transparent bg-gradient-to-r from-blue-600 to-indigo-600 dark:from-blue-400 dark:to-indigo-400">
+              Control de <FlipWords className="text-blue-600 dark:text-blue-400" words={["gastos", "ingresos", "finanzas", "presupuesto", "ahorro"]} />
             </span>
             <br />
             <span className="relative">
@@ -51,16 +51,16 @@ export default function HeroSection() {
             Administra tus finanzas personales sin complicaciones.
             <span className="font-semibold text-blue-600 dark:text-blue-400"> 100% gratuito, para siempre.</span>
           </motion.p>
-          <motion.div className="flex flex-col sm:flex-row gap-5 justify-center" variants={itemVariants}>
+          <motion.div className="flex flex-col sm:flex-row items-center justify-center gap-4 sm:gap-6" variants={itemVariants}>
             <Link
               href="/auth/register"
-              className="group relative px-8 py-4 overflow-hidden rounded-full bg-blue-600 text-white text-lg font-medium shadow-md transition-all duration-300 hover:shadow-xl transform hover:scale-[1.03]">
+              className="group relative w-full sm:w-auto px-8 py-4 overflow-hidden rounded-full bg-blue-600 text-white text-lg font-medium shadow-md transition-all duration-300 hover:shadow-xl transform hover:scale-[1.03]">
               <div className="absolute top-0 right-full w-full h-full bg-white opacity-20 transform translate-x-0 group-hover:translate-x-full transition-transform duration-700"></div>
               Comenzar gratis
             </Link>
             <a
               href="#features"
-              className="relative px-8 py-4 overflow-hidden rounded-full bg-white dark:bg-gray-800 text-gray-800 dark:text-white text-lg font-medium shadow-md transition-all duration-300 border border-gray-200 dark:border-gray-700 transform hover:scale-[1.03]">
+              className="w-full sm:w-auto relative px-8 py-4 overflow-hidden rounded-full bg-white dark:bg-gray-800 text-gray-800 dark:text-white text-lg font-medium shadow-md transition-all duration-300 border border-gray-200 dark:border-gray-700 transform hover:scale-[1.03]">
               <div className="absolute top-0 right-full w-full h-full bg-gray-100 dark:bg-gray-700 opacity-50 transform translate-x-0 group-hover:translate-x-full transition-transform duration-700"></div>
               Ver funcionalidades
             </a>

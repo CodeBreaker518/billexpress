@@ -19,10 +19,36 @@ export const viewport: Viewport = {
 };
 
 export const metadata: Metadata = {
-  metadataBase: new URL(process.env.NEXT_PUBLIC_BASE_URL || "http://localhost:3000"),
-  title: "BillExpress - Control de gastos simplificado",
-  description: "Administra tus finanzas personales de manera sencilla",
+  metadataBase: new URL(process.env.NEXT_PUBLIC_BASE_URL || "https://billexpress.vercel.app"),
+  title: "BillExpress - Control de Gastos, Finanzas Personales y Presupuesto",
+  description: "App de finanzas personales para controlar gastos, ingresos y presupuesto. Gestiona múltiples cuentas, visualiza estadísticas y organiza tus finanzas con facilidad. 100% gratuita y segura.",
+  keywords: "finanzas personales, control de gastos, app finanzas, presupuesto personal, administración dinero, gestión financiera, ahorro personal, seguimiento gastos, app gratuita finanzas",
   manifest: "/manifest.json",
+  openGraph: {
+    type: "website",
+    locale: "es_ES",
+    url: process.env.NEXT_PUBLIC_BASE_URL || "https://billexpress.vercel.app",
+    title: "BillExpress - Control de Gastos y Finanzas Personales",
+    description: "Controla tus gastos, ingresos y presupuesto con esta aplicación de finanzas personales gratuita. Gestiona múltiples cuentas, visualiza estadísticas y organiza tu dinero.",
+    siteName: "BillExpress",
+    images: [
+      {
+        url: "/logo.png",
+        width: 512,
+        height: 512,
+        alt: "Logo de BillExpress"
+      }
+    ]
+  },
+  twitter: {
+    card: "summary_large_image",
+    title: "BillExpress - App de Control de Finanzas Personales",
+    description: "Aplicación gratuita para gestionar tus finanzas personales, control de gastos y presupuesto.",
+    images: ["/logo.png"]
+  },
+  alternates: {
+    canonical: process.env.NEXT_PUBLIC_BASE_URL || "https://billexpress.vercel.app"
+  },
   appleWebApp: {
     capable: true,
     statusBarStyle: "default",
@@ -37,6 +63,12 @@ export const metadata: Metadata = {
     apple: [{ url: "/icons/apple-icon-180.png", sizes: "180x180", type: "image/png" }],
     other: [{ rel: "icon", url: "/logo.png", sizes: "32x32", type: "image/png" }],
   },
+  category: "Finance",
+  verification: {
+    other: {
+      "facebook-domain-verification": ["domainverification"],
+    }
+  }
 };
 
 export default function RootLayout({

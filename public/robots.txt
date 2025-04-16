@@ -1,0 +1,11 @@
+# BillExpress robots.txt
+User-agent: *
+Allow: /
+
+# Sitemap
+Sitemap: https://billexpress.vercel.app/sitemap.xml
+
+# Disallow sensitive areas
+Disallow: /auth/
+Disallow: /dashboard/
+Disallow: /api/ 
