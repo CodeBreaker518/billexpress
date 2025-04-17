@@ -27,22 +27,37 @@ import {
   ArrowLeft,
   AlertCircle,
   DollarSign,
-  Bookmark
+  Bookmark,
+  ArrowUp,
+  ArrowDown,
+  CheckCircle,
+  Check,
+  X,
+  BellRing,
+  ArrowLeftRight
 } from "lucide-react";
 import { Button } from "@bill/_components/ui/button";
 import { cn } from "@bill/_lib/utils";
 import { Transaction, Reminder, CalendarItem, RecurrenceType } from "./types";
+import { Badge } from "@bill/_components/ui/badge";
+
+// Define recurrence labels in Spanish
+const recurrenceLabels = {
+  daily: "Diario",
+  weekly: "Semanal",
+  monthly: "Mensual",
+  yearly: "Anual",
+  none: "Sin repetición"
+};
 
 interface CalendarViewsProps {
   currentView: 'day' | 'week' | 'month' | 'year';
   viewDate: Date;
   selectedDate: Date;
-  previousView: 'day' | 'week' | 'month' | 'year';
   daysToDisplay: Date[] | Array<{month: Date; days: Date[]}>;
   transactions: Transaction[];
   reminders: Reminder[];
   isMobile: boolean;
-  setPreviousView: (view: 'day' | 'week' | 'month' | 'year') => void;
   setSelectedDate: (date: Date) => void;
   setViewDate: (date: Date) => void;
   setCurrentView: (view: 'day' | 'week' | 'month' | 'year') => void;
@@ -64,12 +79,10 @@ export const CalendarViews = ({
   currentView,
   viewDate,
   selectedDate,
-  previousView,
   daysToDisplay,
   transactions,
   reminders,
   isMobile,
-  setPreviousView,
   setSelectedDate,
   setViewDate,
   setCurrentView,
@@ -170,133 +183,161 @@ export const CalendarViews = ({
     return allItems.sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime());
   };
   
-  // Renderizado de la vista día
+  // Renderizar la vista de día
   const renderDayView = () => {
-    const items = getItemsForDay(viewDate);
-
-    const getBackButtonText = () => {
-      switch (previousView) {
-        case 'week':
-          return 'Volver a semana';
-        case 'month':
-          return 'Volver a mes';
-        case 'year':
-          return 'Volver a año';
-        default:
-          return 'Volver';
-      }
-    };
+    const items = getItemsForDay(selectedDate);
+    const today = new Date();
 
     return (
-      <div className="bg-white dark:bg-gray-800 rounded-lg shadow overflow-hidden">
-        <div className="p-4 border-b border-gray-200 dark:border-gray-700 flex justify-between items-center">
-          <div className="flex items-center gap-2">
-            <Button 
-              variant="ghost" 
+      <div className="p-3 sm:p-4 space-y-3 sm:space-y-4">
+        <div className="flex items-center justify-between">
+          <div className="flex items-center">
+            <Button
+              variant="ghost"
               size="sm"
-              className="flex items-center gap-1 text-blue-600 dark:text-blue-400 hover:bg-blue-100 dark:hover:bg-blue-900/20 transition-all hover:translate-x-[-2px]" 
-              onClick={() => setCurrentView(previousView)}
+              className="mr-2 text-xs sm:text-sm"
+              onClick={() => {
+                setCurrentView('week');
+              }}
             >
-              <ArrowLeft className="h-5 w-5" />
-              <span className="font-medium">{getBackButtonText()}</span>
+              <ArrowLeft className="h-3 w-3 sm:h-4 sm:w-4 mr-1" />
+              Volver a Semana
             </Button>
           </div>
-          <h2 className="text-lg font-semibold text-gray-900 dark:text-gray-100">
-            {format(viewDate, "EEEE d 'de' MMMM", { locale: es })}
-          </h2>
+          
         </div>
-        <div className="p-4 min-h-[50vh]">
-          {items.length === 0 ? (
-            <div className="flex flex-col items-center justify-center h-full py-10">
-              <CalendarIcon className="h-16 w-16 text-gray-400 mb-4" />
-              <p className="text-gray-500 dark:text-gray-400">No hay elementos para este día</p>
-              <Button 
-                variant="outline" 
-                className="mt-4"
-                onClick={() => {
-                  setNewReminder({description: "", amount: 0, date: viewDate, recurrence: "none", endDate: null, isPayment: false});
-                  setNewReminderOpen(true);
+
+        {items.length === 0 ? (
+          <div className="text-center p-6 sm:p-8 text-gray-500 dark:text-gray-400 text-sm sm:text-base min-h-[60vh]">
+            No hay eventos para este día
+          </div>
+        ) : (
+          <div className="space-y-2 sm:space-y-3 min-h-[60vh]">
+            {items.map((item) => (
+              <div 
+                key={item.id}
+                className={cn(
+                  "p-2 sm:p-3 rounded-lg border shadow-sm hover:shadow-md transition-shadow",
+                  item.itemType === 'transaction' 
+                    ? item.type === 'income' 
+                      ? "bg-blue-50 border-blue-200 dark:bg-blue-900/20 dark:border-blue-800" 
+                      : "bg-red-50 border-red-200 dark:bg-red-900/20 dark:border-red-800"
+                    : (item as any).isCompleted
+                      ? "bg-gray-50 border-gray-200 dark:bg-gray-800/50 dark:border-gray-700"
+                      : "bg-amber-50 border-amber-200 dark:bg-amber-900/20 dark:border-amber-800"
+                )}
+                onClick={(e) => {
+                  // No mostramos detalles en la vista diaria
+                  e.stopPropagation();
                 }}
               >
-                <Plus className="h-4 w-4 mr-2" />
-                Agregar recordatorio
-              </Button>
-            </div>
-          ) : (
-            <div className="space-y-4">
-              {items.map(item => (
-                <div 
-                  key={item.id} 
-                  className={cn(
-                    "p-3 rounded-lg border flex items-center",
-                    item.itemType === 'reminder' && (item as any).isCompleted ? "opacity-60" : ""
-                  )}
-                >
-                  <div className={cn(
-                    "w-10 h-10 rounded-full flex items-center justify-center",
-                    item.itemType === 'transaction' 
-                      ? item.type === 'income' 
-                        ? "bg-blue-100 text-blue-600 dark:bg-blue-900/30 dark:text-blue-400" 
-                        : "bg-red-100 text-red-600 dark:bg-red-900/30 dark:text-red-400"
-                      : "bg-yellow-100 text-yellow-600 dark:bg-yellow-900/30 dark:text-yellow-400"
-                  )}>
-                    {item.itemType === 'transaction' 
-                      ? item.type === 'income' ? '+' : '-'
-                      : '!'}
-                  </div>
-                  <div className="ml-3 flex-1">
-                    <div className={cn(
-                      "font-medium",
-                      item.itemType === 'reminder' && (item as any).isCompleted ? "line-through text-gray-400" : ""
-                    )}>
-                      {item.description}
-                    </div>
-                    <div className="text-sm text-muted-foreground">
-                      {item.itemType === 'transaction' ? item.category : 'Recordatorio'}
-                    </div>
-                  </div>
-                  <div className={cn(
-                    "text-lg font-medium",
-                    item.itemType === 'transaction'
-                      ? item.type === 'income' ? "text-blue-600 dark:text-blue-400" : "text-red-600 dark:text-red-400"
-                      : "text-yellow-600 dark:text-yellow-400"
-                  )}>
-                    ${item.amount.toFixed(2)}
-                  </div>
-                  {item.itemType === 'reminder' && (
-                    <div className="ml-2 flex gap-2">
-                      <button
-                        onClick={(e) => {
-                          e.stopPropagation();
-                          toggleReminderStatus(item.id, !item.isCompleted);
-                        }}
-                        className={cn(
-                          "px-2 py-1 text-xs rounded-md",
-                          (item as any).isCompleted 
-                            ? "bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-400"
-                            : "bg-yellow-100 text-yellow-700 dark:bg-yellow-900/30 dark:text-yellow-400"
+                <div className="flex items-start justify-between">
+                  <div className="flex items-start space-x-2 sm:space-x-3">
+                    {item.itemType === 'transaction' ? (
+                      item.type === 'income' ? (
+                        <ArrowUp className="h-4 w-4 sm:h-5 sm:w-5 text-blue-500 mt-0.5" />
+                      ) : (
+                        <ArrowDown className="h-4 w-4 sm:h-5 sm:w-5 text-red-500 mt-0.5" />
+                      )
+                    ) : (item as any).isCompleted ? (
+                      <CheckCircle className="h-4 w-4 sm:h-5 sm:w-5 text-gray-500 mt-0.5" />
+                    ) : (item as any).isPayment ? (
+                      <div className="flex items-center space-x-1.5">
+                        <BellRing className="h-4 w-4 sm:h-5 sm:w-5 text-green-600 mt-0.5" />
+                        <div className="flex items-center justify-center w-4 h-4 sm:w-5 sm:h-5 rounded-full bg-green-100 border border-green-400">
+                          <DollarSign className="h-2.5 w-2.5 sm:h-3 sm:w-3 text-green-600" />
+                        </div>
+                      </div>
+                    ) : (
+                      <BellRing className="h-4 w-4 sm:h-5 sm:w-5 text-amber-700 mt-0.5" />
+                    )}
+                    <div>
+                      <div className="flex items-center">
+                        <h3 className={cn(
+                          "font-medium text-sm sm:text-base",
+                          (item as any).isCompleted && "line-through text-gray-500 dark:text-gray-400"
+                        )}>
+                          {item.description}
+                        </h3>
+                        {(item as any).isPayment && (
+                          <Badge className="ml-2 text-xs sm:text-sm bg-green-100 text-green-800 dark:bg-green-900/50 dark:text-green-300 hover:bg-green-100 hover:text-green-800 border border-green-400">
+                            <div className="flex items-center space-x-1">
+                              <BellRing className="h-2.5 w-2.5 sm:h-3 sm:w-3 text-green-600" />
+                              <DollarSign className="h-2.5 w-2.5 sm:h-3 sm:w-3 text-green-600" />
+                            </div>
+                            Pago
+                          </Badge>
                         )}
-                      >
-                        {(item as any).isCompleted ? "Completado" : "Pendiente"}
-                      </button>
-                      <button
-                        onClick={(e) => {
-                          e.stopPropagation();
-                          deleteReminder(item.id);
-                        }}
-                        className="text-red-500 hover:text-red-700"
-                      >
-                        <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                          <path d="M3 6h18M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2M10 11v6M14 11v6"></path>
-                        </svg>
-                      </button>
+                        {item.itemType === 'reminder' && !(item as any).isPayment && (
+                          <Badge className="ml-2 text-xs sm:text-sm bg-amber-100 text-amber-800 dark:bg-amber-900/50 dark:text-amber-300 hover:bg-amber-100 hover:text-amber-800 border border-amber-300">
+                            <BellRing className="h-2.5 w-2.5 sm:h-3 sm:w-3 mr-1 text-amber-700" />
+                            Recordatorio
+                          </Badge>
+                        )}
+                      </div>
+                      {(item as Reminder).recurrence && (item as Reminder).recurrence !== "none" && 
+                        <Badge
+                          className="ml-2 mt-1 text-xs"
+                          variant="outline"
+                        >
+                          {recurrenceLabels[(item as Reminder).recurrence as keyof typeof recurrenceLabels] || 'No recurrente'}
+                        </Badge>
+                      }
                     </div>
-                  )}
+                  </div>
+                  <div className="text-right">
+                    {item.amount > 0 && (
+                      <span className={cn(
+                        "font-semibold text-sm sm:text-base",
+                        item.itemType === 'transaction'
+                          ? item.type === 'income'
+                            ? "text-blue-600 dark:text-blue-400"
+                            : "text-red-600 dark:text-red-400"
+                          : (item as any).isPayment
+                            ? "text-green-600 dark:text-green-400"
+                            : "text-gray-800 dark:text-gray-200"
+                      )}>
+                        {item.itemType === 'transaction' && item.type === 'expense' ? '-' : ''}
+                        ${item.amount.toFixed(0)}
+                      </span>
+                    )}
+                    {item.itemType === 'reminder' && (
+                      <div className="mt-1">
+                        {!(item as any).isCompleted ? (
+                          <Button
+                            variant="outline"
+                            size="sm"
+                            className="text-xs sm:text-sm h-7 sm:h-8"
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              toggleReminderStatus(item.id, !item.isCompleted);
+                            }}
+                          >
+                            <Check className="h-3 w-3 sm:h-4 sm:w-4" />
+                            <span className="hidden sm:inline ml-1">Completar</span>
+                          </Button>
+                        ) : (
+                          <Button
+                            variant="outline"
+                            size="sm"
+                            className="text-xs sm:text-sm h-7 sm:h-8"
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              toggleReminderStatus(item.id, !item.isCompleted);
+                            }}
+                          >
+                            <X className="h-3 w-3 sm:h-4 sm:w-4" />
+                            <span className="hidden sm:inline ml-1">Deshacer</span>
+                          </Button>
+                        )}
+                      </div>
+                    )}
+                  </div>
                 </div>
-              ))}
-            </div>
-          )}
-        </div>
+              </div>
+            ))}
+          </div>
+        )}
       </div>
     );
   };
@@ -308,91 +349,120 @@ export const CalendarViews = ({
     
     return (
       <div className="bg-white dark:bg-gray-800 rounded-lg shadow overflow-hidden">
-        <div className="grid grid-cols-7 border-b border-gray-200 dark:border-gray-700">
-          {days.map((day, i) => (
-            <div key={i} className="p-1 sm:p-2 text-center border-r border-gray-200 dark:border-gray-700 last:border-r-0">
-              <div className="text-xs text-gray-500 dark:text-gray-400 truncate">{format(day, isMobile ? 'EEEEEE' : 'EEEE', { locale: es })}</div>
-              <div className={cn(
-                "mt-1 text-sm font-semibold",
-                isToday(day) && "bg-blue-100 dark:bg-blue-900/30 text-blue-800 dark:text-blue-300 rounded-full w-7 h-7 mx-auto flex items-center justify-center"
-              )}>
-                {format(day, 'd')}
-              </div>
+        <div className="flex items-center justify-between p-2 border-b border-gray-200 dark:border-gray-700">
+          <Button
+            variant="ghost"
+            size="sm"
+            className="text-xs sm:text-sm"
+            onClick={() => {
+              setCurrentView('month');
+            }}
+          >
+            <ArrowLeft className="h-3 w-3 sm:h-4 sm:w-4 mr-1" />
+            Volver a Mes
+          </Button>
+          {isMobile && (
+            <div className="text-[10px] text-gray-400 flex items-center">
+              <ArrowLeft className="h-3 w-3 mr-1" />
+              Desliza
+              <ArrowRight className="h-3 w-3 ml-1" />
             </div>
-          ))}
+          )}
         </div>
-        <div className="grid grid-cols-7 h-[50vh] sm:h-[65vh] border-b border-gray-200 dark:border-gray-700">
-          {days.map((day, i) => {
-            const items = getItemsForDay(day);
-            
-            return (
-              <div 
-                key={i} 
-                className={cn(
-                  "border-r border-gray-200 dark:border-gray-700 last:border-r-0 p-1 group",
-                  !isSameMonth(day, viewDate) && "bg-gray-50 dark:bg-gray-900/20",
-                  isToday(day) && "bg-blue-50 dark:bg-blue-900/10",
-                  items.length > 0 && "overflow-y-auto"
-                )}
-                onClick={() => {
-                  setPreviousView(currentView);
-                  setSelectedDate(day);
-                  setViewDate(day);
-                  setCurrentView('day');
-                }}
-              >
-                <div className="flex justify-end mb-1">
-                  <button 
-                    className="text-gray-400 hover:text-gray-600 dark:text-gray-500 dark:hover:text-gray-300 opacity-0 group-hover:opacity-100"
-                    onClick={(e) => {
-                      e.stopPropagation();
-                      setNewReminder({description: "", amount: 0, date: day, recurrence: "none", endDate: null, isPayment: false});
-                      setNewReminderOpen(true);
+        <div className="overflow-x-auto pb-2 scrollbar-thin scrollbar-thumb-gray-300 dark:scrollbar-thumb-gray-600">
+          <div className="grid grid-cols-7 min-w-[700px]">
+            {/* Day headers */}
+            <div className="col-span-7 grid grid-cols-7 text-center border-b border-gray-200 dark:border-gray-700">
+              {days.map((day, i) => (
+                <div key={i} className="p-1 sm:p-2 text-center border-r border-gray-200 dark:border-gray-700 last:border-r-0">
+                  <div className="text-xs sm:text-sm font-medium">{format(day, 'E', { locale: es })}</div>
+                  <div className={cn(
+                    "flex items-center justify-center w-6 h-6 sm:w-8 sm:h-8 mx-auto rounded-full text-xs sm:text-sm font-semibold",
+                    isToday(day) ? "bg-emerald-100 text-emerald-700 dark:bg-emerald-900 dark:text-emerald-100" : "text-gray-700 dark:text-gray-300"
+                  )}>
+                    {format(day, 'd', { locale: es })}
+                  </div>
+                </div>
+              ))}
+            </div>
+
+            {/* Days grid */}
+            <div className="col-span-7 grid grid-cols-7 h-[50vh] sm:h-[60vh] md:h-[70vh]">
+              {days.map((day, i) => {
+                const items = getItemsForDay(day);
+                
+                return (
+                  <div 
+                    key={i} 
+                    className={cn(
+                      "border-r border-gray-200 dark:border-gray-700 last:border-r-0 p-1 group",
+                      !isSameMonth(day, viewDate) && "bg-gray-50 dark:bg-gray-900/20",
+                      isToday(day) && "bg-blue-50 dark:bg-blue-900/10",
+                      items.length > 0 && "overflow-y-auto"
+                    )}
+                    onClick={() => {
+                      setSelectedDate(day);
+                      setViewDate(day);
+                      setCurrentView('day');
                     }}
                   >
-                    <Plus className="h-4 w-4" />
-                  </button>
-                </div>
-                
-                {items.length > 0 && (
-                  <div className="space-y-1">
-                    {items.map((item) => (
-                      <div 
-                        key={item.id} 
-                        className={cn(
-                          "p-1 text-xs rounded truncate cursor-pointer flex items-center",
-                          item.itemType === 'transaction' 
-                            ? item.type === 'income' 
-                              ? "bg-blue-100 text-blue-800 dark:bg-blue-900/30 dark:text-blue-300" 
-                              : "bg-red-100 text-red-800 dark:bg-red-900/30 dark:text-red-300"
-                            : (item as any).isCompleted
-                              ? "bg-gray-100 text-gray-800 dark:bg-gray-900/30 dark:text-gray-300 line-through"
-                              : (item as any).isPayment
-                                ? "bg-blue-100 text-blue-800 dark:bg-blue-900/30 dark:text-blue-300" 
-                                : "bg-yellow-100 text-yellow-800 dark:bg-yellow-900/30 dark:text-yellow-300"
-                        )}
-                        onClick={(e) => handleItemClick(e, item)}
+                    <div className="flex justify-end mb-1">
+                      <button 
+                        className="text-gray-400 hover:text-gray-600 dark:text-gray-500 dark:hover:text-gray-300 opacity-0 group-hover:opacity-100"
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          setNewReminder({description: "", amount: 0, date: day, recurrence: "none", endDate: null, isPayment: false});
+                          setNewReminderOpen(true);
+                        }}
                       >
-                        <span className="flex-shrink-0 mr-1">
-                          {item.itemType === 'transaction' 
-                            ? item.type === 'income' ? '+' : '-'
-                            : (item as any).isPayment 
-                              ? <DollarSign className="h-3 w-3 text-blue-700 dark:text-blue-400" /> 
-                              : <Bookmark className="h-3 w-3 text-yellow-700 dark:text-yellow-400" />}
-                        </span>
-                        <span className="flex-1 truncate">{item.description}</span>
-                        {(item.itemType === 'transaction' || (item as any).isPayment) && 
-                          <span className="flex-shrink-0 ml-1 font-medium">
-                            ${item.amount.toFixed(2)}
-                          </span>
-                        }
+                        <Plus className="h-3 w-3 sm:h-4 sm:w-4" />
+                      </button>
+                    </div>
+                    
+                    {items.length > 0 && (
+                      <div className="space-y-1">
+                        {items.map((item) => (
+                          <div 
+                            key={item.id} 
+                            className={cn(
+                              "py-0.5 px-1 text-[9px] sm:text-xs rounded truncate cursor-pointer flex items-center",
+                              item.itemType === 'transaction' 
+                                ? item.type === 'income' 
+                                  ? "bg-blue-100 text-blue-800 dark:bg-blue-900/30 dark:text-blue-300" 
+                                  : "bg-red-100 text-red-800 dark:bg-red-900/30 dark:text-red-300"
+                                : (item as any).isCompleted
+                                  ? "bg-gray-100 text-gray-800 dark:bg-gray-900/30 dark:text-gray-300 line-through"
+                                  : "bg-amber-100 text-amber-800 dark:bg-amber-900/30 dark:text-amber-300"
+                            )}
+                            onClick={(e) => handleItemClick(e, item)}
+                          >
+                            <span className="flex-shrink-0 mr-1">
+                              {item.itemType === 'transaction' 
+                                ? item.type === 'income' ? <ArrowUp className="h-2 w-2 sm:h-3 sm:w-3 text-blue-600" /> : <ArrowDown className="h-2 w-2 sm:h-3 sm:w-3 text-red-600" />
+                                : (item as any).isPayment 
+                                  ? <div className="inline-flex items-center space-x-1">
+                                      <BellRing className="h-2 w-2 sm:h-3 sm:w-3 text-green-700 dark:text-green-500" />
+                                      <div className="inline-flex items-center justify-center w-2 h-2 sm:w-3 sm:h-3 rounded-full bg-green-200 border border-green-500">
+                                        <DollarSign className="h-1.5 w-1.5 sm:h-2 sm:w-2 text-green-700 dark:text-green-500" />
+                                      </div>
+                                    </div>
+                                  : <BellRing className="h-2 w-2 sm:h-3 sm:w-3 text-amber-700 dark:text-amber-400" />}
+                            </span>
+                            <span className="flex-1 truncate">{item.description.substring(0, isMobile ? 8 : 12)}{item.description.length > (isMobile ? 8 : 12) ? '...' : ''}</span>
+                            {(item.itemType === 'transaction' || (item as any).isPayment) && item.amount > 0 && 
+                              <span className="flex-shrink-0 ml-1 font-medium text-[9px] sm:text-xs">
+                                ${item.amount.toFixed(0)}
+                              </span>
+                            }
+                          </div>
+                        ))}
                       </div>
-                    ))}
+                    )}
                   </div>
-                )}
-              </div>
-            );
-          })}
+                );
+              })}
+            </div>
+          </div>
         </div>
       </div>
     );
@@ -406,97 +476,127 @@ export const CalendarViews = ({
     
     return (
       <div className="bg-white dark:bg-gray-800 rounded-lg shadow overflow-hidden">
-        <div className="grid grid-cols-7 border-b border-gray-200 dark:border-gray-700">
-          {['Lun', 'Mar', 'Mié', 'Jue', 'Vie', 'Sáb', 'Dom'].map((day, i) => (
-            <div key={i} className="p-1 sm:p-2 text-center font-medium">
-              <span className="text-xs sm:text-sm">{day}</span>
+        <div className="flex items-center justify-between p-2 border-b border-gray-200 dark:border-gray-700">
+          <Button
+            variant="ghost"
+            size="sm"
+            className="text-xs sm:text-sm"
+            onClick={() => {
+              setCurrentView('year');
+            }}
+          >
+            <ArrowLeft className="h-3 w-3 sm:h-4 sm:w-4 mr-1" />
+            Volver a Año
+          </Button>
+          {isMobile && (
+            <div className="text-[10px] text-gray-400 flex items-center">
+              <ArrowLeft className="h-3 w-3 mr-1" />
+              Desliza
+              <ArrowRight className="h-3 w-3 ml-1" />
             </div>
-          ))}
-        </div>
-        <div 
-          className={cn(
-            "grid grid-cols-7 auto-rows-fr border-b border-gray-200 dark:border-gray-700",
-            weekCount === 4 ? "h-[45vh] sm:h-[55vh]" : weekCount === 5 ? "h-[55vh] sm:h-[65vh]" : "h-[65vh] sm:h-[75vh]"
           )}
-        >
-          {days.map((day, i) => {
-            const items = getItemsForDay(day);
-            
-            return (
-              <div 
-                key={i} 
-                className={cn(
-                  "border-t border-r border-gray-200 dark:border-gray-700 first:border-t-0 last:border-r-0 p-1 overflow-hidden group",
-                  !isSameMonth(day, viewDate) && "bg-gray-50 dark:bg-gray-900/20",
-                  isToday(day) && "bg-blue-50 dark:bg-blue-900/10"
-                )}
-                onClick={() => {
-                  setPreviousView(currentView);
-                  setSelectedDate(day);
-                  setViewDate(day);
-                  setCurrentView('day');
-                }}
-              >
-                <div className="flex justify-between items-center">
-                  <span className={cn(
-                    "text-xs sm:text-sm font-semibold p-1 h-5 w-5 sm:h-7 sm:w-7 flex items-center justify-center",
-                    isToday(day) && "bg-blue-500 text-white rounded-full"
-                  )}>
-                    {format(day, 'd')}
-                  </span>
-                  <button 
-                    className="text-gray-400 hover:text-gray-600 dark:text-gray-500 dark:hover:text-gray-300 opacity-0 group-hover:opacity-100"
-                    onClick={(e) => {
-                      e.stopPropagation();
-                      setNewReminder({description: "", amount: 0, date: day, recurrence: "none", endDate: null, isPayment: false});
-                      setNewReminderOpen(true);
+        </div>
+        <div className="overflow-x-auto pb-2 scrollbar-thin scrollbar-thumb-gray-300 dark:scrollbar-thumb-gray-600">
+          <div className="grid grid-cols-7 min-w-[700px]">
+            {/* Day headers */}
+            <div className="col-span-7 grid grid-cols-7 text-center border-b border-gray-200 dark:border-gray-700">
+              {['Lun', 'Mar', 'Mié', 'Jue', 'Vie', 'Sáb', 'Dom'].map((day, i) => (
+                <div key={i} className="p-1 sm:p-2 text-center font-medium">
+                  <span className="text-xs sm:text-sm">{day}</span>
+                </div>
+              ))}
+            </div>
+
+            {/* Days grid */}
+            <div className="col-span-7 grid grid-cols-7 grid-rows-6 auto-rows-fr h-[50vh] sm:h-[60vh] md:h-[70vh]">
+              {days.map((day, i) => {
+                const items = getItemsForDay(day);
+                
+                return (
+                  <div 
+                    key={i} 
+                    className={cn(
+                      "border-t border-r border-gray-200 dark:border-gray-700 first:border-t-0 last:border-r-0 p-0.5 sm:p-1 overflow-hidden group",
+                      !isSameMonth(day, viewDate) && "bg-gray-50 dark:bg-gray-900/20",
+                      isToday(day) && "bg-blue-50 dark:bg-blue-900/10"
+                    )}
+                    onClick={() => {
+                      setSelectedDate(day);
+                      setViewDate(day);
+                      setCurrentView('week');
                     }}
                   >
-                    <Plus className="h-3 w-3 sm:h-4 sm:w-4" />
-                  </button>
-                </div>
-                <div className="mt-1 space-y-1 max-h-[80%] overflow-hidden">
-                  {items.length === 0 ? (
-                    <div className="h-5 sm:h-10"></div>
-                  ) : (
-                    <>
-                      {items.slice(0, 3).map((item) => (
-                        <div 
-                          key={item.id} 
-                          className={cn(
-                            "p-0.5 sm:p-1 text-[10px] sm:text-xs rounded truncate cursor-pointer",
-                            item.itemType === 'transaction' 
-                              ? item.type === 'income' 
-                                ? "bg-blue-100 text-blue-800 dark:bg-blue-900/30 dark:text-blue-300" 
-                                : "bg-red-100 text-red-800 dark:bg-red-900/30 dark:text-red-300"
-                              : (item as any).isCompleted
-                                ? "bg-gray-100 text-gray-800 dark:bg-gray-900/30 dark:text-gray-300 line-through"
-                                : (item as any).isPayment
-                                  ? "bg-blue-100 text-blue-800 dark:bg-blue-900/30 dark:text-blue-300" 
-                                  : "bg-yellow-100 text-yellow-800 dark:bg-yellow-900/30 dark:text-yellow-300"
+                    <div className="flex justify-between items-center">
+                      <span className={cn(
+                        "text-[10px] sm:text-xs font-semibold p-0.5 h-4 w-4 sm:h-5 sm:w-5 flex items-center justify-center",
+                        isToday(day) && "bg-blue-500 text-white rounded-full"
+                      )}>
+                        {format(day, 'd')}
+                      </span>
+                      <button 
+                        className="text-gray-400 hover:text-gray-600 dark:text-gray-500 dark:hover:text-gray-300 opacity-0 group-hover:opacity-100"
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          setNewReminder({description: "", amount: 0, date: day, recurrence: "none", endDate: null, isPayment: false});
+                          setNewReminderOpen(true);
+                        }}
+                      >
+                        <Plus className="h-2.5 w-2.5 sm:h-3 sm:w-3" />
+                      </button>
+                    </div>
+                    <div className="mt-0.5 space-y-0.5 max-h-[80%] overflow-hidden">
+                      {items.length === 0 ? (
+                        <div className="h-3 sm:h-6"></div>
+                      ) : (
+                        <>
+                          {items.slice(0, 3).map((item) => (
+                            <div 
+                              key={item.id} 
+                              className={cn(
+                                "p-0.5 text-[9px] sm:text-xs rounded truncate cursor-pointer flex items-center",
+                                item.itemType === 'transaction' 
+                                  ? item.type === 'income' 
+                                    ? "bg-blue-100 text-blue-800 dark:bg-blue-900/30 dark:text-blue-300" 
+                                    : "bg-red-100 text-red-800 dark:bg-red-900/30 dark:text-red-300"
+                                  : (item as any).isCompleted
+                                    ? "bg-gray-100 text-gray-800 dark:bg-gray-900/30 dark:text-gray-300 line-through"
+                                    : "bg-amber-100 text-amber-800 dark:bg-amber-900/30 dark:text-amber-300"
+                              )}
+                              onClick={(e) => handleItemClick(e, item)}
+                            >
+                              <span className="flex-shrink-0 mr-0.5">
+                                {item.itemType === 'transaction' 
+                                  ? item.type === 'income' ? <ArrowUp className="h-2 w-2 sm:h-3 sm:w-3 text-blue-600" /> : <ArrowDown className="h-2 w-2 sm:h-3 sm:w-3 text-red-600" />
+                                  : (item as any).isPayment 
+                                    ? <div className="inline-flex items-center space-x-0.5">
+                                        <BellRing className="h-2 w-2 sm:h-3 sm:w-3 text-green-700 dark:text-green-500" />
+                                        <div className="inline-flex items-center justify-center w-2 h-2 sm:w-3 sm:h-3 rounded-full bg-green-200 border border-green-500">
+                                          <DollarSign className="h-1.5 w-1.5 sm:h-2 sm:w-2 text-green-700 dark:text-green-500" />
+                                        </div>
+                                      </div>
+                                    : <BellRing className="h-2 w-2 sm:h-3 sm:w-3 text-amber-700 dark:text-amber-400" />}
+                              </span>
+                              <span className="flex-1 truncate">{item.description.substring(0, isMobile ? 8 : 12)}{item.description.length > (isMobile ? 8 : 12) ? '...' : ''}</span>
+                              {(item.itemType === 'transaction' || (item as any).isPayment) && item.amount > 0 && 
+                                <span className="flex-shrink-0 ml-0.5 font-medium text-[9px] sm:text-xs">
+                                  ${item.amount.toFixed(0)}
+                                </span>
+                              }
+                            </div>
+                          ))}
+                          {items.length > 3 && (
+                            <div className="text-[9px] sm:text-xs text-gray-500 dark:text-gray-400 pl-0.5">
+                              {items.length - 3} más...
+                            </div>
                           )}
-                          onClick={(e) => handleItemClick(e, item)}
-                        >
-                          {item.description.substring(0, isMobile ? 10 : 15)}{item.description.length > (isMobile ? 10 : 15) ? '...' : ''}
-                          {(item as any).isPayment 
-                            ? <DollarSign className="inline h-2.5 w-2.5 ml-1 text-blue-700 dark:text-blue-400" />
-                            : item.itemType === 'reminder' && !((item as any).isCompleted) && 
-                              <Bookmark className="inline h-2.5 w-2.5 ml-1 text-yellow-700 dark:text-yellow-400" />
-                          }
-                          {(item as any).isPayment && item.amount > 0 && <span className="ml-1">${item.amount.toFixed(0)}</span>}
-                        </div>
-                      ))}
-                      {items.length > 3 && (
-                        <div className="text-[10px] sm:text-xs text-gray-500 dark:text-gray-400 pl-1">
-                          {items.length - 3} más...
-                        </div>
+                        </>
                       )}
-                    </>
-                  )}
-                </div>
-              </div>
-            );
-          })}
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          </div>
         </div>
       </div>
     );
@@ -506,40 +606,82 @@ export const CalendarViews = ({
   const renderYearView = () => {
     const today = new Date();
     return (
-      <div className="grid grid-cols-2 md:grid-cols-3 gap-4">
+      <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-2 sm:gap-3 md:gap-4 min-h-[60vh]">
         {Array.from({ length: 12 }, (_, i) => {
           const monthDate = new Date(getYear(viewDate), i, 1);
           const monthName = format(monthDate, 'MMMM', { locale: es });
-          const monthHasTransactions = transactions.some(t => 
-            getMonth(t.date) === i && getYear(t.date) === getYear(viewDate)
+          
+          // Contar elementos por tipo
+          const incomesInMonth = transactions.filter(t => 
+            getMonth(t.date) === i && 
+            getYear(t.date) === getYear(viewDate) &&
+            t.type === 'income'
           );
-          const monthHasReminders = reminders.some(r => 
+          
+          const expensesInMonth = transactions.filter(t => 
+            getMonth(t.date) === i && 
+            getYear(t.date) === getYear(viewDate) &&
+            t.type === 'expense'
+          );
+          
+          // Para detectar transferencias, buscamos en la categoría o la descripción
+          const transfersInMonth = transactions.filter(t => 
+            getMonth(t.date) === i &&
+            getYear(t.date) === getYear(viewDate) &&
+            ((t as any).type === 'transfer' || 
+             t.category?.toLowerCase().includes('transfer') ||
+             t.description.toLowerCase().includes('transfer'))
+          );
+          
+          // Combinar todos los recordatorios en un grupo
+          const allRemindersInMonth = reminders.filter(r => 
             getMonth(r.date) === i && getYear(r.date) === getYear(viewDate)
           );
+          
+          const hasContent = incomesInMonth.length > 0 || expensesInMonth.length > 0 || 
+                             transfersInMonth.length > 0 || allRemindersInMonth.length > 0;
           
           return (
             <div 
               key={i}
               className={cn(
-                "p-4 border rounded-lg cursor-pointer hover:bg-gray-100 dark:hover:bg-gray-800",
+                "p-2 sm:p-3 border rounded-lg cursor-pointer hover:bg-gray-100 dark:hover:bg-gray-800 text-center",
                 (i === getMonth(today) && getYear(today) === getYear(viewDate)) && "bg-blue-50 dark:bg-blue-900/10",
-                monthHasTransactions && "border-blue-200 dark:border-blue-800",
-                monthHasReminders && "border-yellow-200 dark:border-yellow-800"
+                hasContent && "ring-1 ring-gray-200 dark:ring-gray-700"
               )}
               onClick={() => {
                 setViewDate(monthDate);
                 setCurrentView('month');
               }}
             >
-              <h3 className="text-center font-medium capitalize">{monthName}</h3>
-              <div className="mt-2 flex justify-center gap-2">
-                {monthHasTransactions && (
-                  <div className="h-2 w-2 rounded-full bg-blue-500"></div>
-                )}
-                {monthHasReminders && (
-                  <div className="h-2 w-2 rounded-full bg-yellow-500"></div>
-                )}
-              </div>
+              <h3 className="text-xs sm:text-sm font-medium capitalize mb-2">{monthName}</h3>
+              
+              {hasContent ? (
+                <div className="flex justify-center gap-2 sm:gap-3">
+                  {incomesInMonth.length > 0 && (
+                    <div className="flex items-center">
+                      <ArrowUp className="h-3 w-3 sm:h-4 sm:w-4 text-blue-600" />
+                    </div>
+                  )}
+                  {expensesInMonth.length > 0 && (
+                    <div className="flex items-center">
+                      <ArrowDown className="h-3 w-3 sm:h-4 sm:w-4 text-red-600" />
+                    </div>
+                  )}
+                  {transfersInMonth.length > 0 && (
+                    <div className="flex items-center">
+                      <ArrowLeftRight className="h-3 w-3 sm:h-4 sm:w-4 text-purple-600" />
+                    </div>
+                  )}
+                  {allRemindersInMonth.length > 0 && (
+                    <div className="flex items-center">
+                      <BellRing className="h-3 w-3 sm:h-4 sm:w-4 text-amber-600" />
+                    </div>
+                  )}
+                </div>
+              ) : (
+                <div className="h-4 sm:h-5"></div>
+              )}
             </div>
           );
         })}

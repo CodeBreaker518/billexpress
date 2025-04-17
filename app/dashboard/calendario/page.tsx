@@ -11,9 +11,7 @@ import {
   endOfYear,
   eachDayOfInterval, 
   eachMonthOfInterval,
-  isToday, 
   isSameDay, 
-  isSameMonth,
   addDays,
   addMonths,
   addYears,
@@ -21,31 +19,15 @@ import {
   subMonths,
   subYears,
   getMonth,
-  getYear
 } from "date-fns";
 import { es } from "date-fns/locale";
-import { 
-  Calendar as CalendarIcon, 
-  ChevronLeft, 
-  ChevronRight, 
-  Plus, 
-  ArrowRight, 
-  PiggyBank, 
-  CreditCard, 
-  AlertCircle,
-  Filter,
-  ArrowLeft
-} from "lucide-react";
 import { useAuthStore } from "@bill/_store/useAuthStore";
 import { useExpenseStore } from "@bill/_store/useExpenseStore";
 import { useIncomeStore } from "@bill/_store/useIncomeStore";
 import { useAccountStore } from "@bill/_store/useAccountStore";
 import { useFinanceStore } from "@bill/_store/useFinanceStore";
 import { useReminderStore } from "@bill/_store/useReminderStore";
-import { Button } from "@bill/_components/ui/button";
-import { Dialog } from "@bill/_components/ui/dialog";
 import { toast } from "@bill/_components/ui/use-toast";
-import { cn } from "@bill/_lib/utils";
 import { CalendarViews } from "@bill/_components/calendar/CalendarViews";
 import { CalendarControls } from "@bill/_components/calendar/CalendarControls";
 import { ReminderDialog } from "@bill/_components/calendar/ReminderDialog";
@@ -331,14 +313,22 @@ export default function CalendarioPage() {
 
   // Navegar entre fechas
   const goToNextPeriod = () => {
-    if (currentView === 'day') setViewDate(addDays(viewDate, 1));
+    if (currentView === 'day') {
+      const newDate = addDays(viewDate, 1);
+      setViewDate(newDate);
+      setSelectedDate(newDate);
+    }
     else if (currentView === 'week') setViewDate(addDays(viewDate, 7));
     else if (currentView === 'month') setViewDate(addMonths(viewDate, 1));
     else if (currentView === 'year') setViewDate(addYears(viewDate, 1));
   };
 
   const goToPreviousPeriod = () => {
-    if (currentView === 'day') setViewDate(subDays(viewDate, 1));
+    if (currentView === 'day') {
+      const newDate = subDays(viewDate, 1);
+      setViewDate(newDate);
+      setSelectedDate(newDate);
+    }
     else if (currentView === 'week') setViewDate(subDays(viewDate, 7));
     else if (currentView === 'month') setViewDate(subMonths(viewDate, 1));
     else if (currentView === 'year') setViewDate(subYears(viewDate, 1));
@@ -346,6 +336,9 @@ export default function CalendarioPage() {
 
   const goToToday = () => {
     setViewDate(today);
+    if (currentView === 'day') {
+      setSelectedDate(today);
+    }
   };
 
   // Calcular días para la vista actual
@@ -405,6 +398,9 @@ export default function CalendarioPage() {
   // Modificar la función de manejo de clicks en elementos
   const handleItemClick = (e: React.MouseEvent, item: any) => {
     e.stopPropagation(); // Evitar que se propague al día
+    
+    // No mostrar detalles si estamos en la vista diaria
+    if (currentView === 'day') return;
     
     // Calcular posición para la tarjeta informativa
     const rect = e.currentTarget.getBoundingClientRect();
@@ -481,53 +477,67 @@ export default function CalendarioPage() {
 
   return (
     <div className="space-y-6 pb-8">
+      <h1 className="text-2xl font-semibold tracking-tight mb-4">
+        Calendario de Finanzas
+      </h1>
+      <p className="text-sm text-muted-foreground mb-4">
+        Visualiza y administra todos tus recordatorios, pagos y transacciones financieras.
+      </p>
+
       <div className="flex flex-col xl:flex-row space-y-6 xl:space-y-0 xl:space-x-6">
         <div className="flex-1">
           {/* Controles del calendario */}
-          <CalendarControls 
-            currentView={currentView}
-            viewDate={viewDate}
-            isMobile={isMobile}
-            goToPreviousPeriod={goToPreviousPeriod}
-            goToNextPeriod={goToNextPeriod}
-            goToToday={goToToday}
-            setCurrentView={setCurrentView}
-            setNewReminder={setNewReminder}
-            setNewReminderOpen={setNewReminderOpen}
-            renderPeriodTitle={renderPeriodTitle}
-          />
+          <div className="bg-white dark:bg-gray-800 rounded-lg shadow p-3 md:p-4 mb-4">
+            <CalendarControls 
+              currentView={currentView}
+              viewDate={viewDate}
+              isMobile={isMobile}
+              goToPreviousPeriod={goToPreviousPeriod}
+              goToNextPeriod={goToNextPeriod}
+              goToToday={goToToday}
+              setCurrentView={setCurrentView}
+              setNewReminder={setNewReminder}
+              setNewReminderOpen={setNewReminderOpen}
+              renderPeriodTitle={renderPeriodTitle}
+            />
+          </div>
         
           {/* Vista principal del calendario */}
           {isLoading ? (
             <div className="animate-pulse flex flex-col items-center justify-center h-[50vh] bg-white dark:bg-gray-800 rounded-lg shadow">
-              <div className="w-24 h-24 rounded-full bg-gray-200 dark:bg-gray-700 mb-4"></div>
-              <div className="h-6 w-64 bg-gray-200 dark:bg-gray-700 rounded mb-4"></div>
-              <div className="h-4 w-40 bg-gray-200 dark:bg-gray-700 rounded"></div>
+              <div className="w-16 h-16 sm:w-24 sm:h-24 rounded-full bg-gray-200 dark:bg-gray-700 mb-4"></div>
+              <div className="h-4 sm:h-6 w-40 sm:w-64 bg-gray-200 dark:bg-gray-700 rounded mb-4"></div>
+              <div className="h-3 sm:h-4 w-28 sm:w-40 bg-gray-200 dark:bg-gray-700 rounded"></div>
             </div>
           ) : (
-            <CalendarViews 
-              currentView={currentView}
-              viewDate={viewDate}
-              selectedDate={selectedDate}
-              previousView={previousView}
-              daysToDisplay={daysToDisplay}
-              transactions={transactions}
-              reminders={reminders}
-              isMobile={isMobile}
-              setPreviousView={setPreviousView}
-              setSelectedDate={setSelectedDate}
-              setViewDate={setViewDate}
-              setCurrentView={setCurrentView}
-              toggleReminderStatus={(id: string, isCompleted: boolean) => handleToggleReminderStatus(id, isCompleted)}
-              deleteReminder={handleDeleteReminder}
-              handleItemClick={handleItemClick}
-              setNewReminder={setNewReminder}
-              setNewReminderOpen={setNewReminderOpen}
-            />
+            <div className="bg-white dark:bg-gray-800 rounded-lg shadow overflow-hidden">
+              <CalendarViews 
+                currentView={currentView}
+                viewDate={viewDate}
+                selectedDate={selectedDate}
+                daysToDisplay={daysToDisplay}
+                transactions={transactions}
+                reminders={reminders}
+                isMobile={isMobile}
+                setSelectedDate={setSelectedDate}
+                setViewDate={setViewDate}
+                setCurrentView={setCurrentView}
+                toggleReminderStatus={(id: string, isCompleted: boolean) => handleToggleReminderStatus(id, isCompleted)}
+                deleteReminder={handleDeleteReminder}
+                handleItemClick={handleItemClick}
+                setNewReminder={setNewReminder}
+                setNewReminderOpen={setNewReminderOpen}
+              />
+            </div>
           )}
         </div>
         
-
+        {/* Resumen de recordatorios en dispositivos pequeños (móvil) */}
+        {isMobile && !isLoading && (
+          <div className="mb-6">
+            
+          </div>
+        )}
       </div>
       
       {/* Diálogo para nuevo recordatorio */}
@@ -554,6 +564,13 @@ export default function CalendarioPage() {
           setCurrentView={setCurrentView}
           currentView={currentView}
         />
+      )}
+
+      {/* Panel lateral con resumen de recordatorios (solo en pantallas grandes) */}
+      {!isMobile && !isLoading && (
+        <div className="hidden xl:block xl:w-96">
+          
+        </div>
       )}
     </div>
   );

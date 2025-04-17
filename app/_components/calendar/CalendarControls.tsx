@@ -2,7 +2,7 @@
 
 import { format } from "date-fns";
 import { es } from "date-fns/locale";
-import { ChevronLeft, ChevronRight, Plus } from "lucide-react";
+import { ChevronLeft, ChevronRight, Plus, Calendar } from "lucide-react";
 import { Button } from "@bill/_components/ui/button";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@bill/_components/ui/select";
 import { CalendarView, RecurrenceType } from "./types";
@@ -40,35 +40,39 @@ export const CalendarControls = ({
   renderPeriodTitle
 }: CalendarControlsProps) => {
   return (
-    <div className="flex flex-col sm:flex-row justify-between items-center mb-6 gap-4">
-      <div className="flex items-center gap-2 w-full sm:w-auto overflow-x-auto no-scrollbar">
-        <Button variant="outline" size="icon" onClick={goToPreviousPeriod}>
-          <ChevronLeft className="h-4 w-4" />
+    <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center mb-3 gap-3 sm:gap-4">
+      <div className="flex items-center gap-1 sm:gap-2 w-full sm:w-auto">
+        <Button variant="outline" size="icon" className="h-8 w-8 sm:h-9 sm:w-9 flex-shrink-0" onClick={goToPreviousPeriod}>
+          <ChevronLeft className="h-4 w-4 sm:h-5 sm:w-5" />
         </Button>
-        <h2 className="text-lg sm:text-xl font-medium capitalize min-w-[150px] sm:min-w-[200px] text-center">
+        <h2 className="text-sm sm:text-base md:text-lg font-medium capitalize truncate flex-1 text-center">
           {renderPeriodTitle()}
         </h2>
-        <Button variant="outline" size="icon" onClick={goToNextPeriod}>
-          <ChevronRight className="h-4 w-4" />
+        <Button variant="outline" size="icon" className="h-8 w-8 sm:h-9 sm:w-9 flex-shrink-0" onClick={goToNextPeriod}>
+          <ChevronRight className="h-4 w-4 sm:h-5 sm:w-5" />
         </Button>
-        <Button variant="outline" size="sm" onClick={goToToday}>
-          Hoy
-        </Button>
+        {currentView !== 'year' && (
+          <Button variant="outline" size="sm" className="text-xs sm:text-sm h-8 sm:h-9 flex-shrink-0 whitespace-nowrap" onClick={goToToday}>
+            <Calendar className="h-3.5 w-3.5 sm:h-4 sm:w-4 mr-1 sm:mr-1.5 flex-shrink-0" />
+            <span>Hoy</span>
+          </Button>
+        )}
       </div>
-      <div className="flex items-center gap-2 w-full sm:w-auto justify-end">
+      <div className="flex items-center gap-2 w-full sm:w-auto justify-between sm:justify-end">
         <Select value={currentView} onValueChange={(value) => setCurrentView(value as CalendarView)}>
-          <SelectTrigger className="w-[120px] sm:w-[150px]">
-            <SelectValue placeholder="Seleccionar vista" />
+          <SelectTrigger className="w-[120px] sm:w-[130px] text-xs sm:text-sm h-8 sm:h-9">
+            <SelectValue placeholder="Vista" />
           </SelectTrigger>
           <SelectContent>
-            <SelectItem value="day">Día</SelectItem>
-            <SelectItem value="week">Semana</SelectItem>
-            <SelectItem value="month">Mes</SelectItem>
-            <SelectItem value="year">Año</SelectItem>
+            <SelectItem value="day" className="text-xs sm:text-sm">Día</SelectItem>
+            <SelectItem value="week" className="text-xs sm:text-sm">Semana</SelectItem>
+            <SelectItem value="month" className="text-xs sm:text-sm">Mes</SelectItem>
+            <SelectItem value="year" className="text-xs sm:text-sm">Año</SelectItem>
           </SelectContent>
         </Select>
-        <div>
-          <Button onClick={() => {
+        <Button 
+          className="text-xs sm:text-sm h-8 sm:h-9 whitespace-nowrap flex-shrink-0"
+          onClick={() => {
             setNewReminder({
               description: "", 
               amount: 0, 
@@ -78,12 +82,12 @@ export const CalendarControls = ({
               isPayment: false
             });
             setNewReminderOpen(true);
-          }}>
-            <Plus className="h-4 w-4 mr-2" />
-            <span className="hidden sm:inline">Recordatorio</span>
-            <span className="sm:hidden">Nuevo</span>
-          </Button>
-        </div>
+          }}
+        >
+          <Plus className="h-3.5 w-3.5 sm:h-4 sm:w-4 mr-1 sm:mr-2 flex-shrink-0" />
+          <span className="hidden sm:inline">Recordatorio</span>
+          <span className="sm:hidden">Nuevo</span>
+        </Button>
       </div>
     </div>
   );

@@ -6,6 +6,8 @@ import { usePathname, useRouter } from 'next/navigation';
 import { LayoutDashboard, BarChart2, LogOut, Menu, User, DollarSign, Calendar } from 'lucide-react';
 import { useAuth } from '@bill/_hooks/useAuth';
 import { useAuthStore } from '@bill/_store/useAuthStore';
+import { useReminderStore } from '@bill/_store/useReminderStore';
+import { checkDueReminders, checkUpcomingReminders } from '@bill/_services/reminderNotificationService';
 import AuthGuard from '@bill/_components/AuthGuard';
 import ThemeToggle from '@bill/_components/ThemeToggle';
 import BillExpressLogo from '@bill/_components/BillExpressLogo';
@@ -25,10 +27,12 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
   const router = useRouter();
   const { logout } = useAuth();
   const { user } = useAuthStore();
+  const { reminders, loadReminders } = useReminderStore();
   const { toast } = useToast();
   const [sheetOpen, setSheetOpen] = useState(false);
   const [cleanedUpAccounts, setCleanedUpAccounts] = useState(false);
   const [defaultAccountChecked, setDefaultAccountChecked] = useState(false);
+  const [remindersChecked, setRemindersChecked] = useState(false);
 
   // Efecto para limpiar cuentas duplicadas al iniciar sesión (de forma silenciosa)
   useEffect(() => {
@@ -105,6 +109,31 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
 
     ensureDefaultAccount();
   }, [user, defaultAccountChecked]);
+
+  // Cargar y verificar recordatorios vencidos
+  useEffect(() => {
+    const checkReminders = async () => {
+      if (user && !remindersChecked) {
+        try {
+          // Cargar recordatorios si no están cargados
+          await loadReminders(user.uid);
+          
+          // Verificar recordatorios vencidos y mostrar notificaciones
+          checkDueReminders(reminders);
+          
+          // Verificar recordatorios próximos
+          checkUpcomingReminders(reminders);
+          
+          // Marcar como verificados para no mostrar notificaciones duplicadas
+          setRemindersChecked(true);
+        } catch (error) {
+          console.error('Error al verificar recordatorios:', error);
+        }
+      }
+    };
+
+    checkReminders();
+  }, [user, reminders, loadReminders, remindersChecked]);
 
   const handleLogout = async () => {
     try {
