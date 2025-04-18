@@ -15,6 +15,7 @@ export interface Account {
   balance: number;
   userId: string;
   isDefault?: boolean;
+  transactionCount?: number;
 }
 
 // Colección de Firebase
@@ -45,6 +46,7 @@ export const getUserAccounts = async (userId: string): Promise<Account[]> => {
         balance: data.balance,
         userId: data.userId,
         isDefault: data.isDefault || false,
+        transactionCount: data.transactionCount || 0,
       } as Account;
     });
 
@@ -112,6 +114,7 @@ export const getUserAccounts = async (userId: string): Promise<Account[]> => {
         balance: 0,
         userId: userId,
         isDefault: true,
+        transactionCount: 0,
       },
     ];
   }
@@ -232,8 +235,8 @@ export const deleteAccount = async (id: string): Promise<void> => {
   }
 };
 
-// Transferir entre cuentas
-export const transferBetweenAccounts = async (fromAccountId: string, toAccountId: string, amount: number, userId: string, description?: string): Promise<void> => {
+// Transferir entre cuentas (versión optimizada)
+export const transferBetweenAccountsOptimized = async (fromAccountId: string, toAccountId: string, amount: number, userId: string, description?: string): Promise<void> => {
   try {
     if (fromAccountId === toAccountId) {
       throw new Error("No se puede transferir a la misma cuenta");
@@ -265,22 +268,28 @@ export const transferBetweenAccounts = async (fromAccountId: string, toAccountId
       throw new Error("Saldo insuficiente para realizar la transferencia");
     }
 
-    // Realizar la transferencia usando un batch para operación atómica
+    // Actualizar los saldos directamente, sin recálculos completos
+    const newFromBalance = fromAccount.balance - amount;
+    const newToBalance = toAccount.balance + amount;
+
+    // Usar un batch para garantizar operación atómica
     const batch = writeBatch(db);
 
-    // Actualizar la cuenta de origen restando el monto
+    // Actualizar la cuenta de origen con el nuevo saldo
     batch.update(fromAccountRef, {
-      balance: fromAccount.balance - amount,
+      balance: newFromBalance,
       updatedAt: serverTimestamp(),
+      transactionCount: (fromAccount.transactionCount || 0) + 1
     });
 
-    // Actualizar la cuenta de destino sumando el monto
+    // Actualizar la cuenta de destino con el nuevo saldo
     batch.update(toAccountRef, {
-      balance: toAccount.balance + amount,
+      balance: newToBalance,
       updatedAt: serverTimestamp(),
+      transactionCount: (toAccount.transactionCount || 0) + 1
     });
 
-    // Crear un registro de la transferencia en la colección "transfers"
+    // Registrar la transferencia en la colección "transfers" para auditoría
     const transferData = {
       fromAccountId,
       toAccountId,
@@ -297,23 +306,33 @@ export const transferBetweenAccounts = async (fromAccountId: string, toAccountId
     const transferDocRef = doc(transfersCollectionRef);
     batch.set(transferDocRef, transferData);
 
-    // Ejecutar el batch
+    // Ejecutar el batch (una sola operación de escritura a Firestore)
     await batch.commit();
 
     // Actualizar el estado global
     const { updateAccount: updateAccountInStore } = useAccountStore.getState();
     updateAccountInStore({
       ...fromAccount,
-      balance: fromAccount.balance - amount,
+      balance: newFromBalance,
+      transactionCount: (fromAccount.transactionCount || 0) + 1
     });
     updateAccountInStore({
       ...toAccount,
-      balance: toAccount.balance + amount,
+      balance: newToBalance,
+      transactionCount: (toAccount.transactionCount || 0) + 1
     });
+
+    console.log(`Transferencia optimizada completada: ${amount} de ${fromAccount.name} a ${toAccount.name}`);
   } catch (error) {
     console.error("Error en transferencia entre cuentas:", error);
     throw error;
   }
+};
+
+// Transferir entre cuentas (método original para compatibilidad)
+export const transferBetweenAccounts = async (fromAccountId: string, toAccountId: string, amount: number, userId: string, description?: string): Promise<void> => {
+  // Redirigir a la versión optimizada
+  return transferBetweenAccountsOptimized(fromAccountId, toAccountId, amount, userId, description);
 };
 
 // Obtener una cuenta por ID
@@ -334,6 +353,7 @@ export const getAccountById = async (accountId: string): Promise<Account | null>
       balance: accountData.balance,
       userId: accountData.userId,
       isDefault: accountData.isDefault || false,
+      transactionCount: accountData.transactionCount || 0,
     } as Account;
 
     return account;
@@ -376,9 +396,37 @@ export const forceResetAndRecalculateBalance = async (accountId: string, userId:
     expensesSnapshot.forEach((doc) => {
       totalExpense += doc.data().amount || 0;
     });
+    
+    // Obtener transferencias salientes (resta del saldo)
+    const transfersOutQuery = query(
+      collection(db, "transfers"), 
+      where("fromAccountId", "==", accountId), 
+      where("userId", "==", userId)
+    );
+    const transfersOutSnapshot = await getDocs(transfersOutQuery);
 
-    // Calcular saldo
-    const newBalance = totalIncome - totalExpense;
+    // Calcular total de transferencias salientes
+    let totalTransfersOut = 0;
+    transfersOutSnapshot.forEach((doc) => {
+      totalTransfersOut += doc.data().amount || 0;
+    });
+
+    // Obtener transferencias entrantes (suma al saldo)
+    const transfersInQuery = query(
+      collection(db, "transfers"), 
+      where("toAccountId", "==", accountId), 
+      where("userId", "==", userId)
+    );
+    const transfersInSnapshot = await getDocs(transfersInQuery);
+
+    // Calcular total de transferencias entrantes
+    let totalTransfersIn = 0;
+    transfersInSnapshot.forEach((doc) => {
+      totalTransfersIn += doc.data().amount || 0;
+    });
+
+    // Calcular saldo incluyendo transferencias
+    const newBalance = totalIncome - totalExpense - totalTransfersOut + totalTransfersIn;
 
     // Actualizar saldo en Firebase
     const accountRef = doc(db, "accounts", account.id);
@@ -492,5 +540,163 @@ export const getUserTransfers = async (userId: string): Promise<any[]> => {
   } catch (error) {
     console.error("Error al obtener transferencias:", error);
     return [];
+  }
+};
+
+// Función para verificar la precisión de los saldos periódicamente
+export const verifyAccountBalancesPeriodically = async (userId: string): Promise<{
+  accountsChecked: number;
+  accountsWithDiscrepancies: number;
+  fixedAccountIds: string[];
+  discrepanciesFound: Array<{accountId: string, name: string, expectedBalance: number, actualBalance: number, difference: number}>;
+}> => {
+  try {
+    console.log("Verificación periódica de saldos iniciada para usuario:", userId);
+    
+    // Obtener todas las cuentas del usuario
+    const accounts = await getUserAccounts(userId);
+    let accountsChecked = 0;
+    let accountsWithDiscrepancies = 0;
+    const fixedAccountIds: string[] = [];
+    const discrepanciesFound: Array<{
+      accountId: string;
+      name: string;
+      expectedBalance: number;
+      actualBalance: number;
+      difference: number;
+    }> = [];
+
+    // Para cada cuenta, calcular su saldo "esperado" basado en transacciones
+    for (const account of accounts) {
+      accountsChecked++;
+      console.log(`Verificando cuenta ${account.id} (${account.name})`);
+      
+      // Calcular el saldo esperado: ingresos - gastos + transferenciasEntrantes - transferenciasSalientes
+      try {
+        // Obtener todos los ingresos de la cuenta
+        const incomesQuery = query(
+          collection(db, "incomes"), 
+          where("accountId", "==", account.id), 
+          where("userId", "==", userId)
+        );
+        const incomesSnapshot = await getDocs(incomesQuery);
+        let totalIncomes = 0;
+        incomesSnapshot.forEach(doc => {
+          totalIncomes += doc.data().amount || 0;
+        });
+
+        // Obtener todos los gastos de la cuenta
+        const expensesQuery = query(
+          collection(db, "expenses"), 
+          where("accountId", "==", account.id), 
+          where("userId", "==", userId)
+        );
+        const expensesSnapshot = await getDocs(expensesQuery);
+        let totalExpenses = 0;
+        expensesSnapshot.forEach(doc => {
+          totalExpenses += doc.data().amount || 0;
+        });
+
+        // Obtener transferencias entrantes
+        const transfersInQuery = query(
+          collection(db, "transfers"), 
+          where("toAccountId", "==", account.id), 
+          where("userId", "==", userId)
+        );
+        const transfersInSnapshot = await getDocs(transfersInQuery);
+        let totalTransfersIn = 0;
+        transfersInSnapshot.forEach(doc => {
+          totalTransfersIn += doc.data().amount || 0;
+        });
+
+        // Obtener transferencias salientes
+        const transfersOutQuery = query(
+          collection(db, "transfers"), 
+          where("fromAccountId", "==", account.id), 
+          where("userId", "==", userId)
+        );
+        const transfersOutSnapshot = await getDocs(transfersOutQuery);
+        let totalTransfersOut = 0;
+        transfersOutSnapshot.forEach(doc => {
+          totalTransfersOut += doc.data().amount || 0;
+        });
+
+        // Calcular saldo esperado
+        const expectedBalance = totalIncomes - totalExpenses + totalTransfersIn - totalTransfersOut;
+        
+        // Comparar con saldo actual
+        const difference = Math.abs(expectedBalance - account.balance);
+        
+        // Si hay discrepancia mayor a 0.01 (para evitar problemas de redondeo)
+        if (difference > 0.01) {
+          accountsWithDiscrepancies++;
+          
+          // Registrar la discrepancia
+          discrepanciesFound.push({
+            accountId: account.id,
+            name: account.name,
+            expectedBalance,
+            actualBalance: account.balance,
+            difference: expectedBalance - account.balance
+          });
+          
+          console.log(`Discrepancia encontrada en cuenta ${account.name}:`);
+          console.log(`  Saldo actual: ${account.balance}`);
+          console.log(`  Saldo calculado: ${expectedBalance}`);
+          console.log(`  Diferencia: ${expectedBalance - account.balance}`);
+          
+          // Corregir si es necesario
+          if (process.env.NODE_ENV !== 'production' || Math.abs(difference) > 1) {
+            console.log(`Corrigiendo saldo de cuenta ${account.name}`);
+            
+            // Actualizar en Firebase
+            const accountRef = doc(db, "accounts", account.id);
+            await updateDoc(accountRef, {
+              balance: expectedBalance,
+              updatedAt: serverTimestamp(),
+              lastVerification: serverTimestamp()
+            });
+            
+            // Actualizar en el estado
+            try {
+              const { updateAccount } = useAccountStore.getState();
+              updateAccount({
+                ...account,
+                balance: expectedBalance
+              });
+            } catch (updateError) {
+              console.error("Error actualizando estado local tras corrección:", updateError);
+            }
+            
+            fixedAccountIds.push(account.id);
+          }
+        } else {
+          console.log(`Saldo correcto en cuenta ${account.name}: ${account.balance}`);
+          
+          // Actualizar timestamp de última verificación
+          const accountRef = doc(db, "accounts", account.id);
+          await updateDoc(accountRef, {
+            lastVerification: serverTimestamp()
+          });
+        }
+      } catch (accountError) {
+        console.error(`Error verificando cuenta ${account.id}:`, accountError);
+      }
+    }
+    
+    console.log("Verificación periódica completada:");
+    console.log(`  Cuentas verificadas: ${accountsChecked}`);
+    console.log(`  Cuentas con discrepancias: ${accountsWithDiscrepancies}`);
+    console.log(`  Cuentas corregidas: ${fixedAccountIds.length}`);
+    
+    return {
+      accountsChecked,
+      accountsWithDiscrepancies,
+      fixedAccountIds,
+      discrepanciesFound
+    };
+  } catch (error) {
+    console.error("Error en verificación periódica de saldos:", error);
+    throw error;
   }
 };

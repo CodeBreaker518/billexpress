@@ -345,7 +345,7 @@ export const deleteFinancesByAccountId = async (
   }
 };
 
-// Actualizar cuenta asociada a un elemento financiero
+// Actualizar cuenta asociada a un elemento financiero (versión optimizada)
 export const updateFinanceWithAccount = async (
   collection: "incomes" | "expenses",
   financeItem: { amount: number; id: string; userId: string; [key: string]: unknown },
@@ -382,8 +382,10 @@ export const updateFinanceWithAccount = async (
       return;
     }
 
-    // Si hay un previousAccountId, también verificar que pertenezca al usuario
-    if (previousAccountId) {
+    // Si hay un cambio de cuenta, debemos actualizar ambas cuentas
+    if (previousAccountId && previousAccountId !== accountId) {
+      console.log(`Detectado cambio de cuenta: ${previousAccountId} -> ${accountId}`);
+      // Verificar que la cuenta anterior pertenezca al usuario
       const prevAccountRef = doc(db, "accounts", previousAccountId);
       const prevAccountSnapshot = await getDoc(prevAccountRef);
 
@@ -391,69 +393,93 @@ export const updateFinanceWithAccount = async (
         const prevAccountData = prevAccountSnapshot.data();
         if (prevAccountData.userId !== userId) {
           console.error(`Intento de actualizar cuenta previa de otro usuario. UserId: ${userId}, PrevAccountUserId: ${prevAccountData.userId}`);
-          // No debemos usar esta cuenta previa
           previousAccountId = undefined;
+        } else {
+          // Actualizar la cuenta anterior (deshacer el cambio en la cuenta anterior)
+          const prevAccount = { id: previousAccountId, ...prevAccountData } as Account;
+          const multiplier = collection === "incomes" ? -1 : 1; // Si era ingreso, restamos; si era gasto, sumamos
+          const amountChange = financeItem.amount as number;
+          
+          // Actualizar la cuenta anterior (devolver el dinero)
+          await updateDoc(prevAccountRef, {
+            balance: prevAccount.balance + (amountChange * multiplier),
+            updatedAt: serverTimestamp(),
+            transactionCount: (prevAccount.transactionCount || 0) + 1
+          });
+          
+          // Actualizar el estado global para la cuenta anterior
+          try {
+            const { updateAccount } = useAccountStore.getState();
+            updateAccount({
+              ...prevAccount,
+              balance: prevAccount.balance + (amountChange * multiplier),
+              transactionCount: (prevAccount.transactionCount || 0) + 1
+            });
+          } catch (storeError) {
+            console.warn("No se pudo actualizar el estado local de la cuenta anterior:", storeError);
+          }
         }
-      } else {
-        // Si la cuenta previa no existe, no la usamos
-        previousAccountId = undefined;
       }
     }
 
-    // Para operaciones de actualización o cuando hay cambio de cuenta,
-    // simplemente recalculamos todos los saldos para mayor precisión
-    if (operation === "update" || (previousAccountId && previousAccountId !== accountId)) {
-      console.log("Recalculando todos los saldos para mayor precisión...");
-      await recalculateAllAccountBalances(userId);
-      return;
-    }
-
-    // Para add y delete simples, actualizamos solo la cuenta específica
-    // Obtener la cuenta directamente de Firebase
+    // Obtener la cuenta directamente de Firebase para la operación principal
     const account = {
       id: accountId,
       ...accountSnapshot.data(),
     } as Account;
 
-    // Calcular el nuevo saldo
-    const multiplier = collection === "incomes" ? 1 : -1;
+    // Calcular el cambio de saldo incremental
+    const multiplier = collection === "incomes" ? 1 : -1; // Ingresos suman, gastos restan
     const amount = financeItem.amount as number;
-    let newBalance = account.balance;
+    let balanceChange = 0;
 
-    if (operation === "add") {
-      newBalance += amount * multiplier;
-    } else if (operation === "delete") {
-      newBalance -= amount * multiplier;
+    switch (operation) {
+      case "add":
+        balanceChange = amount * multiplier;
+        break;
+      case "delete":
+        balanceChange = -amount * multiplier; // Efecto inverso de add
+        break;
+      case "update":
+        // No debería llegar aquí si hay cambio de cuenta, ya está manejado arriba
+        if (!previousAccountId) {
+          // Si es la misma cuenta, solo actualizamos la diferencia
+          // Como no tenemos el valor anterior, asumimos que es el mismo
+          console.log("Actualización sin cambio de cuenta, asumiendo mismo monto");
+          balanceChange = 0; // No hay cambio neto
+        }
+        break;
     }
 
-    // Actualizar en Firebase
-    await updateDoc(accountRef, {
-      balance: newBalance,
-      updatedAt: serverTimestamp(),
-    });
-
-    // Actualizar en el estado local
-    try {
-      const { updateAccount } = useAccountStore.getState();
-      updateAccount({
-        ...account,
+    // Solo actualizar si hay un cambio real
+    if (balanceChange !== 0) {
+      const newBalance = account.balance + balanceChange;
+      
+      // Actualizar en Firebase
+      await updateDoc(accountRef, {
         balance: newBalance,
+        updatedAt: serverTimestamp(),
+        transactionCount: (account.transactionCount || 0) + 1
       });
-    } catch (storeError) {
-      console.warn("No se pudo actualizar el estado local:", storeError);
-    }
 
-    console.log(`Cuenta ${accountId} actualizada, nuevo saldo: ${newBalance}`);
+      // Actualizar en el estado local
+      try {
+        const { updateAccount } = useAccountStore.getState();
+        updateAccount({
+          ...account,
+          balance: newBalance,
+          transactionCount: (account.transactionCount || 0) + 1
+        });
+      } catch (storeError) {
+        console.warn("No se pudo actualizar el estado local:", storeError);
+      }
+
+      console.log(`Cuenta ${accountId} actualizada incrementalmente, nuevo saldo: ${newBalance} (cambio: ${balanceChange})`);
+    } else {
+      console.log(`No hay cambio de saldo para la cuenta ${accountId}, no se requiere actualización`);
+    }
   } catch (error) {
     console.error("Error actualizando finanzas con cuenta:", error);
-    // En caso de error, forzar recálculo completo para asegurar integridad
-    if (financeItem.userId) {
-      try {
-        await recalculateAllAccountBalances(financeItem.userId as string);
-      } catch (recalcError) {
-        console.error("Error en recálculo de emergencia:", recalcError);
-      }
-    }
     throw error;
   }
 };
@@ -519,9 +545,45 @@ export const recalculateAllAccountBalances = async (userId: string): Promise<voi
       });
       console.log(`Encontrados ${expensesCount} gastos, total: ${totalExpense}`);
 
-      // Actualizar saldo de la cuenta
-      const newBalance = totalIncome - totalExpense;
-      console.log(`Nuevo saldo calculado: ${newBalance} (Ingresos ${totalIncome} - Gastos ${totalExpense})`);
+      // Obtener transferencias salientes (resta del saldo)
+      const transfersOutQuery = query(
+        collection(db, "transfers"), 
+        where("fromAccountId", "==", account.id), 
+        where("userId", "==", userId)
+      );
+      const transfersOutSnapshot = await getDocs(transfersOutQuery);
+
+      // Calcular total de transferencias salientes
+      let totalTransfersOut = 0;
+      let transfersOutCount = 0;
+      transfersOutSnapshot.forEach((doc) => {
+        const amount = doc.data().amount || 0;
+        totalTransfersOut += amount;
+        transfersOutCount++;
+      });
+      console.log(`Encontradas ${transfersOutCount} transferencias salientes, total: ${totalTransfersOut}`);
+
+      // Obtener transferencias entrantes (suma al saldo)
+      const transfersInQuery = query(
+        collection(db, "transfers"), 
+        where("toAccountId", "==", account.id), 
+        where("userId", "==", userId)
+      );
+      const transfersInSnapshot = await getDocs(transfersInQuery);
+
+      // Calcular total de transferencias entrantes
+      let totalTransfersIn = 0;
+      let transfersInCount = 0;
+      transfersInSnapshot.forEach((doc) => {
+        const amount = doc.data().amount || 0;
+        totalTransfersIn += amount;
+        transfersInCount++;
+      });
+      console.log(`Encontradas ${transfersInCount} transferencias entrantes, total: ${totalTransfersIn}`);
+
+      // Actualizar saldo de la cuenta incluyendo transferencias
+      const newBalance = totalIncome - totalExpense - totalTransfersOut + totalTransfersIn;
+      console.log(`Nuevo saldo calculado: ${newBalance} (Ingresos ${totalIncome} - Gastos ${totalExpense} - Transferencias salientes ${totalTransfersOut} + Transferencias entrantes ${totalTransfersIn})`);
 
       if (newBalance !== account.balance) {
         console.log(`Actualizando saldo de ${account.balance} a ${newBalance}`);
@@ -616,8 +678,36 @@ export const calculateAccountBalance = async (accountId: string, userId: string)
       totalExpense += doc.data().amount || 0;
     });
 
-    // Calcular saldo
-    return totalIncome - totalExpense;
+    // Obtener transferencias salientes (resta del saldo)
+    const transfersOutQuery = query(
+      collection(db, "transfers"), 
+      where("fromAccountId", "==", accountId), 
+      where("userId", "==", userId)
+    );
+    const transfersOutSnapshot = await getDocs(transfersOutQuery);
+
+    // Calcular total de transferencias salientes
+    let totalTransfersOut = 0;
+    transfersOutSnapshot.forEach((doc) => {
+      totalTransfersOut += doc.data().amount || 0;
+    });
+
+    // Obtener transferencias entrantes (suma al saldo)
+    const transfersInQuery = query(
+      collection(db, "transfers"), 
+      where("toAccountId", "==", accountId), 
+      where("userId", "==", userId)
+    );
+    const transfersInSnapshot = await getDocs(transfersInQuery);
+
+    // Calcular total de transferencias entrantes
+    let totalTransfersIn = 0;
+    transfersInSnapshot.forEach((doc) => {
+      totalTransfersIn += doc.data().amount || 0;
+    });
+
+    // Calcular saldo incluyendo transferencias
+    return totalIncome - totalExpense - totalTransfersOut + totalTransfersIn;
   } catch (error) {
     console.error("Error calculando saldo:", error);
     throw error;

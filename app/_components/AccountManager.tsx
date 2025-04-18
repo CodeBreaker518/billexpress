@@ -192,7 +192,7 @@ export default function AccountManager({ userId, onReloadAccounts, isLoading }: 
   // Obtener la cuenta activa
   const activeAccount = accounts.find((account) => account.id === activeAccountId);
 
-  // Función mejorada para recargar cuentas sin sobrescribir datos de transferencias
+  // Función mejorada para recargar cuentas sin recálculos frecuentes
   const reloadAccountsWithRecalculation = useCallback(async () => {
     try {
       if (userId) {
@@ -213,6 +213,31 @@ export default function AccountManager({ userId, onReloadAccounts, isLoading }: 
 
         // Actualizar el estado global con estas cuentas recién obtenidas (sin duplicados)
         useAccountStore.getState().setAccounts(Array.from(uniqueAccountsMap.values()));
+
+        // Paso 2: Solo una vez al día o si se detectan problemas, verificar la precisión de los saldos
+        const lastVerification = localStorage.getItem('lastBalanceVerification');
+        const shouldVerify = !lastVerification || 
+                             (Date.now() - parseInt(lastVerification)) > 24 * 60 * 60 * 1000 || // 24 horas
+                             Math.random() < 0.05; // 5% de probabilidad aleatoria
+
+        if (shouldVerify) {
+          console.log("Realizando verificación ocasional de saldos...");
+          // Registrar la verificación actual
+          localStorage.setItem('lastBalanceVerification', Date.now().toString());
+          
+          try {
+            // Importar la función de verificación periódica de manera dinámica
+            const { verifyAccountBalancesPeriodically } = await import("@bill/_firebase/accountService");
+            const verificationResult = await verifyAccountBalancesPeriodically(userId);
+            
+            // Si hay discrepancias, mostrar una notificación (solo en desarrollo)
+            if (verificationResult.accountsWithDiscrepancies > 0 && process.env.NODE_ENV !== 'production') {
+              console.warn("Se encontraron discrepancias en los saldos:", verificationResult.discrepanciesFound);
+            }
+          } catch (verifyError) {
+            console.error("Error durante la verificación periódica:", verifyError);
+          }
+        }
       }
 
       // Paso final: Avisar al componente padre que se ha completado la recarga
