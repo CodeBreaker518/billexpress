@@ -125,13 +125,51 @@ export default function CalendarioPage() {
     const loadData = async () => {
       if (!user) return;
       
-      // Usar loadFinanceData para cargar todos los datos de una vez
-      await loadFinanceData();
-      
-      // Cargar los recordatorios desde Firebase
-      await loadReminders(user.uid);
-      
-      // Procesar los datos una vez disponibles
+      try {
+        // Usar loadFinanceData para cargar todos los datos de una vez
+        await loadFinanceData();
+        
+        // Cargar los recordatorios desde Firebase
+        await loadReminders(user.uid);
+        
+        // Procesar los datos una vez disponibles
+        // Convertir gastos a transacciones
+        const expensesTransactions = expenses.map(expense => ({
+          id: expense.id,
+          date: new Date(expense.date),
+          amount: expense.amount,
+          description: expense.description,
+          category: expense.category,
+          type: 'expense' as const
+        }));
+
+        // Convertir ingresos a transacciones
+        const incomesTransactions = incomes.map(income => ({
+          id: income.id,
+          date: new Date(income.date),
+          amount: income.amount,
+          description: income.description,
+          category: income.category,
+          type: 'income' as const
+        }));
+
+        // Combinar y ordenar transacciones por fecha
+        const allTransactions = [...expensesTransactions, ...incomesTransactions]
+          .sort((a, b) => b.date.getTime() - a.date.getTime());
+
+        setTransactions(allTransactions);
+      } catch (error) {
+        console.error("Error al cargar datos del calendario:", error);
+      }
+    };
+
+    loadData();
+  }, [user]);
+
+  // Actualizar las transacciones cuando cambian los datos
+  useEffect(() => {
+    // Solo actualizar si ya se cargaron los datos iniciales
+    if (expenses.length > 0 || incomes.length > 0) {
       // Convertir gastos a transacciones
       const expensesTransactions = expenses.map(expense => ({
         id: expense.id,
@@ -157,10 +195,8 @@ export default function CalendarioPage() {
         .sort((a, b) => b.date.getTime() - a.date.getTime());
 
       setTransactions(allTransactions);
-    };
-
-    loadData();
-  }, [user, expenses, incomes, accounts, loadFinanceData, loadReminders]);
+    }
+  }, [expenses, incomes]);
 
   // Toggle estado del recordatorio (completado/pendiente)
   const handleToggleReminderStatus = async (id: string, isCompleted: boolean) => {
