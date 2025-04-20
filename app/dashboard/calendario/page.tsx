@@ -126,77 +126,53 @@ export default function CalendarioPage() {
       if (!user) return;
       
       try {
-        // Usar loadFinanceData para cargar todos los datos de una vez
+        // Cargar los datos financieros
         await loadFinanceData();
         
         // Cargar los recordatorios desde Firebase
         await loadReminders(user.uid);
-        
-        // Procesar los datos una vez disponibles
-        // Convertir gastos a transacciones
-        const expensesTransactions = expenses.map(expense => ({
-          id: expense.id,
-          date: new Date(expense.date),
-          amount: expense.amount,
-          description: expense.description,
-          category: expense.category,
-          type: 'expense' as const
-        }));
-
-        // Convertir ingresos a transacciones
-        const incomesTransactions = incomes.map(income => ({
-          id: income.id,
-          date: new Date(income.date),
-          amount: income.amount,
-          description: income.description,
-          category: income.category,
-          type: 'income' as const
-        }));
-
-        // Combinar y ordenar transacciones por fecha
-        const allTransactions = [...expensesTransactions, ...incomesTransactions]
-          .sort((a, b) => b.date.getTime() - a.date.getTime());
-
-        setTransactions(allTransactions);
       } catch (error) {
         console.error("Error al cargar datos del calendario:", error);
       }
     };
 
-    loadData();
-  }, [user]);
+    if (user) {
+      loadData();
+    }
+  }, [user, loadFinanceData, loadReminders]);
 
   // Actualizar las transacciones cuando cambian los datos
   useEffect(() => {
-    // Solo actualizar si ya se cargaron los datos iniciales
-    if (expenses.length > 0 || incomes.length > 0) {
-      // Convertir gastos a transacciones
-      const expensesTransactions = expenses.map(expense => ({
-        id: expense.id,
-        date: new Date(expense.date),
-        amount: expense.amount,
-        description: expense.description,
-        category: expense.category,
-        type: 'expense' as const
-      }));
+    // Siempre procesar las transacciones cuando haya cambios en los datos
+    // Convertir gastos a transacciones
+    const expensesTransactions = expenses.map(expense => ({
+      id: expense.id,
+      date: new Date(expense.date),
+      amount: expense.amount,
+      description: expense.description,
+      category: expense.category,
+      type: 'expense' as const
+    }));
 
-      // Convertir ingresos a transacciones
-      const incomesTransactions = incomes.map(income => ({
-        id: income.id,
-        date: new Date(income.date),
-        amount: income.amount,
-        description: income.description,
-        category: income.category,
-        type: 'income' as const
-      }));
+    // Convertir ingresos a transacciones
+    const incomesTransactions = incomes.map(income => ({
+      id: income.id,
+      date: new Date(income.date),
+      amount: income.amount,
+      description: income.description,
+      category: income.category,
+      type: 'income' as const
+    }));
 
-      // Combinar y ordenar transacciones por fecha
-      const allTransactions = [...expensesTransactions, ...incomesTransactions]
-        .sort((a, b) => b.date.getTime() - a.date.getTime());
+    // Combinar y ordenar transacciones por fecha
+    const allTransactions = [...expensesTransactions, ...incomesTransactions]
+      .sort((a, b) => b.date.getTime() - a.date.getTime());
 
-      setTransactions(allTransactions);
-    }
+    setTransactions(allTransactions);
   }, [expenses, incomes]);
+
+  // Determinar si la aplicación está cargando - solo durante la carga real
+  const isLoading = expensesLoading || incomesLoading || accountsLoading || financeLoading || remindersLoading;
 
   // Toggle estado del recordatorio (completado/pendiente)
   const handleToggleReminderStatus = async (id: string, isCompleted: boolean) => {
@@ -495,9 +471,6 @@ export default function CalendarioPage() {
         return "";
     }
   };
-
-  // Determinar si la aplicación está cargando
-  const isLoading = expensesLoading || incomesLoading || accountsLoading || financeLoading || remindersLoading;
 
   const resetNewReminder = () => {
     setNewReminder({
