@@ -19,12 +19,7 @@ export default function FinanzasPage() {
   }, [loadFinanceData]);
 
   if (isLoading) {
-    return (
-      <div className='space-y-6'>
-        <h1 className='text-2xl font-bold mb-6'>Cargando Finanzas...</h1>
-        <FinanceSkeletonLoader />
-      </div>
-    );
+    return <FinanceSkeletonLoader />;
   }
 
   return (

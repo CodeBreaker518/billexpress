@@ -33,6 +33,7 @@ import { CalendarControls } from "@bill/_components/calendar/CalendarControls";
 import { ReminderDialog } from "@bill/_components/calendar/ReminderDialog";
 import { DetailCard } from "@bill/_components/calendar/DetailCard";
 import { RecurrenceType, Reminder } from "@bill/_components/calendar/types";
+import { CalendarSkeleton } from "@bill/_components/ui/skeletons";
 
 interface Transaction {
   id: string;
@@ -531,11 +532,7 @@ export default function CalendarioPage() {
         
           {/* Vista principal del calendario */}
           {isLoading ? (
-            <div className="animate-pulse flex flex-col items-center justify-center h-[50vh] bg-white dark:bg-gray-800 rounded-lg shadow">
-              <div className="w-16 h-16 sm:w-24 sm:h-24 rounded-full bg-gray-200 dark:bg-gray-700 mb-4"></div>
-              <div className="h-4 sm:h-6 w-40 sm:w-64 bg-gray-200 dark:bg-gray-700 rounded mb-4"></div>
-              <div className="h-3 sm:h-4 w-28 sm:w-40 bg-gray-200 dark:bg-gray-700 rounded"></div>
-            </div>
+            <CalendarSkeleton />
           ) : (
             <div className="bg-white dark:bg-gray-800 rounded-lg shadow overflow-hidden">
               <CalendarViews 

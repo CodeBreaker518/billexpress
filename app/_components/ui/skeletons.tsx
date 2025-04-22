@@ -343,34 +343,69 @@ export function AccountsSectionSkeleton() {
 // Esqueleto para la página de perfil
 export function ProfilePageSkeleton() {
   return (
-    <div className="space-y-6">
-      {/* Cabecera de la página */}
-      <div className="mb-6">
-        <Skeleton className="h-8 w-[180px] mb-2" />
-        <Skeleton className="h-4 w-[280px]" />
+    <div className="space-y-6 pb-28 sm:pb-0">
+      {/* Header de usuario */}
+      <div className="flex flex-col md:flex-row gap-4 items-center p-4 bg-card border rounded-lg mb-6">
+        <Skeleton className="h-16 w-16 rounded-full" />
+        <div className="flex-1 space-y-1 text-center md:text-left">
+          <Skeleton className="h-6 w-40 mb-2" />
+          <Skeleton className="h-4 w-48" />
+        </div>
+        <Skeleton className="h-10 w-32" />
       </div>
-
-      <div className="grid grid-cols-1 gap-6 md:grid-cols-6">
-        <div className="md:col-span-3">
-          <ProfileCardSkeleton />
-        </div>
-        <div className="md:col-span-3">
-          <AccountsSectionSkeleton />
-        </div>
+      {/* Tabs skeleton */}
+      <div className="hidden sm:flex overflow-x-auto border-b border-muted mb-4">
+        {[...Array(4)].map((_, i) => (
+          <Skeleton key={i} className="h-10 w-24 mx-2 rounded" />
+        ))}
+      </div>
+      <div className="sm:hidden fixed bottom-0 left-0 right-0 z-30 bg-background border-t border-muted flex justify-around shadow-lg">
+        {[...Array(4)].map((_, i) => (
+          <Skeleton key={i} className="h-12 w-20 my-2 rounded" />
+        ))}
+      </div>
+      {/* Cards de secciones */}
+      <div className="grid grid-cols-1 gap-6 md:grid-cols-2">
+        {[...Array(4)].map((_, i) => (
+          <Card key={i} className="shadow-soft">
+            <CardHeader>
+              <Skeleton className="h-5 w-32 mb-2" />
+              <Skeleton className="h-4 w-48" />
+            </CardHeader>
+            <CardContent>
+              <Skeleton className="h-8 w-full mb-2" />
+              <Skeleton className="h-4 w-3/4" />
+              <Skeleton className="h-4 w-1/2 mt-2" />
+            </CardContent>
+          </Card>
+        ))}
       </div>
     </div>
   );
 }
 
+// SKELETON PARA FINANZAS
 export function FinanceSkeletonLoader() {
   return (
     <div className="space-y-6">
-      {/* Skeleton para el resumen financiero */}
-      <div className="grid grid-cols-1 gap-6 sm:grid-cols-2 lg:grid-cols-4">
-        {[...Array(4)].map((_, i) => (
+      {/* Header con título, subtítulo y acciones rápidas */}
+      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 mb-4 w-full">
+        <div className="flex flex-col items-center sm:items-start text-center sm:text-left w-full max-w-2xl mx-auto">
+          <Skeleton className="h-8 w-32 mb-2" />
+          <Skeleton className="h-4 w-48" />
+        </div>
+        <div className="flex flex-col sm:flex-row gap-2 w-full sm:w-auto items-center sm:items-end justify-center sm:justify-end">
+          <Skeleton className="h-10 w-full sm:w-40" />
+          <Skeleton className="h-10 w-full sm:w-40" />
+        </div>
+      </div>
+      {/* Grid de cuentas */}
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
+        {[...Array(3)].map((_, i) => (
           <Card key={i} className="shadow-soft">
             <CardHeader className="px-4 sm:px-6">
-              <Skeleton className="h-4 w-24" />
+              <Skeleton className="h-5 w-24 mb-2" />
+              <Skeleton className="h-4 w-32" />
             </CardHeader>
             <CardContent className="px-4 sm:px-6">
               <Skeleton className="h-8 w-32 mb-2" />
@@ -379,36 +414,120 @@ export function FinanceSkeletonLoader() {
           </Card>
         ))}
       </div>
-
-      {/* Skeleton para la tabla de gastos/ingresos */}
+      {/* Tabla de transacciones */}
       <Card className="shadow-soft">
-        <CardHeader className="px-4 sm:px-6">
+        <CardHeader className="px-4 sm:px-6 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2">
           <Skeleton className="h-6 w-48" />
+          <div className="flex gap-2 w-full sm:w-auto">
+            <Skeleton className="h-10 w-24" />
+            <Skeleton className="h-10 w-32" />
+            <Skeleton className="h-10 w-32" />
+          </div>
         </CardHeader>
         <CardContent className="px-2 sm:px-6">
           <div className="space-y-4">
-            {[...Array(5)].map((_, i) => (
-              <div key={i} className="flex items-center justify-between">
-                <div className="space-y-2">
+            {[...Array(6)].map((_, i) => (
+              <div key={i} className="flex items-center justify-between border-b pb-2">
+                <div className="flex flex-col gap-2 w-1/2">
                   <Skeleton className="h-4 w-32" />
                   <Skeleton className="h-3 w-24" />
                 </div>
                 <Skeleton className="h-6 w-24" />
+                <Skeleton className="h-6 w-16" />
               </div>
             ))}
           </div>
         </CardContent>
       </Card>
-
-      {/* Skeleton para el gráfico */}
+      {/* Tabla de transferencias */}
       <Card className="shadow-soft">
-        <CardHeader className="px-4 sm:px-6">
+        <CardHeader className="px-4 sm:px-6 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2">
           <Skeleton className="h-6 w-48" />
+          <div className="flex gap-2 w-full sm:w-auto">
+            <Skeleton className="h-10 w-24" />
+            <Skeleton className="h-10 w-32" />
+          </div>
         </CardHeader>
         <CardContent className="px-2 sm:px-6">
-          <Skeleton className="h-72 w-full" />
+          <div className="space-y-4">
+            {[...Array(4)].map((_, i) => (
+              <div key={i} className="flex items-center justify-between border-b pb-2">
+                <div className="flex flex-col gap-2 w-1/2">
+                  <Skeleton className="h-4 w-32" />
+                  <Skeleton className="h-3 w-24" />
+                </div>
+                <Skeleton className="h-6 w-24" />
+                <Skeleton className="h-6 w-16" />
+              </div>
+            ))}
+          </div>
         </CardContent>
       </Card>
+    </div>
+  );
+}
+
+// SKELETON PARA CALENDARIO
+export function CalendarSkeleton() {
+  return (
+    <div className="space-y-6 pb-8">
+      {/* Header */}
+      <Skeleton className="h-8 w-48 mb-2" />
+      <Skeleton className="h-4 w-64 mb-4" />
+      {/* Controles de calendario */}
+      <div className="bg-white dark:bg-gray-800 rounded-lg shadow p-3 md:p-4 mb-4 flex flex-col sm:flex-row gap-2">
+        <Skeleton className="h-10 w-32" />
+        <Skeleton className="h-10 w-32" />
+        <Skeleton className="h-10 w-32" />
+        <Skeleton className="h-10 w-32" />
+      </div>
+      {/* Grid de calendario */}
+      <div className="bg-white dark:bg-gray-800 rounded-lg shadow overflow-hidden p-4">
+        <div className="grid grid-cols-7 gap-2">
+          {[...Array(35)].map((_, i) => (
+            <Skeleton key={i} className="h-12 w-full rounded" />
+          ))}
+        </div>
+      </div>
+      {/* Card de detalle (opcional) */}
+      <div className="max-w-md mx-auto">
+        <Card className="shadow-soft">
+          <CardHeader>
+            <Skeleton className="h-5 w-32 mb-2" />
+            <Skeleton className="h-4 w-48" />
+          </CardHeader>
+          <CardContent>
+            <Skeleton className="h-8 w-full mb-2" />
+            <Skeleton className="h-4 w-3/4" />
+            <Skeleton className="h-4 w-1/2 mt-2" />
+          </CardContent>
+        </Card>
+      </div>
+    </div>
+  );
+}
+
+// SKELETON PARA ANALÍTICAS
+export function AnaliticasSkeleton() {
+  return (
+    <div className="space-y-6">
+      {/* Header */}
+      <div className="mb-6">
+        <Skeleton className="h-8 w-32 mb-2" />
+        <Skeleton className="h-4 w-48" />
+      </div>
+      {/* Gráfico principal */}
+      <div className="bg-card p-4 rounded-lg shadow-sm border space-y-4">
+        <Skeleton className="h-6 w-1/2 mb-4" />
+        <Skeleton className="h-72 w-full" />
+      </div>
+      {/* Gráficos secundarios */}
+      <div className="bg-card p-4 rounded-lg shadow-sm border space-y-4">
+        <Skeleton className="h-6 w-40 mb-3" />
+        <Skeleton className="h-9 w-full sm:w-[300px]" />
+        <Skeleton className="h-4 w-full mt-2" />
+        <Skeleton className="h-10 w-52 mt-4" />
+      </div>
     </div>
   );
 }

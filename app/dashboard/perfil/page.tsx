@@ -334,13 +334,13 @@ export default function PerfilPage() {
           <h2 className="text-2xl font-bold">{user.displayName || "Usuario"}</h2>
           <p className="text-muted-foreground">{user.email}</p>
         </div>
-        <Button
-          variant="outline"
+                        <Button
+                          variant="outline"
           onClick={() => logout()}
           className="w-full md:w-auto"
         >
           Cerrar sesión
-        </Button>
+                          </Button>
       </div>
 
       {/* Tabs para diferentes secciones */}
