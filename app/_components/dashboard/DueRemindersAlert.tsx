@@ -212,12 +212,12 @@ export function DueRemindersAlert({ showFullSummary = false }: DueRemindersAlert
     // Si solo hay recordatorios próximos, mostrar alerta informativa en color ámbar
     if (upcomingReminders.length > 0) {
       return (
-        <Alert className="mb-4 bg-amber-50 dark:bg-amber-950/20 border-amber-200 dark:border-amber-800 px-3 py-3 sm:px-5 sm:py-4 max-w-xl mx-auto">
-          <div className="flex flex-col sm:flex-row sm:items-center gap-2 w-full">
-            <AlertTriangle className="h-4 w-4 text-amber-500 shrink-0" />
-            <AlertTitle className="flex-1 truncate">
-              <span>Recordatorios próximos</span>
-            </AlertTitle>
+        <Alert className="mb-4 bg-amber-50 dark:bg-amber-950/20 border-amber-200 dark:border-amber-800 px-3 py-3 sm:px-5 sm:py-4 gap-2 max-w-xl">
+          <AlertTitle className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 w-full">
+            <div className="flex items-center gap-2">
+              <AlertTriangle className="h-4 w-4 text-amber-500 shrink-0" />
+              <span className="truncate">Recordatorios próximos</span>
+            </div>
             <Button 
               variant="outline" 
               onClick={goToCalendar} 
@@ -226,9 +226,9 @@ export function DueRemindersAlert({ showFullSummary = false }: DueRemindersAlert
             >
               Ver todos <ArrowRight className="ml-1 h-3 w-3" />
             </Button>
-          </div>
-          <AlertDescription className="mt-2">
-            <div className="text-sm break-words">
+          </AlertTitle>
+          <AlertDescription className="pl-0 sm:pl-2 mt-2">
+            <div className="text-sm mb-1 break-words">
               Tienes <strong>{upcomingReminders.length}</strong> recordatorio{upcomingReminders.length !== 1 ? 's' : ''} en los próximos días
             </div>
           </AlertDescription>
