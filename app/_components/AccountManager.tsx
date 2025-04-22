@@ -509,55 +509,33 @@ export default function AccountManager({ userId, onReloadAccounts, isLoading }: 
   const handleTransfer = useCallback(async () => {
     if (!isTransferValid()) {
       toast({
-        title: "Error",
-        description: "Por favor, completa todos los campos correctamente",
+        title: "Transferencia inválida",
+        description: "Verifica los datos de la transferencia.",
         variant: "destructive",
       });
       return;
     }
-
     try {
-      // Mostrar notificación de procesamiento
       toast({
         title: "Procesando transferencia",
         description: "Estamos realizando la transferencia entre tus cuentas...",
-        variant: "default",
       });
-
       // Paso 1: Realizar la transferencia entre cuentas
       await transferBetweenAccounts(fromAccountId, toAccountId, transferAmount, userId, transferDescription);
-
       // Paso 2: Cerrar el modal de transferencia
       setIsTransferFormOpen(false);
-
-      // Paso 3: Pequeño retraso para asegurar que Firebase ha completado la transacción
-      await new Promise((resolve) => setTimeout(resolve, 500));
-
-      // Paso 4: Utilizar nuestra función mejorada de recarga de cuentas
-      // que ya maneja la eliminación de duplicados
-      await reloadAccountsWithRecalculation();
-
-      // Mostrar mensaje de éxito
+      // Paso 3: Recargar historial de transferencias automáticamente
+      if (typeof window !== 'undefined' && (window as any).reloadTransfers) {
+        (window as any).reloadTransfers();
+      }
       toast({
         title: "Transferencia exitosa",
         description: `Se han transferido ${formatCurrency(transferAmount)} correctamente`,
         variant: "success",
       });
+      // ... existing code ...
     } catch (error) {
-      // Mostrar mensaje de error específico
-      toast({
-        title: "Error en la transferencia",
-        description: error instanceof Error ? error.message : "No se pudo realizar la transferencia, inténtalo de nuevo",
-        variant: "destructive",
-      });
-
-      // Intentar recargar las cuentas para tener información actualizada
-      try {
-        // Usar nuestra función mejorada en caso de error también
-        await reloadAccountsWithRecalculation();
-      } catch (reloadError) {
-        console.error("Error al recargar datos después de un fallo en la transferencia:", reloadError);
-      }
+      // ... existing code ...
     }
   }, [fromAccountId, toAccountId, transferAmount, transferDescription, userId, reloadAccountsWithRecalculation, toast, formatCurrency, isTransferValid]);
 

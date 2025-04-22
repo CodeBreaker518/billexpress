@@ -38,9 +38,10 @@ export default function ProfileTabs() {
   const [activeTab, setActiveTab] = useState(0);
 
   return (
-    <div>
-      {/* Tabs header */}
-      <div className="flex overflow-x-auto scrollbar-none border-b border-muted mb-4">
+    <div className="relative min-h-[60vh]">
+      {/* Tabs header: fijo abajo en móvil, arriba en desktop */}
+      {/* Desktop (sm+) */}
+      <div className="hidden sm:flex overflow-x-auto scrollbar-none border-b border-muted mb-4">
         {tabs.map((tab, idx) => {
           const Icon = tab.icon;
           const isActive = idx === activeTab;
@@ -59,8 +60,32 @@ export default function ProfileTabs() {
           );
         })}
       </div>
+      {/* Mobile: tabs fijas abajo */}
+      <div className="sm:hidden">
+        <div className="fixed bottom-0 left-0 right-0 z-30 bg-background border-t border-muted flex justify-around shadow-lg">
+          {tabs.map((tab, idx) => {
+            const Icon = tab.icon;
+            const isActive = idx === activeTab;
+            return (
+              <button
+                key={tab.name}
+                className={`flex flex-col items-center justify-center flex-1 py-2 focus:outline-none transition-colors duration-150
+                  ${isActive ? "text-primary font-semibold" : "text-muted-foreground hover:text-primary"}
+                `}
+                onClick={() => setActiveTab(idx)}
+                type="button"
+              >
+                <div className={`flex flex-col items-center justify-center transition-colors duration-150 ${isActive ? "bg-primary text-primary-foreground" : ""} rounded-md py-2 px-2 ${tab.name === "Perfil" ? "w-20" : "w-22"}`}>
+                  <Icon className="h-5 w-5 mb-0.5" />
+                  <span className="text-xs">{tab.name}</span>
+                </div>
+              </button>
+            );
+          })}
+        </div>
+      </div>
       {/* Tab content */}
-      <div>
+      <div className="pb-20 sm:pb-0 pt-2">
         {tabs[activeTab].content}
       </div>
     </div>

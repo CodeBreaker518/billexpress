@@ -180,25 +180,27 @@ export function DueRemindersAlert({ showFullSummary = false }: DueRemindersAlert
     // Si hay recordatorios vencidos, mostrar alerta de urgencia
     if (dueReminders.length > 0) {
       return (
-        <Alert variant="destructive" className="mb-4 bg-red-50 dark:bg-red-950/20 border-red-200 dark:border-red-800">
-          <AlertCircle className="h-4 w-4" />
-          <AlertTitle className="flex items-center justify-between">
-            <span>Recordatorios pendientes</span>
+        <Alert variant="destructive" className="mb-4 bg-red-50 dark:bg-red-950/20 border-red-200 dark:border-red-800 px-3 py-3 sm:px-5 sm:py-4 gap-2 max-w-xl">
+          <AlertTitle className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 w-full">
+            <div className="flex items-center gap-2">
+              <AlertCircle className="h-4 w-4 shrink-0" />
+              <span className="truncate">Recordatorios pendientes</span>
+            </div>
             <Button 
               variant="destructive" 
               onClick={goToCalendar} 
               size="sm" 
-              className="ml-2"
+              className="ml-0 sm:ml-2 w-full sm:w-auto mt-2 sm:mt-0"
             >
               Ver todos <ArrowRight className="ml-1 h-3 w-3" />
             </Button>
           </AlertTitle>
-          <AlertDescription className="mt-2">
-            <div className="text-sm mb-1">
-              Tienes <strong>{dueReminders.length}</strong> recordatorio{dueReminders.length !== 1 ? 's' : ''} vencido{dueReminders.length !== 1 ? 's' : ''}
+          <AlertDescription className="pl-0 sm:pl-2 mt-2">
+            <div className="text-sm mb-1 break-words">
+              Tienes <strong>{dueReminders.length}</strong> recordatorio{dueReminders.length !== 1 ? 's' : ''} pendiente{dueReminders.length !== 1 ? 's' : ''}
             </div>
             {upcomingReminders.length > 0 && (
-              <div className="text-sm">
+              <div className="text-sm break-words">
                 Y <strong>{upcomingReminders.length}</strong> recordatorio{upcomingReminders.length !== 1 ? 's' : ''} en los próximos días
               </div>
             )}
@@ -210,21 +212,23 @@ export function DueRemindersAlert({ showFullSummary = false }: DueRemindersAlert
     // Si solo hay recordatorios próximos, mostrar alerta informativa en color ámbar
     if (upcomingReminders.length > 0) {
       return (
-        <Alert className="mb-4 bg-amber-50 dark:bg-amber-950/20 border-amber-200 dark:border-amber-800">
-          <AlertTriangle className="h-4 w-4 text-amber-500" />
-          <AlertTitle className="flex items-center justify-between">
-            <span>Recordatorios próximos</span>
+        <Alert className="mb-4 bg-amber-50 dark:bg-amber-950/20 border-amber-200 dark:border-amber-800 px-3 py-3 sm:px-5 sm:py-4 max-w-xl mx-auto">
+          <div className="flex flex-col sm:flex-row sm:items-center gap-2 w-full">
+            <AlertTriangle className="h-4 w-4 text-amber-500 shrink-0" />
+            <AlertTitle className="flex-1 truncate">
+              <span>Recordatorios próximos</span>
+            </AlertTitle>
             <Button 
               variant="outline" 
               onClick={goToCalendar} 
               size="sm" 
-              className="ml-2 border-amber-200 hover:bg-amber-100"
+              className="ml-0 sm:ml-2 w-full sm:w-auto mt-2 sm:mt-0 border-amber-200 hover:bg-amber-100"
             >
               Ver todos <ArrowRight className="ml-1 h-3 w-3" />
             </Button>
-          </AlertTitle>
+          </div>
           <AlertDescription className="mt-2">
-            <div className="text-sm">
+            <div className="text-sm break-words">
               Tienes <strong>{upcomingReminders.length}</strong> recordatorio{upcomingReminders.length !== 1 ? 's' : ''} en los próximos días
             </div>
           </AlertDescription>
@@ -292,9 +296,9 @@ export function DueRemindersAlert({ showFullSummary = false }: DueRemindersAlert
             </h3>
             <div className="space-y-2">
               {dueReminders.slice(0, 5).map((reminder) => (
-                <div key={reminder.id} className="flex items-center justify-between p-2 border rounded-md bg-red-50 dark:bg-red-900/10">
-                  <div>
-                    <div className="font-medium text-sm">
+                <div key={reminder.id} className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 p-2 border rounded-md bg-red-50 dark:bg-red-900/10">
+                  <div className="flex-1 min-w-0">
+                    <div className="font-medium text-sm truncate">
                       {reminder.description}
                       {reminder.isPayment && reminder.amount > 0 && (
                         <Badge className="ml-2 bg-green-100 text-green-700 dark:bg-green-900/20 dark:text-green-400 border border-green-200" variant="outline">
@@ -310,7 +314,7 @@ export function DueRemindersAlert({ showFullSummary = false }: DueRemindersAlert
                     size="sm" 
                     variant="ghost" 
                     onClick={() => handleMarkAsCompleted(reminder)}
-                    className="h-8 text-green-600 hover:text-green-700 hover:bg-green-100"
+                    className="h-8 text-green-600 hover:text-green-700 hover:bg-green-100 w-full sm:w-auto"
                   >
                     <CheckCircle2 className="h-4 w-4 mr-1" />
                     Completar
@@ -338,9 +342,9 @@ export function DueRemindersAlert({ showFullSummary = false }: DueRemindersAlert
             </h3>
             <div className="space-y-2">
               {upcomingReminders.slice(0, 3).map((reminder) => (
-                <div key={reminder.id} className="flex items-center justify-between p-2 border rounded-md bg-amber-50 dark:bg-amber-900/10">
-                  <div>
-                    <div className="font-medium text-sm">{reminder.description}</div>
+                <div key={reminder.id} className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 p-2 border rounded-md bg-amber-50 dark:bg-amber-900/10">
+                  <div className="flex-1 min-w-0">
+                    <div className="font-medium text-sm truncate">{reminder.description}</div>
                     <div className="text-xs text-muted-foreground">
                       {new Date(reminder.date).toLocaleDateString()}
                     </div>

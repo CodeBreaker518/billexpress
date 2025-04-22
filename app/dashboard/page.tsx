@@ -60,18 +60,20 @@ export default function DashboardPage() {
   return (
     <div className="container space-y-6 py-6">
       {/* Encabezado con saludo y fecha */}
-      <div>
-        <h1 className="text-3xl font-bold tracking-tight">
+      <div className="flex flex-col gap-4 mb-4 w-full">
+        <h1 className="text-2xl sm:text-3xl font-bold tracking-tight">
           {greeting}, {user?.displayName?.split(" ")[0] || "Usuario" } 👋
         </h1>
         <p className="text-muted-foreground">{capitalizedDate}</p>
       </div>
 
-      {/* Recordatorios vencidos (si hay alguno) */}
-      {showReminders && <DueRemindersAlert />}
-
+      <div className="flex flex-col xl:flex-row gap-4 mb-4 w-full">
+        {/* Recordatorios vencidos (si hay alguno) */}
+        {showReminders && <DueRemindersAlert />}
       {/* Acciones rápidas */}
       <QuickActions />
+      </div>
+
 
       {/* Resumen financiero */}
       <DashboardSummary />

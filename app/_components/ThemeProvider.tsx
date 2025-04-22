@@ -1,22 +1,41 @@
 'use client';
 
-import { useEffect } from "react";
-import { useThemeStore } from "@bill/_store/useThemeStore";
+import { createContext, useContext, useEffect, useState, ReactNode } from "react";
 
-export default function ThemeProvider({
-  children,
-}: {
-  children: React.ReactNode;
-}) {
-  const { theme, setTheme } = useThemeStore();
+// Tipos de tema
+export type ThemeType = 'light' | 'dark' | 'system';
 
+interface ThemeContextProps {
+  theme: ThemeType;
+  setTheme: (theme: ThemeType) => void;
+}
+
+const ThemeContext = createContext<ThemeContextProps | undefined>(undefined);
+
+export function useThemeContext() {
+  const ctx = useContext(ThemeContext);
+  if (!ctx) throw new Error('useThemeContext must be used within ThemeProvider');
+  return ctx;
+}
+
+function getInitialTheme(): ThemeType {
+  if (typeof window === 'undefined') return 'system';
+  const stored = localStorage.getItem('theme');
+  if (stored === 'light' || stored === 'dark' || stored === 'system') return stored;
+  return 'system';
+}
+
+export default function ThemeProvider({ children }: { children: ReactNode }) {
+  const [theme, setThemeState] = useState<ThemeType>(getInitialTheme());
+
+  // Aplicar la clase dark al html
   useEffect(() => {
-    const applyTheme = () => {
-      if (theme === 'dark') {
+    const applyTheme = (t: ThemeType) => {
+      if (t === 'dark') {
         document.documentElement.classList.add('dark');
-      } else if (theme === 'light') {
+      } else if (t === 'light') {
         document.documentElement.classList.remove('dark');
-      } else if (theme === 'system') {
+      } else if (t === 'system') {
         const prefersDark = window.matchMedia('(prefers-color-scheme: dark)').matches;
         if (prefersDark) {
           document.documentElement.classList.add('dark');
@@ -25,8 +44,7 @@ export default function ThemeProvider({
         }
       }
     };
-    applyTheme();
-
+    applyTheme(theme);
     let mediaQuery: MediaQueryList | null = null;
     const handleChange = (e: MediaQueryListEvent) => {
       if (theme === 'system') {
@@ -48,5 +66,15 @@ export default function ThemeProvider({
     };
   }, [theme]);
 
-  return <>{children}</>;
+  // Guardar en localStorage
+  const setTheme = (t: ThemeType) => {
+    setThemeState(t);
+    localStorage.setItem('theme', t);
+  };
+
+  return (
+    <ThemeContext.Provider value={{ theme, setTheme }}>
+      {children}
+    </ThemeContext.Provider>
+  );
 }

@@ -140,9 +140,9 @@ export default function ExpenseBreakdownChart() {
 
   return (
     <Card>
-      <CardHeader className='flex flex-row items-center justify-between space-y-0 pb-2'>
+      <CardHeader className='flex flex-col sm:flex-row items-center justify-between space-y-1 pb-2'>
         <CardTitle className='text-base font-medium'>Desglose de Gastos Mensual ({selectedPreset.label})</CardTitle>
-        <div className='flex items-center space-x-1'>
+        <div className='w-full sm:w-auto grid grid-cols-2 sm:grid-cols-4 gap-2'>
           {PRESETS.map((preset) => (
             <Button key={preset.key} variant={selectedPresetKey === preset.key ? 'default' : 'outline'} size='sm' onClick={() => setSelectedPresetKey(preset.key)} className='h-7'>
               {preset.label.startsWith('Últimos') ? preset.label.split(' ')[1] + ' ' + preset.label.split(' ')[2] : preset.label}

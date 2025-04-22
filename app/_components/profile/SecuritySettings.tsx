@@ -34,7 +34,7 @@ export default function SecuritySettings() {
   const [deleteError, setDeleteError] = useState("");
 
   // Check if user is using email/password provider
-  const isEmailProvider = user?.providerData.length > 0 && user.providerData[0].providerId === "password";
+  const isEmailProvider = user?.providerData?.length > 0 && user?.providerData[0]?.providerId === "password";
 
   // Handle password change
   const handlePasswordChange = async () => {
@@ -143,7 +143,7 @@ export default function SecuritySettings() {
   if (!user) return null;
 
   return (
-    <div className="space-y-6 max-h-[80vh] overflow-y-auto scrollbar scrollbar-thumb-rounded scrollbar-thumb-gray-400 scrollbar-track-gray-100 dark:scrollbar-thumb-gray-700 dark:scrollbar-track-gray-900">
+    <div className="space-y-6 max-h-[80vh]  scrollbar scrollbar-thumb-rounded scrollbar-thumb-gray-400 scrollbar-track-gray-100 dark:scrollbar-thumb-gray-700 dark:scrollbar-track-gray-900">
       {isEmailProvider && (
         <Card>
           <CardHeader>

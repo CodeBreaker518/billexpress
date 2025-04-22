@@ -232,12 +232,7 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
               })}
             </div>
             <Separator className='my-4' />
-            <div className='px-3'>
-              <Button variant='ghost' className='w-full justify-start text-sm font-normal' onClick={handleLogout}>
-                <LogOut className='mr-2 h-4 w-4' />
-                Cerrar sesión
-              </Button>
-            </div>
+            
           </nav>
         </aside>
 
@@ -286,18 +281,7 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
                     })}
                   </div>
                   <Separator className='my-4' />
-                  <div className='px-3'>
-                    <Button
-                      variant='ghost'
-                      className='w-full justify-start text-sm font-normal'
-                      onClick={() => {
-                        setSheetOpen(false);
-                        handleLogout();
-                      }}>
-                      <LogOut className='mr-2 h-4 w-4' />
-                      Cerrar sesión
-                    </Button>
-                  </div>
+                  
                 </nav>
               </SheetContent>
             </Sheet>

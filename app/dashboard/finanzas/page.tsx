@@ -30,19 +30,19 @@ export default function FinanzasPage() {
   return (
     <div className='space-y-6'>
       {/* Cabecera con título y acciones principales */}
-      <div className='flex items-center justify-between mb-4'>
-        <div>
-          <h1 className='text-2xl font-semibold tracking-tight'>Finanzas</h1>
-          <p className='text-sm text-muted-foreground mt-1'>Registra y revisa tus ingresos y gastos.</p>
+      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 mb-4 w-full">
+        <div className="flex flex-col items-center sm:items-start text-center sm:text-left w-full max-w-2xl">
+          <h1 className="text-2xl font-semibold tracking-tight">Finanzas</h1>
+          <p className="text-sm text-muted-foreground mt-1">Registra y revisa tus ingresos y gastos.</p>
         </div>
-        <div className='flex items-center space-x-2'>
-          <Button onClick={handleNewExpense} className='text-xs sm:text-sm bg-red-600 hover:bg-red-700 text-white flex items-center justify-center gap-1 sm:gap-2'>
-            <Receipt className='h-3.5 w-3.5 sm:h-4 sm:w-4' />
-            <span className='whitespace-nowrap'>Registrar Gasto</span>
+        <div className="flex flex-col sm:flex-row gap-2 w-full sm:w-auto items-center sm:items-end justify-center sm:justify-end">
+          <Button onClick={handleNewExpense} className="w-full sm:w-auto text-xs sm:text-sm bg-red-600 hover:bg-red-700 text-white flex items-center justify-center gap-1 sm:gap-2">
+            <Receipt className="h-3.5 w-3.5 sm:h-4 sm:w-4" />
+            <span className="whitespace-nowrap">Registrar Gasto</span>
           </Button>
-          <Button onClick={handleNewIncome} className='text-xs sm:text-sm bg-blue-600 hover:bg-blue-700 text-white flex items-center justify-center gap-1 sm:gap-2'>
-            <BanknoteIcon className='h-3.5 w-3.5 sm:h-4 sm:w-4' />
-            <span className='whitespace-nowrap'>Registrar Ingreso</span>
+          <Button onClick={handleNewIncome} className="w-full sm:w-auto text-xs sm:text-sm bg-blue-600 hover:bg-blue-700 text-white flex items-center justify-center gap-1 sm:gap-2">
+            <BanknoteIcon className="h-3.5 w-3.5 sm:h-4 sm:w-4" />
+            <span className="whitespace-nowrap">Registrar Ingreso</span>
           </Button>
         </div>
       </div>

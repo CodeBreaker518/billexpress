@@ -40,7 +40,6 @@ export default function TransferHistory() {
   const [transfers, setTransfers] = useState<Transfer[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [lastUpdated, setLastUpdated] = useState(Date.now());
-  const [isRefreshing, setIsRefreshing] = useState(false);
   
   // Estados para filtros
   const [fromAccountFilter, setFromAccountFilter] = useState("all");
@@ -71,18 +70,23 @@ export default function TransferHistory() {
         console.error("Error al cargar transferencias:", error);
       } finally {
         setIsLoading(false);
-        setIsRefreshing(false);
       }
     };
 
     loadTransfers();
   }, [user?.uid, lastUpdated]); // Añadimos lastUpdated para recargar cuando cambie
 
-  // Función para actualizar manualmente
-  const refreshTransfers = () => {
-    setIsRefreshing(true);
-    setLastUpdated(Date.now());
-  };
+  // Exponer recarga global para otras partes de la app
+  useEffect(() => {
+    if (typeof window !== 'undefined') {
+      (window as any).reloadTransfers = () => setLastUpdated(Date.now());
+    }
+    return () => {
+      if (typeof window !== 'undefined') {
+        delete (window as any).reloadTransfers;
+      }
+    };
+  }, []);
 
   // Componente para mostrar fecha y hora
   const DateTimeDisplay = ({ date }: { date: Date }) => {
@@ -267,7 +271,7 @@ export default function TransferHistory() {
     );
   };
 
-  if (isLoading && !isRefreshing) {
+  if (isLoading) {
     return (
       <Card>
         <CardHeader>
@@ -294,25 +298,6 @@ export default function TransferHistory() {
         <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
           <CardTitle className="text-lg font-semibold flex items-center gap-2">
             Historial de Transferencias
-            <TooltipProvider>
-              <Tooltip>
-                <TooltipTrigger asChild>
-                  <Button 
-                    variant="ghost" 
-                    size="icon" 
-                    className="h-8 w-8" 
-                    onClick={refreshTransfers}
-                    disabled={isRefreshing}
-                  >
-                    <RefreshCw className={`h-4 w-4 ${isRefreshing ? 'animate-spin' : ''}`} />
-                    <span className="sr-only">Actualizar</span>
-                  </Button>
-                </TooltipTrigger>
-                <TooltipContent>
-                  <p>Actualizar transferencias</p>
-                </TooltipContent>
-              </Tooltip>
-            </TooltipProvider>
           </CardTitle>
           <div className="flex items-center gap-2 text-sm text-muted-foreground">
             <Badge
@@ -409,13 +394,7 @@ export default function TransferHistory() {
           </div>
         </div>
 
-        {isRefreshing && (
-          <div className="flex justify-center my-4">
-            <Skeleton className="h-10 w-full max-w-md" />
-          </div>
-        )}
-
-        {!isRefreshing && filteredTransfers.length === 0 ? (
+        {!filteredTransfers.length ? (
           <p className="text-center text-muted-foreground py-6">
             No hay transferencias registradas con los filtros actuales
           </p>

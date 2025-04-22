@@ -3,7 +3,7 @@
 import { useEffect, useState } from "react";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@bill/_components/ui/card";
 import { Button } from "@bill/_components/ui/button";
-import { useThemeStore } from "@bill/_store/useThemeStore";
+import { useThemeStore, ThemeType } from "@bill/_store/useThemeStore";
 import { Sun, Moon, Laptop } from "lucide-react";
 import { SettingsPanel, SettingSection } from "@bill/_components/ui/settings-panel";
 
@@ -20,7 +20,7 @@ export default function AppearanceSettings() {
   }
 
   // Handle theme change
-  const handleThemeChange = (newTheme: 'light' | 'dark' | 'system') => {
+  const handleThemeChange = (newTheme: ThemeType) => {
     setTheme(newTheme);
   };
 
@@ -69,7 +69,7 @@ export default function AppearanceSettings() {
                   key={option.value}
                   variant={isActive ? "default" : "outline"}
                   className="flex flex-col items-center justify-center h-24 space-y-2"
-                  onClick={() => handleThemeChange(option.value as 'light' | 'dark' | 'system')}
+                  onClick={() => handleThemeChange(option.value as ThemeType)}
                 >
                   <Icon className="h-6 w-6" />
                   <div className="text-sm">{option.name}</div>

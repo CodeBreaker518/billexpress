@@ -1,6 +1,6 @@
 "use client";
 
-import { useThemeStore } from "@bill/_store/useThemeStore";
+import { useThemeStore, ThemeType } from "@bill/_store/useThemeStore";
 import { Sun, Moon } from "lucide-react";
 import { cn } from "../_lib/utils";
 
@@ -10,7 +10,7 @@ interface ThemeToggleProps {
 }
 
 export default function ThemeToggle({ variant = "default", className }: ThemeToggleProps) {
-  const { theme, toggleTheme } = useThemeStore();
+  const { theme, setTheme } = useThemeStore();
   // Determinar si el tema efectivo es dark
   let isDark = false;
   if (theme === 'dark') isDark = true;
@@ -20,7 +20,10 @@ export default function ThemeToggle({ variant = "default", className }: ThemeTog
     }
   }
 
-  // Ya no necesitamos el useEffect aquí, eso lo maneja ThemeProvider
+  const toggleTheme = () => {
+    if (theme === 'light') setTheme('dark');
+    else setTheme('light');
+  };
 
   const baseButtonClasses =
     variant === "landing"

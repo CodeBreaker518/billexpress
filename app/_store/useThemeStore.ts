@@ -1,46 +1,54 @@
 "use client";
 
 import { create } from "zustand";
-import { persist, createJSONStorage } from "zustand/middleware";
+
+export type ThemeType = 'light' | 'dark' | 'system';
 
 interface ThemeState {
-  theme: 'light' | 'dark' | 'system';
-  setTheme: (theme: 'light' | 'dark' | 'system') => void;
-  toggleTheme: () => void;
+  theme: ThemeType;
+  setTheme: (theme: ThemeType) => void;
 }
 
-// Definición más explícita del tipo de almacenamiento y opciones de persistencia
-export const useThemeStore = create<ThemeState>()(
-  persist(
-    (set, get) => ({
-      theme: 'system',
-      setTheme: (theme) => {
-        set({ theme });
-        if (typeof window !== 'undefined') {
-          if (theme === 'system') {
-            localStorage.removeItem('theme-storage');
-          } else {
-            localStorage.setItem('theme-storage', theme);
-          }
-        }
-      },
-      toggleTheme: () => {
-        const current = get().theme;
-        let next: 'light' | 'dark' | 'system';
-        if (current === 'light') next = 'dark';
-        else if (current === 'dark') next = 'light';
-        else {
-          // Si está en system, alternar según preferencia del sistema
-          const prefersDark = typeof window !== 'undefined' && window.matchMedia('(prefers-color-scheme: dark)').matches;
-          next = prefersDark ? 'light' : 'dark';
-        }
-        get().setTheme(next);
-      },
-    }),
-    {
-      name: 'theme-storage',
-      storage: createJSONStorage(() => localStorage),
-      partialize: (state) => ({ theme: state.theme }),
+function getInitialTheme(): ThemeType {
+  if (typeof window === 'undefined') return 'system';
+  const stored = localStorage.getItem('theme');
+  if (stored === 'light' || stored === 'dark' || stored === 'system') return stored;
+  return 'system';
+}
+
+function applyTheme(t: ThemeType) {
+  if (t === 'dark') {
+    document.documentElement.classList.add('dark');
+  } else if (t === 'light') {
+    document.documentElement.classList.remove('dark');
+  } else if (t === 'system') {
+    const prefersDark = window.matchMedia('(prefers-color-scheme: dark)').matches;
+    if (prefersDark) {
+      document.documentElement.classList.add('dark');
+    } else {
+      document.documentElement.classList.remove('dark');
     }
-  )
-);
+  }
+}
+
+export const useThemeStore = create<ThemeState>((set, get) => ({
+  theme: getInitialTheme(),
+  setTheme: (theme) => {
+    set({ theme });
+    localStorage.setItem('theme', theme);
+    applyTheme(theme);
+  },
+}));
+
+// Sincronizar con cambios en otras pestañas
+if (typeof window !== 'undefined') {
+  window.addEventListener('storage', (e) => {
+    if (e.key === 'theme') {
+      const theme = (e.newValue as ThemeType) || 'system';
+      useThemeStore.setState({ theme });
+      applyTheme(theme);
+    }
+  });
+  // Aplicar el tema al cargar
+  applyTheme(getInitialTheme());
+}
