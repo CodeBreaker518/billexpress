@@ -8,38 +8,45 @@ export default function ThemeProvider({
 }: {
   children: React.ReactNode;
 }) {
-  const { isDarkMode, setDarkMode } = useThemeStore();
+  const { theme, setTheme } = useThemeStore();
 
-  // Detectar preferencia del sistema al cargar - solo se ejecuta una vez
   useEffect(() => {
-    const mediaQuery = window.matchMedia('(prefers-color-scheme: dark)');
-    const userPrefersDark = mediaQuery.matches;
-    
-    // Aplicar el tema del sistema si no hay preferencia guardada
-    if (typeof window !== 'undefined' && !localStorage.getItem('theme-storage')) {
-      setDarkMode(userPrefersDark);
-    }
-    
-    // Escuchar cambios en la preferencia del sistema
-    const handleChange = (e: MediaQueryListEvent) => {
-      // Solo actualizamos si no hay preferencia guardada
-      if (!localStorage.getItem('theme-storage')) {
-        setDarkMode(e.matches);
+    const applyTheme = () => {
+      if (theme === 'dark') {
+        document.documentElement.classList.add('dark');
+      } else if (theme === 'light') {
+        document.documentElement.classList.remove('dark');
+      } else if (theme === 'system') {
+        const prefersDark = window.matchMedia('(prefers-color-scheme: dark)').matches;
+        if (prefersDark) {
+          document.documentElement.classList.add('dark');
+        } else {
+          document.documentElement.classList.remove('dark');
+        }
       }
     };
-    
-    mediaQuery.addEventListener('change', handleChange);
-    return () => mediaQuery.removeEventListener('change', handleChange);
-  }, [setDarkMode]);
-  
-  // Aplicar clase dark al html cuando cambia isDarkMode
-  useEffect(() => {
-    if (isDarkMode) {
-      document.documentElement.classList.add('dark');
-    } else {
-      document.documentElement.classList.remove('dark');
+    applyTheme();
+
+    let mediaQuery: MediaQueryList | null = null;
+    const handleChange = (e: MediaQueryListEvent) => {
+      if (theme === 'system') {
+        if (e.matches) {
+          document.documentElement.classList.add('dark');
+        } else {
+          document.documentElement.classList.remove('dark');
+        }
+      }
+    };
+    if (theme === 'system') {
+      mediaQuery = window.matchMedia('(prefers-color-scheme: dark)');
+      mediaQuery.addEventListener('change', handleChange);
     }
-  }, [isDarkMode]);
+    return () => {
+      if (mediaQuery) {
+        mediaQuery.removeEventListener('change', handleChange);
+      }
+    };
+  }, [theme]);
 
   return <>{children}</>;
 }
