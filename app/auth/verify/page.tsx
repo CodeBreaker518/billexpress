@@ -12,7 +12,7 @@ import { onAuthStateChanged } from "firebase/auth";
 import BrandLoader from "@bill/_components/ui/BrandLoader";
 
 function VerifyPageContent() {
-  const { user, setUser } = useAuthStore();
+  const { user } = useAuthStore();
   const router = useRouter();
   const searchParams = useSearchParams();
   const isNewRegistration = searchParams.get("new") === "true";
@@ -25,8 +25,6 @@ function VerifyPageContent() {
       setIsCheckingVerification(true);
       // Forzar a actualizar el token para obtener el estado más reciente
       auth.currentUser?.reload().then(() => {
-        // Actualizar el usuario en el estado global
-        setUser(auth.currentUser);
         setIsCheckingVerification(false);
       }).catch(error => {
         console.error("Error al recargar el usuario:", error);
@@ -50,7 +48,7 @@ function VerifyPageContent() {
       const interval = setInterval(checkVerification, 5000);
       return () => clearInterval(interval);
     }
-  }, [user, router, setUser, isNewRegistration]);
+  }, [user, router, isNewRegistration]);
 
   return (
     <div className="container max-w-md mx-auto py-12 flex flex-col items-center justify-center min-h-screen px-4">

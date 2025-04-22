@@ -3,7 +3,7 @@
 import { useState, useEffect } from 'react';
 import Link from 'next/link';
 import { usePathname, useRouter } from 'next/navigation';
-import { LayoutDashboard, BarChart2, LogOut, Menu, User, DollarSign, Calendar } from 'lucide-react';
+import { LayoutDashboard, BarChart2, LogOut, Menu, User, DollarSign, Calendar, Settings } from 'lucide-react';
 import { useAuth } from '@bill/_hooks/useAuth';
 import { useAuthStore } from '@bill/_store/useAuthStore';
 import { useReminderStore } from '@bill/_store/useReminderStore';

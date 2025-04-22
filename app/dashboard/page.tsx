@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect } from "react";
+import { useEffect, useState } from "react";
 import { format } from "date-fns";
 import { es } from "date-fns/locale";
 import { useFinanceStore } from "@bill/_store/useFinanceStore";
@@ -14,61 +14,76 @@ import { DueRemindersAlert } from "@bill/_components/dashboard/DueRemindersAlert
 import FinanceFormDialog from "@bill/_components/FinanceFormDialog";
 import { FinanceSkeletonLoader } from "@bill/_components/ui/skeletons";
 import { getGreeting } from "@bill/_lib/utils/greeting";
+import { getUserPreferences } from "@bill/_services/userPreferences";
 
 export default function DashboardPage() {
-  const { loadFinanceData, isLoading } = useFinanceStore();
-  const { loadReminders, loading: remindersLoading } = useReminderStore();
+  const { reminders } = useReminderStore();
   const { user } = useAuthStore();
+  const { loadFinanceData, isLoading } = useFinanceStore();
+  const [isClient, setIsClient] = useState(false);
+  const [showReminders, setShowReminders] = useState(true);
 
-  // Cargar datos al montar la página
   useEffect(() => {
-    loadFinanceData();
+    setIsClient(true);
     
-    // Cargar recordatorios si hay un usuario
-    if (user) {
-      loadReminders(user.uid);
+    // Cargar preferencias de usuario
+    if (typeof window !== "undefined") {
+      try {
+        const prefs = getUserPreferences();
+        setShowReminders(prefs.showDashboardReminders);
+      } catch (error) {
+        console.error("Error loading user preferences:", error);
+      }
     }
-  }, [loadFinanceData, loadReminders, user]);
+  }, []);
 
-  // Obtener el saludo y el nombre del usuario
+  useEffect(() => {
+    if (user) {
+      loadFinanceData();
+    }
+  }, [user, loadFinanceData]);
+
+  // Obtener la fecha actual
+  const now = new Date();
+  const formattedDate = format(now, "EEEE d 'de' MMMM", { locale: es });
   const greeting = getGreeting();
-  const firstName = user?.displayName?.split(' ')[0] || "Usuario";
 
-  if (isLoading || remindersLoading) {
-    return (
-      <div className="space-y-6">
-        <h1 className="text-2xl font-bold mb-6">Cargando Dashboard...</h1>
-        <FinanceSkeletonLoader />
-      </div>
-    );
+  // Capitalizar primera letra
+  const capitalizedDate = formattedDate.charAt(0).toUpperCase() + formattedDate.slice(1);
+
+  if (!isClient) return null;
+
+  if (isLoading) {
+    return <FinanceSkeletonLoader />;
   }
 
   return (
-    <div className="space-y-6">
-      {/* Cabecera personalizada */}
-      <div className="mb-6">
-        <h1 className="text-2xl font-semibold tracking-tight">{greeting}, {firstName}! 👋</h1>
-        <p className="text-sm text-muted-foreground mt-1">
-          {format(new Date(), "EEEE, d MMM yyyy", { locale: es })} - Aquí tienes un resumen rápido.
-        </p>
+    <div className="container space-y-6 py-6">
+      {/* Encabezado con saludo y fecha */}
+      <div>
+        <h1 className="text-3xl font-bold tracking-tight">
+          {greeting}, {user?.displayName?.split(" ")[0] || "Usuario" } 👋
+        </h1>
+        <p className="text-muted-foreground">{capitalizedDate}</p>
       </div>
 
-      {/* Alerta de recordatorios vencidos */}
-      <DueRemindersAlert />
+      {/* Recordatorios vencidos (si hay alguno) */}
+      {showReminders && <DueRemindersAlert />}
 
-      {/* Botones de acciones rápidas */}
+      {/* Acciones rápidas */}
       <QuickActions />
 
       {/* Resumen financiero */}
       <DashboardSummary />
 
-      {/* Transacciones recientes */}
-      <RecentTransactions />
-
       {/* Gráficos de categorías */}
       <CategoryCharts />
 
-      {/* Diálogo de formulario (modal) */}
+      {/* Transactions recientes */}
+      <RecentTransactions />
+
+
+      {/* Diálogo para añadir transacciones */}
       <FinanceFormDialog />
     </div>
   );

@@ -129,17 +129,35 @@ export default function CalendarioPage() {
         // Cargar los datos financieros
         await loadFinanceData();
         
-        // Cargar los recordatorios desde Firebase
-        await loadReminders(user.uid);
+        try {
+          // Cargar los recordatorios desde Firebase en un bloque try/catch separado
+          // para que si este falla, aún así se carguen los datos financieros
+          await loadReminders(user.uid);
+        } catch (reminderError) {
+          console.error("Error al cargar recordatorios:", reminderError);
+          toast({
+            title: "Advertencia",
+            description: "No se pudieron cargar los recordatorios",
+            variant: "destructive",
+          });
+        }
       } catch (error) {
-        console.error("Error al cargar datos del calendario:", error);
+        console.error("Error al cargar datos financieros:", error);
+        toast({
+          title: "Error",
+          description: "No se pudieron cargar los datos financieros",
+          variant: "destructive",
+        });
       }
     };
 
+    // Solo ejecutar si el usuario está disponible
     if (user) {
       loadData();
     }
-  }, [user, loadFinanceData, loadReminders]);
+    
+    // Solo dependemos del usuario para evitar bucles infinitos
+  }, [user]);
 
   // Actualizar las transacciones cuando cambian los datos
   useEffect(() => {

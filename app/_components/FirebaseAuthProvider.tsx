@@ -10,8 +10,6 @@ interface FirebaseAuthProviderProps {
 }
 
 export default function FirebaseAuthProvider({ children }: FirebaseAuthProviderProps) {
-  const { setUser, setLoading, setInitialized } = useAuthStore();
-
   useEffect(() => {
     // Limpiar estado cuando se monta el componente (inicio de aplicación)
     const clearStores = async () => {
@@ -29,17 +27,7 @@ export default function FirebaseAuthProvider({ children }: FirebaseAuthProviderP
     };
     
     clearStores();
-    
-    // Suscribirse a cambios de autenticación
-    const unsubscribe = onAuthStateChanged(auth, (user) => {
-      // Al cambiar el usuario, simplemente actualizar el estado
-      setUser(user);
-      setLoading(false);
-      setInitialized(true);
-    });
-
-    return () => unsubscribe();
-  }, [setUser, setLoading, setInitialized]);
+  }, []);
 
   return <>{children}</>;
 } 

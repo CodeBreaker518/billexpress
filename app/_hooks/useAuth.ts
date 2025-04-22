@@ -1,6 +1,5 @@
 // app/hooks/useAuth.ts
-import { useEffect } from "react";
-import { createUserWithEmailAndPassword, signInWithEmailAndPassword, signOut, onAuthStateChanged, GoogleAuthProvider, signInWithPopup, AuthError } from "firebase/auth";
+import { createUserWithEmailAndPassword, signInWithEmailAndPassword, GoogleAuthProvider, signInWithPopup, AuthError } from "firebase/auth";
 import { auth } from "@bill/_firebase/config";
 import { useAuthStore } from "@bill/_store/useAuthStore";
 
@@ -35,17 +34,10 @@ const getUserFriendlyErrorMessage = (error: AuthError): string => {
 };
 
 export const useAuth = () => {
-  const { setUser, setLoading } = useAuthStore();
+  const { logout: storeLogout } = useAuthStore();
 
-  // Monitor authentication state
-  useEffect(() => {
-    const unsubscribe = onAuthStateChanged(auth, (user) => {
-      setUser(user);
-      setLoading(false);
-    });
-
-    return () => unsubscribe();
-  }, [setUser, setLoading]);
+  // We no longer need the onAuthStateChanged listener here
+  // as it's now handled directly in useAuthStore
 
   // Función para crear cuenta Efectivo por defecto
   const createDefaultAccount = async (userId: string) => {
@@ -152,7 +144,6 @@ export const useAuth = () => {
   const logout = async () => {
     try {
       // Limpiar todos los stores antes de cerrar sesión
-      // Importar de forma dinámica para evitar dependencias circulares
       const { useAccountStore } = await import("@bill/_store/useAccountStore");
       const { useIncomeStore } = await import("@bill/_store/useIncomeStore");
       const { useExpenseStore } = await import("@bill/_store/useExpenseStore");
@@ -169,8 +160,8 @@ export const useAuth = () => {
       // Restablecer otras configuraciones
       useFinanceStore.getState().setSearchTerm("");
       
-      // Finalmente, cerrar sesión en Firebase
-      await signOut(auth);
+      // Usar la función de logout de useAuthStore que ya maneja el signOut
+      await storeLogout();
       
       console.log("Sesión cerrada y datos limpiados correctamente");
       return { success: true };
