@@ -143,7 +143,7 @@ export default function SecuritySettings() {
   if (!user) return null;
 
   return (
-    <div className="space-y-6 max-h-[80vh]  scrollbar scrollbar-thumb-rounded scrollbar-thumb-gray-400 scrollbar-track-gray-100 dark:scrollbar-thumb-gray-700 dark:scrollbar-track-gray-900">
+    <div className="space-y-6 sm:pb-0">
       {isEmailProvider && (
         <Card>
           <CardHeader>
@@ -192,7 +192,7 @@ export default function SecuritySettings() {
             </div>
             
             <div>
-              <Label htmlFor="confirmPassword">Confirmar nueva contraseña</Label>
+              <Label htmlFor="confirmwassword">Confirmar nueva contraseña</Label>
               <Input
                 id="confirmPassword"
                 type="password"
@@ -214,7 +214,7 @@ export default function SecuritySettings() {
         </Card>
       )}
 
-      <Card className="border-red-200 dark:border-red-900">
+      <Card className="border-red-200 dark:border-red-900 sm:mb-0">
         <CardHeader>
           <CardTitle className="text-red-600 dark:text-red-500 flex items-center gap-2">
             <AlertTriangle className="h-5 w-5" />

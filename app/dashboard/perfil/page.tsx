@@ -323,7 +323,7 @@ export default function PerfilPage() {
   };
 
   return (
-    <div className="container mx-auto py-6 space-y-6">
+    <div className="container mx-auto py-6 space-y-6 sm:pb-0">
       {/* Header con información básica */}
       <div className="flex flex-col md:flex-row gap-4 items-center p-4 bg-card border rounded-lg mb-6">
         <Avatar className="h-16 w-16">
