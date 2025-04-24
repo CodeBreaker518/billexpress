@@ -399,14 +399,12 @@ export const updateFinanceWithAccount = async (
           const prevAccount = { id: previousAccountId, ...prevAccountData } as Account;
           const multiplier = collection === "incomes" ? -1 : 1; // Si era ingreso, restamos; si era gasto, sumamos
           const amountChange = financeItem.amount as number;
-          
           // Actualizar la cuenta anterior (devolver el dinero)
           await updateDoc(prevAccountRef, {
             balance: prevAccount.balance + (amountChange * multiplier),
             updatedAt: serverTimestamp(),
             transactionCount: (prevAccount.transactionCount || 0) + 1
           });
-          
           // Actualizar el estado global para la cuenta anterior
           try {
             const { updateAccount } = useAccountStore.getState();
@@ -420,6 +418,31 @@ export const updateFinanceWithAccount = async (
           }
         }
       }
+      // Obtener la cuenta nueva (ya está validada más abajo)
+      const account = {
+        id: accountId,
+        ...accountSnapshot.data(),
+      } as Account;
+      const newMultiplier = collection === "incomes" ? 1 : -1;
+      const newAmount = financeItem.amount as number;
+      const newBalance = account.balance + (newAmount * newMultiplier);
+      await updateDoc(accountRef, {
+        balance: newBalance,
+        updatedAt: serverTimestamp(),
+        transactionCount: (account.transactionCount || 0) + 1
+      });
+      try {
+        const { updateAccount } = useAccountStore.getState();
+        updateAccount({
+          ...account,
+          balance: newBalance,
+          transactionCount: (account.transactionCount || 0) + 1
+        });
+      } catch (storeError) {
+        console.warn("No se pudo actualizar el estado local de la cuenta nueva:", storeError);
+      }
+      console.log(`Cuenta ${accountId} actualizada incrementalmente, nuevo saldo: ${newBalance} (cambio: ${newAmount * newMultiplier})`);
+      return; // Ya hicimos ambas operaciones, no continuar con el resto de la función
     }
 
     // Obtener la cuenta directamente de Firebase para la operación principal
