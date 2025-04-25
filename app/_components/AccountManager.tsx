@@ -1068,7 +1068,9 @@ export default function AccountManager({ userId, onReloadAccounts, isLoading }: 
         <DialogHeader>
           <DialogTitle>¿Estás seguro?</DialogTitle>
           <DialogDescription>
-            Esta acción no se puede deshacer. Se eliminará permanentemente la cuenta &ldquo;{accountToDelete?.name}&rdquo; y todas las transacciones asociadas.
+            Esta acción no se puede deshacer. Se eliminará permanentemente la cuenta &ldquo;{accountToDelete?.name}&rdquo;.<br />
+            <b>Los registros (ingresos y gastos) ligados a esta cuenta <u>no serán eliminados</u>, pero quedarán marcados como <span style={{color:'#b45309'}}>"Cuenta eliminada"</span> en tu historial.</b><br />
+            Si la cuenta tiene saldo, primero transfiere el dinero a otra cuenta antes de eliminarla.
           </DialogDescription>
         </DialogHeader>
 
@@ -1076,12 +1078,12 @@ export default function AccountManager({ userId, onReloadAccounts, isLoading }: 
           <AlertDescription>
             {accountToDelete?.hasOrphanedRecords ? (
               <>
-                <p className="font-medium mb-1">¡Atención! Se eliminarán también:</p>
+                <p className="font-medium mb-1">Esta cuenta tiene registros asociados:</p>
                 <ul className="list-disc list-inside pl-2 space-y-1">
                   {accountToDelete.orphanedIncomesCount > 0 && <li>{accountToDelete.orphanedIncomesCount} ingreso(s)</li>}
                   {accountToDelete.orphanedExpensesCount > 0 && <li>{accountToDelete.orphanedExpensesCount} gasto(s)</li>}
                 </ul>
-                <p className="mt-2">Todas estas transacciones serán eliminadas permanentemente junto con la cuenta.</p>
+                <p className="mt-2">Estos registros <b>no se eliminarán</b>, pero quedarán marcados como "Cuenta eliminada".</p>
               </>
             ) : (
               "Si la cuenta tiene saldo, asegúrate de transferirlo a otra cuenta antes de eliminarla."

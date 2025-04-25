@@ -309,11 +309,11 @@ export const deleteFinancesByAccountId = async (
     );
     const incomesSnapshot = await getDocs(incomesQuery);
 
-    // Eliminar ingresos
-    let deletedIncomesCount = 0;
-    for (const doc of incomesSnapshot.docs) {
-      await deleteDoc(doc.ref);
-      deletedIncomesCount++;
+    // Marcar ingresos como huérfanos (accountId: null)
+    let updatedIncomesCount = 0;
+    for (const docSnap of incomesSnapshot.docs) {
+      await updateDoc(docSnap.ref, { accountId: null });
+      updatedIncomesCount++;
     }
 
     // Obtener gastos asociados a la cuenta Y al usuario
@@ -324,11 +324,11 @@ export const deleteFinancesByAccountId = async (
     );
     const expensesSnapshot = await getDocs(expensesQuery);
 
-    // Eliminar gastos
-    let deletedExpensesCount = 0;
-    for (const doc of expensesSnapshot.docs) {
-      await deleteDoc(doc.ref);
-      deletedExpensesCount++;
+    // Marcar gastos como huérfanos (accountId: null)
+    let updatedExpensesCount = 0;
+    for (const docSnap of expensesSnapshot.docs) {
+      await updateDoc(docSnap.ref, { accountId: null });
+      updatedExpensesCount++;
     }
 
     // No intentamos actualizar el estado local directamente
@@ -336,8 +336,8 @@ export const deleteFinancesByAccountId = async (
     // se encargue de actualizar el estado si es necesario
 
     return {
-      deletedIncomesCount,
-      deletedExpensesCount,
+      deletedIncomesCount: updatedIncomesCount,
+      deletedExpensesCount: updatedExpensesCount,
     };
   } catch (error) {
     console.error("Error eliminando finanzas por cuenta:", error);

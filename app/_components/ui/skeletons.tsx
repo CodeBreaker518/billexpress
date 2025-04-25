@@ -182,69 +182,6 @@ export function DashboardSkeleton() {
   );
 }
 
-// Esqueleto para tabla de finanzas
-export function FinanceTableSkeleton() {
-  return (
-    <div className="space-y-4">
-      {/* Barra de búsqueda y filtros */}
-      <div className="flex flex-col md:flex-row gap-4 justify-between mb-6">
-        <Skeleton className="h-10 w-full md:w-64" />
-        <div className="flex flex-wrap gap-2">
-          <Skeleton className="h-10 w-24" />
-          <Skeleton className="h-10 w-32" />
-          <Skeleton className="h-10 w-32" />
-        </div>
-      </div>
-
-      {/* Tabla */}
-      <div className="border rounded-md">
-        {/* Encabezados */}
-        <div className="border-b bg-muted/40 grid grid-cols-12 p-3 gap-2 items-center">
-          <Skeleton className="h-4 col-span-1" />
-          <Skeleton className="h-4 col-span-3" />
-          <Skeleton className="h-4 col-span-2" />
-          <Skeleton className="h-4 col-span-2" />
-          <Skeleton className="h-4 col-span-2" />
-          <Skeleton className="h-4 col-span-2" />
-        </div>
-
-        {/* Filas */}
-        {Array(10)
-          .fill(0)
-          .map((_, i) => (
-            <div key={i} className="border-b grid grid-cols-12 p-3 gap-2 items-center">
-              <Skeleton className="h-8 w-8 rounded-full col-span-1" />
-              <div className="col-span-3 space-y-1">
-                <Skeleton className="h-4 w-3/4" />
-                <Skeleton className="h-3 w-1/2" />
-              </div>
-              <Skeleton className="h-4 w-20 col-span-2" />
-              <Skeleton className="h-6 w-16 col-span-2" />
-              <div className="col-span-2">
-                <Skeleton className="h-6 w-24" />
-              </div>
-              <div className="col-span-2 flex justify-end space-x-2">
-                <Skeleton className="h-8 w-8 rounded-full" />
-                <Skeleton className="h-8 w-8 rounded-full" />
-              </div>
-            </div>
-          ))}
-      </div>
-
-      {/* Paginación */}
-      <div className="flex items-center justify-between py-4">
-        <Skeleton className="h-8 w-24" />
-        <div className="flex gap-1">
-          <Skeleton className="h-10 w-10 rounded-md" />
-          <Skeleton className="h-10 w-10 rounded-md" />
-          <Skeleton className="h-10 w-10 rounded-md" />
-        </div>
-        <Skeleton className="h-8 w-24" />
-      </div>
-    </div>
-  );
-}
-
 // Esqueleto para la página de finanzas
 export function FinancesPageSkeleton() {
   return (
@@ -260,9 +197,6 @@ export function FinancesPageSkeleton() {
         <Skeleton className="h-10 w-[160px]" />
         <Skeleton className="h-10 w-[160px]" />
       </div>
-
-      {/* Tabla de finanzas */}
-      <FinanceTableSkeleton />
     </div>
   );
 }

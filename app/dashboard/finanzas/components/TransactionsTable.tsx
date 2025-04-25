@@ -12,7 +12,7 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@
 import { CategoryBadge } from "@bill/_components/ui/category-badge";
 import { format } from "date-fns";
 import { es } from "date-fns/locale";
-import { AlertCircle, Calendar, Clock, BanknoteIcon, Receipt, ArrowLeftRight, ChevronLeft, ChevronRight, ChevronsLeft, ChevronsRight, Filter, FilterX, Search, FilterIcon, Edit } from "lucide-react";
+import { AlertCircle, Calendar, Clock, BanknoteIcon, Receipt, ArrowLeftRight, ChevronLeft, ChevronRight, ChevronsLeft, ChevronsRight, Filter, FilterX, Search, FilterIcon, Edit, TrendingUp, TrendingDown } from "lucide-react";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@bill/_components/ui/tooltip";
 import AlertDeleteTableElement from "@bill/_components/AlertDeleteTableElement";
 import { useAccountStore } from "@bill/_store/useAccountStore";
@@ -157,9 +157,12 @@ export default function TransactionsTable() {
 
       // Filtro por cuenta
       if (accountFilter !== "all") {
-        if (accountFilter === "none" && transaction.accountId) {
-          return false;
-        } else if (accountFilter !== "none" && transaction.accountId !== accountFilter) {
+        if (accountFilter === "deleted") {
+          if (transaction.accountId && accounts.some((account) => account.id === transaction.accountId)) {
+            return false;
+          }
+          // Mostrar si no tiene cuenta o si la cuenta fue eliminada
+        } else if (accountFilter !== "deleted" && transaction.accountId !== accountFilter) {
           return false;
         }
       }
@@ -439,9 +442,9 @@ export default function TransactionsTable() {
                   {typeFilter !== "all" ? (
                     <div className="flex items-center gap-2">
                       {typeFilter === "income" ? (
-                        <BanknoteIcon className="h-4 w-4 text-blue-600" />
+                        <TrendingUp className="h-4 w-4 text-blue-600" />
                       ) : (
-                        <Receipt className="h-4 w-4 text-red-600" />
+                        <TrendingDown className="h-4 w-4 text-red-600" />
                       )}
                       <span>{typeFilter === "income" ? "Ingresos" : "Gastos"}</span>
                     </div>
@@ -453,13 +456,13 @@ export default function TransactionsTable() {
                   <SelectItem value="all">Todos los tipos</SelectItem>
                   <SelectItem value="income" className="flex items-center">
                     <div className="flex items-center gap-2">
-                      <BanknoteIcon className="h-4 w-4 text-blue-600" />
+                      <TrendingUp className="h-4 w-4 text-blue-600" />
                       <span>Solo ingresos</span>
                     </div>
                   </SelectItem>
                   <SelectItem value="expense" className="flex items-center">
                     <div className="flex items-center gap-2">
-                      <Receipt className="h-4 w-4 text-red-600" />
+                      <TrendingDown className="h-4 w-4 text-red-600" />
                       <span>Solo gastos</span>
                     </div>
                   </SelectItem>
@@ -513,7 +516,7 @@ export default function TransactionsTable() {
               <div className="text-xs text-muted-foreground mb-1">Cuenta</div>
               <Select value={accountFilter} onValueChange={setAccountFilter}>
                 <SelectTrigger className="h-10 w-full sm:w-[150px] text-sm">
-                  {accountFilter !== "all" && accountFilter !== "none" ? (
+                  {accountFilter !== "all" && accountFilter !== "deleted" ? (
                     (() => {
                       const account = accounts.find(acc => acc.id === accountFilter);
                       if (account) {
@@ -526,22 +529,16 @@ export default function TransactionsTable() {
                       }
                       return <SelectValue placeholder="Filtrar cuenta" />;
                     })()
-                  ) : accountFilter === "none" ? (
-                    <div className="flex items-center gap-2">
-                      <div className="w-3 h-3 rounded-full bg-gray-300 dark:bg-gray-600"></div>
-                      <span>Sin cuenta</span>
-                    </div>
+                  ) : accountFilter === "deleted" ? (
+                    <span className="text-amber-500">Cuenta eliminada</span>
                   ) : (
                     <SelectValue placeholder="Filtrar cuenta" />
                   )}
                 </SelectTrigger>
                 <SelectContent position="popper" sideOffset={5}>
                   <SelectItem value="all">Todas las cuentas</SelectItem>
-                  <SelectItem value="none">
-                    <div className="flex items-center gap-2">
-                      <div className="w-3 h-3 rounded-full bg-gray-300 dark:bg-gray-600"></div>
-                      <span>Sin cuenta asignada</span>
-                    </div>
+                  <SelectItem value="deleted">
+                    <span className="text-amber-500">Cuenta eliminada</span>
                   </SelectItem>
                   {accounts.map(account => (
                     <SelectItem key={account.id} value={account.id}>
@@ -573,7 +570,11 @@ export default function TransactionsTable() {
                   className={`p-4 ${isAccountDeleted(transaction) ? "bg-amber-50/30 dark:bg-amber-950/20" : ""}`}
                 >
                   <div className="flex justify-between items-start mb-2">
-                    <CategoryBadge category={transaction.category} type={transaction.type} showIcon={true} />
+                    {transaction.type === "income" ? (
+                      <TrendingUp className="h-5 w-5 text-blue-600 dark:text-blue-400" />
+                    ) : (
+                      <TrendingDown className="h-5 w-5 text-red-600 dark:text-red-400" />
+                    )}
                     <span className={`font-semibold text-base ${transaction.type === "income" ? "text-blue-600 dark:text-blue-400" : "text-red-600 dark:text-red-400"}`}>
                       {transaction.type === "income" ? "+" : "-"}{formatCurrency(transaction.amount)}
                     </span>
@@ -612,28 +613,28 @@ export default function TransactionsTable() {
 
                   <div className="flex items-center gap-2 mb-4 text-sm">
                     <span className="text-gray-500">Cuenta:</span>
-                    {transaction.accountId ? (
-                      (() => {
-                        const account = accounts.find((acc) => acc.id === transaction.accountId);
-                        return account ? (
-                          <div className="flex items-center gap-2">
-                            <div className="w-3 h-3 rounded-full" style={{ backgroundColor: account.color || "#888888" }}></div>
-                            <span>{account.name}</span>
-                          </div>
-                        ) : (
-                          <span className="text-amber-500">Cuenta eliminada</span>
-                        );
-                      })()
-                    ) : (
-                      <span className="text-gray-400">Sin cuenta</span>
-                    )}
+                    {(() => {
+                      const account = transaction.accountId && accounts.find((acc) => acc.id === transaction.accountId);
+                      return account ? (
+                        <div className="flex items-center gap-2">
+                          <div className="w-3 h-3 rounded-full" style={{ backgroundColor: account.color || "#888888" }}></div>
+                          <span>{account.name}</span>
+                        </div>
+                      ) : (
+                        <span className="text-amber-500">Cuenta eliminada</span>
+                      );
+                    })()}
                   </div>
 
-                  <div className="flex justify-end gap-3 pt-3 border-t border-gray-100 dark:border-gray-800">
-                    <Button size="sm" variant="outline" className="h-9 px-3 text-blue-600 text-sm" onClick={() => handleEdit(transaction, transaction.type)}>
-                      <Edit className="h-3.5 w-3.5 mr-1.5" />
-                      Editar
-                    </Button>
+                  <div className="flex items-center justify-end gap-3 pt-3 border-t border-gray-100 dark:border-gray-800">
+                    {transaction.accountId && accounts.some((acc) => acc.id === transaction.accountId) ? (
+                      <Button size="sm" variant="outline" className="h-9 px-3 text-blue-600 text-sm" onClick={() => handleEdit(transaction, transaction.type)}>
+                        <Edit className="h-3.5 w-3.5 mr-1.5" />
+                        Editar
+                      </Button>
+                    ) : (
+                      <span className="text-xs text-gray-400 italic">Solo consulta</span>
+                    )}
                     <MobileDeleteButton 
                       onDelete={() => {
                         if (transaction.type === "income") {
@@ -670,9 +671,9 @@ export default function TransactionsTable() {
                     <TableRow key={transaction.id} className={isAccountDeleted(transaction) ? "bg-amber-50/30 dark:bg-amber-950/20" : undefined}>
                       <TableCell>
                         {transaction.type === "income" ? (
-                          <BanknoteIcon className="h-4 w-4 text-blue-600 dark:text-blue-400" />
+                          <TrendingUp className="h-4 w-4 text-blue-600 dark:text-blue-400" />
                         ) : (
-                          <Receipt className="h-4 w-4 text-red-600 dark:text-red-400" />
+                          <TrendingDown className="h-4 w-4 text-red-600 dark:text-red-400" />
                         )}
                       </TableCell>
                       <TableCell className="whitespace-normal">
@@ -698,21 +699,17 @@ export default function TransactionsTable() {
                         <CategoryBadge category={transaction.category} type={transaction.type} showIcon={true} />
                       </TableCell>
                       <TableCell>
-                        {transaction.accountId ? (
-                          (() => {
-                            const account = accounts.find((acc) => acc.id === transaction.accountId);
-                            return account ? (
-                              <div className="flex items-center gap-2">
-                                <div className="w-3 h-3 rounded-full" style={{ backgroundColor: account.color || "#888888" }}></div>
-                                <span>{account.name}</span>
-                              </div>
-                            ) : (
-                              <span className="text-amber-500">Cuenta eliminada</span>
-                            );
-                          })()
-                        ) : (
-                          <span className="text-gray-400">Sin cuenta</span>
-                        )}
+                        {(() => {
+                          const account = transaction.accountId && accounts.find((acc) => acc.id === transaction.accountId);
+                          return account ? (
+                            <div className="flex items-center gap-2">
+                              <div className="w-3 h-3 rounded-full" style={{ backgroundColor: account.color || "#888888" }}></div>
+                              <span>{account.name}</span>
+                            </div>
+                          ) : (
+                            <span className="text-amber-500">Cuenta eliminada</span>
+                          );
+                        })()}
                       </TableCell>
                       <TableCell>
                         <DateTimeDisplay date={transaction.date} />
@@ -721,11 +718,15 @@ export default function TransactionsTable() {
                         {transaction.type === "income" ? "+" : "-"}{formatCurrency(transaction.amount)}
                       </TableCell>
                       <TableCell>
-                        <div className="flex space-x-2">
-                          <Button size="sm" variant="outline" className="h-8 px-2 text-blue-600" onClick={() => handleEdit(transaction, transaction.type)}>
-                            <Edit className="h-3 w-3 mr-1" />
-                            Editar
-                          </Button>
+                        <div className="flex justify-center items-center space-x-2">
+                          {transaction.accountId && accounts.some((acc) => acc.id === transaction.accountId) ? (
+                            <Button size="sm" variant="outline" className="h-8 px-2 text-blue-600" onClick={() => handleEdit(transaction, transaction.type)}>
+                              <Edit className="h-3 w-3 mr-1" />
+                              Editar
+                            </Button>
+                          ) : (
+                            <span className="text-xs text-gray-400 italic">Solo consulta</span>
+                          )}
                           <AlertDeleteTableElement 
                             onDelete={() => {
                               if (transaction.type === "income") {

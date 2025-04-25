@@ -297,6 +297,13 @@ export const useFinanceStore = create<FinanceState>((set, get) => ({
 
   // Editar un item (gasto o ingreso)
   handleEdit: (_item: IncomeStore | ExpenseStore, _type: 'income' | 'expense') => {
+    // Obtener lista de cuentas actuales
+    const { accounts } = useAccountStore.getState();
+    // Si el movimiento es huérfano (accountId null/undefined o no existe en cuentas), no permitir edición
+    if (!_item.accountId || !accounts.some(acc => acc.id === _item.accountId)) {
+      alert('No puedes editar ni reasignar un movimiento asociado a una cuenta eliminada. El historial se conserva solo para consulta.');
+      return;
+    }
     const itemDate = new Date(_item.date);
     set({
       currentItem: {
