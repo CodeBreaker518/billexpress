@@ -10,13 +10,13 @@ export default function PricingSection() {
 
       <div className="container mx-auto px-4 relative z-10">
         <div className="flex flex-col items-center mb-16">
-          <div className="inline-block px-3 py-1 rounded-full bg-green-100 dark:bg-green-900/30 text-green-600 dark:text-green-400 text-sm font-medium mb-4">100% Gratuito</div>
+          <div className="inline-block px-3 py-1 rounded-full bg-green-100 dark:bg-green-900/30 text-green-600 dark:text-green-400 text-sm font-medium mb-4">Gratis actualmente</div>
           <h2 className="text-3xl md:text-4xl font-bold text-center mb-4">
             Disfruta de todas las funciones{" "}
             <span className="bg-clip-text text-transparent bg-gradient-to-r from-green-600 to-blue-600 dark:from-green-400 dark:to-blue-400">sin costo alguno</span>
           </h2>
           <p className="text-xl text-center text-gray-600 dark:text-gray-300 max-w-2xl mx-auto mb-10">
-            Estamos comprometidos a ofrecer una herramienta de calidad para todos sin costos ocultos ni funciones premium.
+            Sin costos ocultos ni funciones premium.
           </p>
         </div>
 
@@ -35,7 +35,7 @@ export default function PricingSection() {
 
                 <div className="flex items-end gap-2 mb-8">
                   <span className="text-6xl font-extrabold bg-clip-text text-transparent bg-gradient-to-r from-blue-600 to-purple-600">$0</span>
-                  <span className="text-lg text-gray-500 dark:text-gray-400 mb-1">para siempre</span>
+                  <span className="text-lg text-gray-500 dark:text-gray-400 mb-1">actualmente</span>
                 </div>
 
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-8">

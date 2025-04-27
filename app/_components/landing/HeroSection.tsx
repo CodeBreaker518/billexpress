@@ -49,7 +49,7 @@ export default function HeroSection() {
           </motion.h1>
           <motion.p className="text-xl md:text-2xl text-gray-600 dark:text-gray-300 max-w-2xl mx-auto mb-12" variants={itemVariants}>
             Administra tus finanzas personales sin complicaciones.
-            <span className="font-semibold text-blue-600 dark:text-blue-400"> 100% gratuito, para siempre.</span>
+            <span className="font-semibold text-blue-600 dark:text-blue-400"> Gratis actualmente. </span>
           </motion.p>
           <motion.div className="flex flex-col sm:flex-row items-center justify-center gap-4 sm:gap-6" variants={itemVariants}>
             <Link

@@ -22,7 +22,7 @@ export default function FAQSection() {
     {
       question: "¿Realmente es gratis para siempre?",
       answer:
-        "Absolutamente. Nos comprometemos a mantener BillExpress completamente gratuito sin restricciones ni funciones premium ocultas. Creemos que el control financiero debe ser accesible para todos sin barreras económicas.",
+        "Por ahora es gratis, pero en el futuro los costos pueden aumentar y puede que no sea viable mantenerlo así. Si eso ocurre, BillExpress seguirá siendo accesible y útil para todos. Si surge algún cambio, se notificará con tiempo a los usuarios.",
     },
     {
       question: "¿Puedo exportar mis datos financieros?",
