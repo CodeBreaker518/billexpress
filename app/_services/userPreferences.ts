@@ -5,11 +5,13 @@
 export interface UserPreferences {
   showDashboardReminders: boolean;
   showNotifications: boolean;
+  antExpenseThreshold: number; // Umbral para considerar un gasto como "gasto hormiga"
 }
 
 const DEFAULT_PREFERENCES: UserPreferences = {
   showDashboardReminders: true,
   showNotifications: true,
+  antExpenseThreshold: 100, // Valor predeterminado: $100
 };
 
 // Storage key in localStorage
